@@ -10,18 +10,21 @@
 
 ## fixed issues:
 ## from gemlog ReadGemv0.85C (and others too): NaNs in L$gps due to unnecessary and harmful doubling of wna indexing. Also, added python code to drop NaNs.
-import warnings
+import pdb
+#pdb.set_trace()
 import rpy2 ## needed for R types. if omitted, can cause "malformed file" error.
 import rpy2.robjects.packages as rpackages
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import obspy
-
+import warnings
 import numpy as np
 from numpy import NaN, Inf
 import os, glob
 import pandas as pd
-import pdb
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import obspy
+
+#import obspy
+
 #import obspy.io.mseed.core
 #import matplotlib.pyplot as plt
 gemlogR = rpackages.importr('gemlog')

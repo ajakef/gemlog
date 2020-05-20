@@ -12,7 +12,7 @@ except ImportError:
            "Please install numpy first, it is needed before installing ObsPy.")
     raise ImportError(msg)
 
-import fnmatch
+#import fnmatch
 import glob
 import inspect
 import os
@@ -20,13 +20,13 @@ import sys
 import platform
 from distutils.util import change_root
 
-from setuptools import setup
+from setuptools import setup, find_packages
 #from numpy.distutils.core import DistutilsSetupError, setup
-from numpy.distutils.ccompiler import get_default_compiler
-from numpy.distutils.command.build import build
-from numpy.distutils.command.install import install
-from numpy.distutils.exec_command import exec_command, find_executable
-from numpy.distutils.misc_util import Configuration
+#from numpy.distutils.ccompiler import get_default_compiler
+#from numpy.distutils.command.build import build
+#from numpy.distutils.command.install import install
+#from numpy.distutils.exec_command import exec_command, find_executable
+#from numpy.distutils.misc_util import Configuration
 
 from rpy2.robjects.packages import importr
 utils = importr('utils')
@@ -68,40 +68,43 @@ ENTRY_POINTS = {
 KEYWORDS = ['']
 #pdb.set_trace()
 DOCSTRING = ['', '', '', '']
+classifiers=[
+    'Development Status :: 5 - Production/Stable',
+    'Environment :: Console',
+    'Intended Audience :: Science/Research',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: GNU Library or ' +
+    'Lesser General Public License (LGPL)',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Scientific/Engineering :: Physics'
+]
 
 def setupPackage():
     # setup package
     setup(
         name='gemlog',
         #version=get_git_version(),
-        version = 0,
-        description=DOCSTRING[1],
-        long_description="\n".join(DOCSTRING[3:]),
-        url="",
-        author='',
-        author_email='',
-        license='',
-        platforms='OS Independent',
-        classifiers=[
-            'Development Status :: 5 - Production/Stable',
-            'Environment :: Console',
-            'Intended Audience :: Science/Research',
-            'Intended Audience :: Developers',
-            'License :: OSI Approved :: GNU Library or ' +
-                'Lesser General Public License (LGPL)',
-            'Operating System :: OS Independent',
-            'Programming Language :: Python',
-            'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.7',
-            'Programming Language :: Python :: 3.8',
-            'Topic :: Scientific/Engineering',
-            'Topic :: Scientific/Engineering :: Physics'],
-        keywords=KEYWORDS,
-        packages=['gemlog'],
-        namespace_packages=[],
-        zip_safe=False,
-        python_requires=f'>={MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}',
-        install_requires=INSTALL_REQUIRES,
+        version = '0',
+        #description=DOCSTRING[1],
+        #long_description="\n".join(DOCSTRING[3:]),
+        #url="",
+        #author='',
+        #author_email='',
+        #license='',
+        #platforms='OS Independent',
+        #classifiers = classifiers,
+        #keywords=KEYWORDS,
+        #packages=['gemlog'],
+        packages=find_packages(),
+        #namespace_packages=[],
+        #zip_safe=False,
+        #python_requires=f'>={MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}',
+        #install_requires=INSTALL_REQUIRES,
         #extras_require=EXTRAS_REQUIRE,
         #features=add_features(),
         # this is needed for "easy_install obspy==dev"
