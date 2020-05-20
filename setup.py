@@ -30,7 +30,8 @@ from setuptools import setup, find_packages
 
 from rpy2.robjects.packages import importr
 utils = importr('utils')
-utils.install_packages('https://cran.r-project.org/src/contrib/gemlog_0.36.tar.gz')
+#utils.install_packages('https://cran.r-project.org/src/contrib/gemlog_0.36.tar.gz')
+utils.install.packages('gemlog', repos='https://cloud.r-project.org')
 # The minimum python version which can be used to run ObsPy
 MIN_PYTHON_VERSION = (3, 6)
 
@@ -89,7 +90,7 @@ def setupPackage():
     setup(
         name='gemlog',
         #version=get_git_version(),
-        version = '0',
+        version = '0.0.1',
         #description=DOCSTRING[1],
         #long_description="\n".join(DOCSTRING[3:]),
         #url="",
