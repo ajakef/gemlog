@@ -90,7 +90,7 @@ def setupPackage():
     setup(
         name='gemlog',
         #version=get_git_version(),
-        version = '0.0.1',
+        version = '0.0.2',
         #description=DOCSTRING[1],
         #long_description="\n".join(DOCSTRING[3:]),
         #url="",
