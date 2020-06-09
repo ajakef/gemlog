@@ -23,11 +23,12 @@ def unique(list1):
     return unique_list
 
 def PrintCall():
-    print('gem2ms.py -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir>')
+    print('gem2ms.py -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')
     print('-i --inputdir: default ./raw/')
     print('-s --serialnumbers: separate by commas (no spaces); default all')
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
     print('-o --outputdir: default ./mseed')
+    print('-f --format: mseed, sac, or wav; default mseed')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-h --help: print this message')
 
@@ -53,8 +54,9 @@ def main(argv = None):
     exclude = []
     outputdir = 'mseed'
     test = False
+    fmt = 'MSEED'
     try:
-        opts, args = getopt.getopt(argv,"hti:s:x:o:",["inputdir=","serialnumber="])
+        opts, args = getopt.getopt(argv,"hti:s:x:o:f:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
         PrintCall()
         sys.exit(2)
@@ -79,6 +81,8 @@ def main(argv = None):
             test = True
         elif opt in ("-o", "--outputdir"):
             outputdir = arg
+        elif opt in ("-f", "--format"):
+            fmt = arg
             
     try:
         fn = os.listdir(inputdir)
@@ -109,7 +113,7 @@ def main(argv = None):
         for SN in SN_list:
             logging.info('Beginning ' + SN)
             try:
-                gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir)
+                gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
                 logging.info(ParseError(e))
 
