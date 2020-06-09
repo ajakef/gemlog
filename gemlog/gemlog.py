@@ -60,7 +60,6 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     L = NewGemVar()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
         nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
-        #L = ReadGemPy(nums_block, rawpath, alloutput = False, requireGPS = True, SN = SN, units = 'counts', time_adjustment = time_adjustment, network = network, station = station, location = location, output_int32 = True) # request data in counts so it can be written to segy as ints. conversion to physical units is provided as a header element in the file.
         L = ReadGem(nums_block, rawpath, SN = SN, network = network, station = station, location = location)
         n1 = n1 + (12*blockdays) # increment file number counter
 
@@ -72,14 +71,13 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             bitweight = L['header']['bitweight_Pa'][0]
         elif(units == 'V'):
             bitweight = L['header']['bitweight_V'][0]
-        elif (units == 'Counts' | units == 'counts'):
+        elif (units == 'Counts') | (units == 'counts'):
             bitweight = 1
       
     ## if not specified, define t1 as the earliest integer-second time available
     if(np.isinf(float(t1))):
         t1 = L['data'].stats.starttime
         t1 = obspy.core.UTCDateTime(np.ceil(float(t1)))
-        #t1 = trunc(t1) + 1 
 
     if(np.isinf(float(t2))):
         t2 = obspy.core.UTCDateTime.strptime('9999-12-31 23:59:59', '%Y-%m-%d %H:%M:%S') # timekeeping apocalypse
@@ -114,10 +112,6 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     if(len(wgps) > 0):
         gps[wgps].to_csv(gpsfile, index=False)
 
-    #print('t1: ' + str(t1))
-    #print('p.stats.starttime: ' + str(p.stats.starttime))
-    #print('writeHour: ' + str(writeHour))
-    #print('writeHourEnd: ' + str(writeHourEnd))
     writeHour = max(t1, p.stats.starttime)
     writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
     
@@ -132,9 +126,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         tt2 = min(t2, truncUTC(t1, 86400*blockdays) + 86400*blockdays)
         #print([tt2, n1, nums, SN])
         while((p.stats.endtime < tt2) & (n1 <= max(nums))):
-            #pdb.set_trace()
-            #L = ReadGemPy(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, alloutput = False, requireGPS = True, SN = SN, units = 'counts', network = network, station = station, location = location, output_int32 = True)
-            ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
+            L = ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             #pdb.set_trace()
             if(len(L['data']) > 0):
                 p = p + L['data']   
@@ -145,6 +137,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 
             ## process newly-read data
             if(any(L['header'].SN != SN) | any(L['header'].SN.apply(len) == 0)):
+                #breakpoint()
                 w = (L['header'].SN != SN) | (L['header'].SN.apply(len) == 0)
                 print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
             
@@ -573,16 +566,17 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     elif version == '0.85C':
         L = ReadGem_v0_9(fnList) # will the same function work for both?
     #L['header'] = MakeHeader(L, config)
-    G = L['gps']
+    f = MillisToTime(L['gps'])
     M = L['metadata']
     D = L['data']
-    header = L['header']
-    f = MillisToTime(G)
-    #M = np.hstack((M, f(M[:,0]).reshape([M.shape[0],1])))
+    G = ReformatGPS(L['gps'])
     M['t'] = f(M['millis'])
     D = np.hstack((D, f(D[:,0]).reshape([D.shape[0],1])))
+    header = L['header']
+    header.SN = SN
     header.t1 = f(header.t1)
     header.t2 = f(header.t2)
+    
     ## interpolate data to equal spacing to make obspy trace
     tr = InterpTime(D) # populates known fields: channel, delta, and starttime
     ## populate the rest of the trace stats
@@ -755,3 +749,13 @@ def GetBitweightInfo(SN, config, units = 'Pa'):
         raise BaseException('Invalid Units')
     return specs
 
+def ReformatGPS(G_in):
+    t = [obspy.UTCDateTime(tt) for tt in G_in.t]
+    date = [tt.julday + tt.hour/24.0 + tt.minute/1440.0 + tt.second/86400.0 for tt in t]
+    G_dict = {'year': [int(year) for year in G_in.year],
+              'date': date,
+              'lat': G_in.lat,
+              'lon': G_in.lon,
+              't': t}
+    
+    return pd.DataFrame.from_dict(G_dict)

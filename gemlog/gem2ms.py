@@ -2,7 +2,7 @@
 # conda create -n g1 python=3.7.6 numpy obspy rpy2 pandas matplotlib
 import numpy as np
 import sys, os, glob, getopt
-import logging
+import logging, traceback
 #sys.path.append('/home/jake/Dropbox/Gem_logger/gem_package/python/gemlog_python')
 import gemlog
 import logging
@@ -115,6 +115,7 @@ def main(argv = None):
             try:
                 gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
+                logging.info(traceback.print_tb(e.__traceback__))
                 logging.info(ParseError(e))
 
 if __name__ == "__main__":
