@@ -507,7 +507,7 @@ def MakeGPSTime(line):
 
 def MillisToTime(G):
     coefficients = np.polyfit(G.msPPS, G.t, 3)    
-    print(coefficients)
+    #print(coefficients)
     pf = np.poly1d(coefficients)
     return pf
 
