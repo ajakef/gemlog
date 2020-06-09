@@ -221,7 +221,7 @@ def makefilename(dir, SN, dirtype):
 
 def MakeFilenameMS(pp, fmt):
     t0 = pp.stats.starttime
-    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + fmt
+    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + fmt.lower()
 #import pdb
 
 def ReadGemPy(nums = np.arange(10000), path = './', SN = str(), units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, alloutput = False, verbose = True, requireGPS = False, time_adjustment = 0, network = '', station = '', location = '', output_int32 = False):
