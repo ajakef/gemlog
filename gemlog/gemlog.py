@@ -584,7 +584,11 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     header.t1 = f(header.t1)
     header.t2 = f(header.t2)
     ## interpolate data to equal spacing to make obspy trace
-    tr = InterpTime(D)
+    tr = InterpTime(D) # populates known fields: channel, delta, and starttime
+    ## populate the rest of the trace stats
+    tr.stats.station = station
+    tr.stats.location = location # this may well be ''
+    tr.stats.network = network # can be '' for now and set later
     ## add bitweight and config info to header
     bitweight_info = GetBitweightInfo(SN, config, units)
     for key in bitweight_info.keys():
