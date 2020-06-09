@@ -591,6 +591,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     tr.stats.network = network # can be '' for now and set later
     ## add bitweight and config info to header
     bitweight_info = GetBitweightInfo(SN, config, units)
+    #pdb.set_trace()
     for key in bitweight_info.keys():
         header[key] = bitweight_info[key]
     for key in config.keys():
@@ -723,7 +724,7 @@ def GemSpecs(SN):
                     'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
                     'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.Inf])
     }
-    version = versionTable['version'][(int(SN) >= versionTable['min_SN']) & (int(SN) <= versionTable['max_SN'])]
+    version = versionTable['version'][(int(SN) >= versionTable['min_SN']) & (int(SN) <= versionTable['max_SN'])][0]
     bitweight_V = 0.256/2**15/__gain__(version)
     sensitivity = __AVCC__(version)/7.0 * 45.13e-6 # 45.13 uV/Pa is with 7V reference from Marcillo et al., 2012
     return { 'version': version,
