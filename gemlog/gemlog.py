@@ -21,7 +21,9 @@ import os, glob, csv, time, scipy
 import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    import obspy
+import obspy
+import datetime
+    
 
 #import obspy
 
@@ -76,7 +78,9 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
       
     ## if not specified, define t1 as the earliest integer-second time available
     if(np.isinf(float(t1))):
-        t1 = L['data'].stats.starttime
+        p = L['data']
+        p.merge()
+        t1 = p[0].stats.starttime
         t1 = obspy.core.UTCDateTime(np.ceil(float(t1)))
 
     if(np.isinf(float(t2))):
@@ -112,7 +116,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     if(len(wgps) > 0):
         gps[wgps].to_csv(gpsfile, index=False)
 
-    writeHour = max(t1, p.stats.starttime)
+    writeHour = max(t1, p[0].stats.starttime)
     writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
     
     ## read sets of (12*blockdays) files until all the files are converted
@@ -125,11 +129,12 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         ## load new data if necessary
         tt2 = min(t2, truncUTC(t1, 86400*blockdays) + 86400*blockdays)
         #print([tt2, n1, nums, SN])
-        while((p.stats.endtime < tt2) & (n1 <= max(nums))):
+        while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             L = ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             #pdb.set_trace()
             if(len(L['data']) > 0):
-                p = p + L['data']   
+                p = p + L['data']
+                p.merge()
             #print(p)
             n1 = n1 + (12*blockdays) # increment file counter
             if(len(L['data']) == 0):
@@ -152,7 +157,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 
         ## run the conversion and write new converted files
         #if((pp.stats.endtime >= t1) & (pp.stats.starttime <= tt2))):
-        while((writeHour + fileLength) <= p.stats.endtime):
+        while((writeHour + fileLength) <= p[-1].stats.endtime):
             writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
             
         ## update start time to convert
@@ -160,9 +165,14 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         t1 = truncUTC(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## while True
     ## done reading new files. write what's left and end.
-    while((writeHour <= p.stats.endtime) & (len(p) > 0)):
+    while((writeHour <= p[-1].stats.endtime) & (len(p) > 0)):
         writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
         p.trim(writeHour, t2)
+        p = p.split()
+        if(len(p) > 0):
+            writeHour = p[0].stats.starttime
+        else:
+            break
 
 def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd = np.nan, fmt='mseed'):
     #pdb.set_trace()
@@ -170,18 +180,19 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
         writeHourEnd = truncUTC(writeHour, fileLength) + fileLength
     pp = p.copy()
     pp.trim(writeHour, writeHourEnd)
-    pp.stats.calib = bitweight
-    fn = MakeFilenameMS(pp, fmt)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
-    if(len(pp) > 0):
-        print(pp)
-        if(fmt.lower() == 'wav'):
-            for i in range(len(pp)):
+    #breakpoint()
+    for tr in pp:
+        tr.stats.calib = bitweight
+        fn = MakeFilenameMS(tr, fmt)
+        if(len(tr) > 0):
+            print(tr)
+            if(fmt.lower() == 'wav'):
                 ## this is supposed to work for uint8, int16, and int32, but actually only works for uint8. obspy bug?
-                pp[i].data = np.array(pp[i].data, dtype = 'uint8')# - np.min(pp[i].data)
-            pp.write(convertedpath +'/'+ fn, format = 'WAV', framerate=7000, width=1) 
-        else:
-            pp.write(convertedpath +'/'+ fn, format = fmt, encoding=10) # encoding 10 is Steim 1
+                    tr[i].data = np.array(tr[i].data, dtype = 'uint8')# - np.min(tr[i].data)
+                    tr.write(convertedpath +'/'+ fn, format = 'WAV', framerate=7000, width=1) 
+            else:
+                tr.write(convertedpath +'/'+ fn, format = fmt, encoding=10) # encoding 10 is Steim 1
         #mseed_core._write_mseed(pp, convertedpath +'/'+ fn, format = 'MSEED', encoding=10)
 
     writeHour = writeHourEnd
@@ -479,8 +490,10 @@ def FindRightFiles(path, SN, nums):
 
 
 
-def UnwrapMillis(new, old, rollover = 2**13):
-    return old + ((new - (old % rollover) + rollover/2) % rollover) - rollover/2
+def UnwrapMillis(new, old, maxNegative = 2**12, rollover = 2**13):
+    ## maxNegative is the greatest allowable negative difference.
+    ## negative differences can happen between data and GPS lines, or between metadata and data lines.
+    return old + ((new - (old % rollover) + maxNegative) % rollover) - maxNegative
 
 def CheckGPS(line): # return True if GPS line is good
     #G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
@@ -496,9 +509,14 @@ def CheckGPS(line): # return True if GPS line is good
 
 
 def MakeGPSTime(line):
-    return obspy.UTCDateTime(int(line[2]), int(line[3]), int(line[4]), int(line[5]), int(line[6]), int(line[7]))
+    try:
+        return obspy.UTCDateTime(int(line[2]), int(line[3]), int(line[4]), int(line[5]), int(line[6]), int(line[7]))
+    except:
+        return np.NaN
 
-def MillisToTime(G):
+def MillisToTime(L):
+    G = L['gps']
+    D = L['data']
     coefficients = np.polyfit(G.msPPS, G.t, 3)    
     #print(coefficients)
     pf = np.poly1d(coefficients)
@@ -515,7 +533,7 @@ def ReadGem_v0_9_single(fn, startMillis):
     millis = startMillis
     ## open the file for reading
     with open(fn, 'r', newline = '', encoding='ascii', errors = 'ignore') as csvfile:
-        lines = csv.reader(csvfile, delimiter = ',')
+        lines = csv.reader(csvfile, delimiter = ',', quoting = csv.QUOTE_NONE)
         i = 0
         for line in lines:
             ## determine the line type, and skip if it's not necessary data (e.g. debugging info)
@@ -527,7 +545,7 @@ def ReadGem_v0_9_single(fn, startMillis):
                 line[0] = line[0][1:]
             else:
                 line = line[1:]
-            line = np.array([float(x) for x in line])    
+            line = np.array([float(x) for x in line])
             ## unwrap the millis count (always first element of line)
             millis = UnwrapMillis(line[0], millis)
             line[0] = millis
@@ -554,46 +572,6 @@ def ReadGem_v0_9_single(fn, startMillis):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
-def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
-    if(len(station) == 0):
-        station = SN
-    ## add asserts, especially for SN
-    fnList = FindRightFiles(path, SN, nums)
-    version = ReadVersion(fnList[0])
-    config = ReadConfig(fnList[0])
-    if version == '0.9':
-        L = ReadGem_v0_9(fnList)
-    elif version == '0.85C':
-        L = ReadGem_v0_9(fnList) # will the same function work for both?
-    #L['header'] = MakeHeader(L, config)
-    f = MillisToTime(L['gps'])
-    M = L['metadata']
-    D = L['data']
-    G = ReformatGPS(L['gps'])
-    M['t'] = f(M['millis'])
-    D = np.hstack((D, f(D[:,0]).reshape([D.shape[0],1])))
-    header = L['header']
-    header.SN = SN
-    header.t1 = f(header.t1)
-    header.t2 = f(header.t2)
-    
-    ## interpolate data to equal spacing to make obspy trace
-    tr = InterpTime(D) # populates known fields: channel, delta, and starttime
-    ## populate the rest of the trace stats
-    tr.stats.station = station
-    tr.stats.location = location # this may well be ''
-    tr.stats.network = network # can be '' for now and set later
-    ## add bitweight and config info to header
-    bitweight_info = GetBitweightInfo(SN, config, units)
-    #pdb.set_trace()
-    for key in bitweight_info.keys():
-        header[key] = bitweight_info[key]
-    for key in config.keys():
-        header[key] = config[key]
-    header['file_format_version'] = version
-    return {'data': tr, 'metadata': M, 'gps': G, 'header' : header}
-
-
 def ReadGem_v0_9(fnList):
     ## initialize the output variables
     G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon', 't'])
@@ -615,6 +593,10 @@ def ReadGem_v0_9(fnList):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         L = ReadGem_v0_9_single(fn, startMillis)
+        if(L['data'][0,0] < startMillis):
+            L['metadata'].millis += 2**13
+            L['gps'].msPPS += 2**13
+            L['data'][:,0] += 2**13
         M = pd.concat((M, L['metadata']))
         G = pd.concat((G, L['gps']))
         D = np.vstack((D, L['data']))
@@ -625,21 +607,50 @@ def ReadGem_v0_9(fnList):
         header.loc[i,'t2'] = L['data'][-1,0]
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
-#x = ReadGem_v0_9(fnList[:1])
 
-#start = time.clock()
-#x=ReadGem_v0_9_single(fn[0])
-#time.clock() - start
-
-
-
-
-
-
-
-
-
-
+def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
+    if(len(station) == 0):
+        station = SN
+    ## add asserts, especially for SN
+    fnList = FindRightFiles(path, SN, nums)
+    version = ReadVersion(fnList[0])
+    config = ReadConfig(fnList[0])
+    if version == '0.9':
+        L = ReadGem_v0_9(fnList)
+    elif version == '0.85C':
+        L = ReadGem_v0_9(fnList) # will the same function work for both?
+    else:
+        raise Exception('Obsolete data format ' + version + ' not yet supported')
+    if L['gps'].shape[0] == 0:
+        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    M = L['metadata']
+    D = L['data']
+    G = ReformatGPS(L['gps'])
+    #breakpoint()
+    breaks = FindBreaks(L)
+    piecewiseTimeFit = PiecewiseRegression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
+    M['t'] = ApplySegments(M['millis'], piecewiseTimeFit)
+    header = L['header']
+    header.SN = SN
+    header.t1 = ApplySegments(header.t1, piecewiseTimeFit)
+    header.t2 = ApplySegments(header.t2, piecewiseTimeFit)
+    D = np.hstack((D, ApplySegments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
+    
+    ## interpolate data to equal spacing to make obspy trace
+    st = InterpTime(D) # populates known fields: channel, delta, and starttime
+    for tr in st:
+        ## populate the rest of the trace stats
+        tr.stats.station = station
+        tr.stats.location = location # this may well be ''
+        tr.stats.network = network # can be '' for now and set later
+    ## add bitweight and config info to header
+    bitweight_info = GetBitweightInfo(SN, config, units)
+    for key in bitweight_info.keys():
+        header[key] = bitweight_info[key]
+    for key in config.keys():
+        header[key] = config[key]
+    header['file_format_version'] = version
+    return {'data': st, 'metadata': M, 'gps': G, 'header' : header}
 
 
 
@@ -648,13 +659,12 @@ def ReadGem_v0_9(fnList):
 
 #########################################################
 def InterpTime(data, t1 = -np.Inf, t2 = np.Inf):
-    eps = 0.001 # 1 ms ## 2019-09-11: formerly 1 ms, but this caused the first second after midnight UTC to be skipped...nearly all midnight converted data are therefore of the form ??.???.00.00.01.???.0. Changing it to 0.01 (1 sample) should fix this. Bug dates back to at least 2016-11-10!
-    
+    eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
     ## t1 is the first output sample; should be first integer second after or including the first sample (ceiling)
-    t_in = data[:,2]
-    p_in = data[:,1]
-    #pdb.set_trace()
+    w_nonnan = ~np.isnan(data[:,2])
+    t_in = data[w_nonnan,2]
+    p_in = data[w_nonnan,1]
     t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## 2019-09-11
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
     ## R code here had code to catch t2 <= t1. should add that.
@@ -668,19 +678,33 @@ def InterpTime(data, t1 = -np.Inf, t2 = np.Inf):
     starts_round = np.trunc(starts)
     ends_round = np.trunc(ends+eps+1)
     ## make an output time vector excluding data gaps, rounded to the nearest samples
-    t_interp = np.zeros(0)
+    #t_interp = np.zeros(0)
+    output = obspy.Stream()
     for i in range(len(starts_round)):
-        t_new = np.arange(starts_round[i], ends_round[i] + eps, 0.01)
-        t_interp = np.concatenate([t_interp, t_new])
-    t_interp = t_interp[(t_interp >= (t1-eps)) & (t_interp < (t2 + eps))]
-    ## interpolate to find pressure at these sample times
-    f = scipy.interpolate.CubicSpline(t_in, p_in)
-    p_interp = np.array(f(t_interp).round(), dtype = 'int32')
-    tr = obspy.Trace(p_interp)
-    tr.stats.starttime = t_interp[0]
-    tr.stats.delta = 0.01
-    tr.stats.channel = 'HDF'
-    return tr
+        w = (t_in >= starts[i]) & (t_in <= ends[i])
+        try:
+            f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
+        except:
+            breakpoint()
+        t_interp = np.arange(starts[i], ends[i] + eps, 0.01)
+        p_interp = np.array(f(t_interp).round(), dtype = 'int32')
+        tr = obspy.Trace(p_interp)
+        tr.stats.starttime = t_interp[0]
+        tr.stats.delta = 0.01
+        tr.stats.channel = 'HDF'
+        output += tr
+    return output
+## old code in and below the for loop. no good because a trace is only good for a continuous block. We may have a break, so we need a stream.
+#        t_interp = np.concatenate([t_interp, t_new])
+#    t_interp = t_interp[(t_interp >= (t1-eps)) & (t_interp < (t2 + eps))]
+#    ## interpolate to find pressure at these sample times
+#    f = scipy.interpolate.CubicSpline(t_in, p_in)
+#    p_interp = np.array(f(t_interp).round(), dtype = 'int32')
+#    tr = obspy.Trace(p_interp)
+#    tr.stats.starttime = t_interp[0]
+#    tr.stats.delta = 0.01
+#    tr.stats.channel = 'HDF'
+#    return tr
 
 ###############################################################
 #  version bitweight_Pa  bitweight_V min_SN max_SN
@@ -750,12 +774,97 @@ def GetBitweightInfo(SN, config, units = 'Pa'):
     return specs
 
 def ReformatGPS(G_in):
-    t = [obspy.UTCDateTime(tt) for tt in G_in.t]
+    t = [obspy.UTCDateTime(tt) for tt in G_in['t']]
     date = [tt.julday + tt.hour/24.0 + tt.minute/1440.0 + tt.second/86400.0 for tt in t]
-    G_dict = {'year': [int(year) for year in G_in.year],
-              'date': date,
-              'lat': G_in.lat,
-              'lon': G_in.lon,
-              't': t}
-    
+    G_dict = {'year': np.array([int(year) for year in G_in.year]),
+              'date': np.array(date),
+              'lat': np.array(G_in.lat),
+              'lon': np.array(G_in.lon),
+              't': np.array(t)}
     return pd.DataFrame.from_dict(G_dict)
+
+
+def FindBreaks(L):
+    ## breaks are specified as their millis for comparison between GPS and data
+    ## sanity check: exclude suspect GPS tags
+    t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
+    tPad = np.array([t[0]] + list(t) + [t[-1]])
+    try:
+        badTags = ((t > datetime.datetime.now()) | # no future dates 
+                   (L['gps'].year < 2015) | # no years before the Gem existed
+                   ((np.abs(t - tPad[:-2]) > 86400) & (np.abs(t - tPad[2:]) > 86400)) | # exclude outliers
+                   (L['gps'].lat == 0) | # exclude points within ~1m of the equator
+                   (L['gps'].lon == 0)) # exclude points within ~1m of the prime meridian
+        L['gps'] = L['gps'].iloc[np.where(~badTags)[0],:]
+    except:
+        breakpoint()
+    tD = np.array(L['data'][:,0])
+    dtD = np.diff(tD)
+    starts = np.array([])
+    ends = np.array([])
+    dataBreaks = np.where((dtD > 25) | (dtD < 0))[0]
+    if 0 in dataBreaks:
+        tD = tD[1:]
+        dtD = dtD[1:]
+        dataBreaks = dataBreaks[dataBreaks != 0] - 1
+    if (len(dtD) - 1) in dataBreaks:
+        tD = tD[:-1]
+        dtD = dtD[:-1]
+        dataBreaks = dataBreaks[dataBreaks != len(dtD)]
+    #breakpoint()
+    for i in dataBreaks:
+        starts = np.append(starts, np.max(tD[(i-1):(i+2)]))
+        ends = np.append(ends, np.min(tD[(i-1):(i+2)]))
+    tG = np.array(L['gps'].t)
+    mG = np.array(L['gps'].msPPS)
+    dmG_dtG = np.diff(mG)/np.diff(tG)
+    gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
+                         ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # drift between cycles
+                         ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle
+                        )
+    for i in gpsBreaks:
+        i = int(i)
+        ## This part is tricky: what if a gpsEnd happens between a dataEnd and dataStart?
+        ## Let's be conservative: if either the gpsEnd or gpsStart is within a bad data interval, or what if they bracket a bad data interval?
+        ## choose them so that they exclude the most data
+        overlaps = (mG[i] <= starts) & (mG[i+1] >= ends)
+        if(np.any(overlaps)):
+            w = np.argwhere(overlaps)
+            starts[w] = max([starts[w], mG[(i-1):(i+2)].max()])
+            ends[w] = max([ends[w], mG[(i-1):(i+2)].min()])
+        else:
+            wmin = np.argwhere(tG > tG[i])
+            try:
+                starts = np.append(starts, mG[wmin][tG[wmin] == tG[wmin].min()])
+            except:
+                breakpoint()
+            wmax = np.argwhere(tG < tG[i+1])
+            ends = np.append(ends, mG[wmax][tG[wmax] == tG[wmax].max()])
+    starts = np.append(tD.min(), starts)
+    ends = np.append(ends, tD.max())
+    return {'starts':starts, 'ends':ends}
+
+def ApplySegments(x, model):
+    y = np.zeros(len(x))
+    y[:] = np.nan
+    for i in range(len(model['start'])):
+        w = (x >= model['start'][i]) & (x <= model['end'][i])
+        y[w] = model['intercept'][i] + model['slope'][i] * x[w]
+    return y
+
+def PiecewiseRegression(x, y, breaks):
+    output = {'slope': [], 'intercept':[], 'r':[], 'p':[], 'stderr':[], 'start': [], 'end':[]}
+    for i in range(len(breaks['starts'])):
+        w = np.where((x >= breaks['starts'][i]) & (x <= breaks['ends'][i]))[0]
+        if len(w) == 0: # skip this interval if it doesn't contain data
+            continue
+        l = scipy.stats.linregress(x[w], y[w])
+        output['slope'].append(l.slope)
+        output['intercept'].append(l.intercept)
+        output['r'].append(l.rvalue)
+        output['p'].append(l.pvalue)
+        output['stderr'].append(l.stderr)
+        output['start'].append(breaks['starts'][i])
+        output['end'].append(breaks['ends'][i])
+    return output
+        

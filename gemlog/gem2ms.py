@@ -3,7 +3,6 @@
 import numpy as np
 import sys, os, glob, getopt
 import logging, traceback
-#sys.path.append('/home/jake/Dropbox/Gem_logger/gem_package/python/gemlog_python')
 import gemlog
 import logging
 
@@ -115,7 +114,7 @@ def main(argv = None):
             try:
                 gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
-                logging.info(traceback.print_tb(e.__traceback__))
+                #logging.info(traceback.format_exc(e.__traceback__))
                 logging.info(ParseError(e))
 
 if __name__ == "__main__":
