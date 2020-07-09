@@ -1,10 +1,10 @@
 #/usr/bin/env python
 # conda create -n g1 python=3.7.6 numpy obspy rpy2 pandas matplotlib
 import numpy as np
-import sys, os, glob, getopt
+import sys, os, glob, getopt, requests
 import logging, traceback
 import gemlog
-import logging
+#import logging
 
 #%%
 def FindSN(x):
@@ -115,7 +115,11 @@ def main(argv = None):
                 gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
-                logging.info(ParseError(e))
+                logging.exception(ParseError(e))
+                #logging.exception(traceback.format_exc())
+                logging.info('Error in ' + SN)
+            else:
+                logging.info('Completed ' + SN)
 
 if __name__ == "__main__":
    main(sys.argv[1:])

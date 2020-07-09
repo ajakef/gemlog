@@ -637,6 +637,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     D = np.hstack((D, ApplySegments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     
     ## interpolate data to equal spacing to make obspy trace
+    #breakpoint()
     st = InterpTime(D) # populates known fields: channel, delta, and starttime
     for tr in st:
         ## populate the rest of the trace stats
@@ -644,7 +645,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
         tr.stats.location = location # this may well be ''
         tr.stats.network = network # can be '' for now and set later
     ## add bitweight and config info to header
-    bitweight_info = GetBitweightInfo(SN, config, units)
+    bitweight_info = GetBitweightInfo(SN, config)
     for key in bitweight_info.keys():
         header[key] = bitweight_info[key]
     for key in config.keys():
@@ -665,6 +666,7 @@ def InterpTime(data, t1 = -np.Inf, t2 = np.Inf):
     w_nonnan = ~np.isnan(data[:,2])
     t_in = data[w_nonnan,2]
     p_in = data[w_nonnan,1]
+    #breakpoint()
     t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## 2019-09-11
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
     ## R code here had code to catch t2 <= t1. should add that.
@@ -785,12 +787,13 @@ def ReformatGPS(G_in):
 
 
 def FindBreaks(L):
+    #breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
     tPad = np.array([t[0]] + list(t) + [t[-1]])
     try:
-        badTags = ((t > datetime.datetime.now()) | # no future dates 
+        badTags = ((t > obspy.UTCDateTime.now()) | # no future dates 
                    (L['gps'].year < 2015) | # no years before the Gem existed
                    ((np.abs(t - tPad[:-2]) > 86400) & (np.abs(t - tPad[2:]) > 86400)) | # exclude outliers
                    (L['gps'].lat == 0) | # exclude points within ~1m of the equator
