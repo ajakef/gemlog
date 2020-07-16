@@ -94,9 +94,9 @@ def SummarizeAllGPS(gpsDirPattern, outputFilename = '', stationFile = None):
                 station.append(stationInfo.station[w])
                 location.append(stationInfo.location[w])
             except:
-                network.append(np.nan)
-                station.append(np.nan)
-                location.append(np.nan)
+                network.append('')
+                station.append('')
+                location.append('')
         coords['network'] = network
         coords['station'] = station
         coords['location'] = location
