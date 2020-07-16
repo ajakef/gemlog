@@ -89,7 +89,7 @@ def SummarizeAllGPS(gpsDirPattern, outputFilename = '', stationFile = None):
         location = []
         for SN in coords.SN:
             try:
-                w = np.where(stationInfo.SN == SN)[0]
+                w = np.where(stationInfo.SN == SN)[0][0]
                 network.append(stationInfo.network[w])
                 station.append(stationInfo.station[w])
                 location.append(stationInfo.location[w])
