@@ -1,6 +1,34 @@
-import pandas as pd
 import numpy as np
-import glob, os
+import pandas as pd
+import glob, obspy, os
+
+def RenameMSEED(mseedPattern, stationFile, outputDir):
+    #stationInfo = pd.read_csv(stationFile, names = ['lat', 'lon', 'location', 'SN', 'station', 'network'], dtype = {'lat':'float', 'lon':'float', 'location':'str', 'SN':'str', 'station':'str', 'network':'str'})
+    stationInfo = pd.read_csv(stationFile, names = ['SN', 'network', 'station', 'location'], dtype = {'network':'str', 'SN':'str', 'station':'str', 'location':'str'})
+
+    if not os.path.isdir(outputDir):
+        os.makedirs(outputDir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then di
+    mseeds = glob.glob(mseedPattern)
+    mseeds.sort()
+    assert len(mseeds) > 0, 'No MSEED files specified'
+    for i, mseed in enumerate(mseeds):
+        st = obspy.read(mseed)
+        fileParts = mseed.split('/')[-1].split('.')
+        SN = fileParts[2]
+        w = np.where(stationInfo.SN == SN)[0][0]
+        network = stationInfo.network[w]
+        station = stationInfo.station[w]
+        location = stationInfo.location[w]
+        for tr in st:
+            tr.stats.network = network
+            tr.stats.station = station
+            tr.stats.location = location
+        outputFile = outputDir + '/' + '%s.%s.%s.%s.HDF.mseed' % (fileParts[0], network, station, location)
+        st.write(outputFile)
+        print(str(i) + ' of ' + str(len(mseeds)) + ': ' + mseed + ', ' + outputFile)
+    return stationInfo
+
+
 
 # function to get unique values from list while preserving order (set-based shortcut doesn't do this)
 def unique(list1): 
@@ -30,7 +58,7 @@ def ReadLoggerGPS(gpsDirPattern, SN):
     return gpsTable
 
 
-def SummarizeAllGPS(gpsDirPattern, outputFilename = ''):
+def SummarizeAllGPS(gpsDirPattern, outputFilename = '', stationFile = None):
     gpsDirList = sorted(glob.glob(gpsDirPattern))
     gpsFileList = []
     for gpsDir in gpsDirList:
@@ -39,7 +67,7 @@ def SummarizeAllGPS(gpsDirPattern, outputFilename = ''):
     for gpsFile in gpsFileList:
         snList.append(gpsFile.split('/')[-1][:3])
     snList = sorted(unique(snList))
-    coords = pd.DataFrame(columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 't1', 't2', 'count'])
+    coords = pd.DataFrame(columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 't1', 't2', 'num_samples'])
     avgFun = lambda x: np.mean(x)
     seFun = lambda x: np.std(x)/np.sqrt(len(x))
     for i, SN in enumerate(snList):
@@ -53,7 +81,7 @@ def SummarizeAllGPS(gpsDirPattern, outputFilename = ''):
         if gpsTable.shape[0] > 0:
             coords = coords.append(pd.DataFrame(
                 [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
-                columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 't1', 't2', 'count']), ignore_index = True)
+                columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 't1', 't2', 'num_samples']), ignore_index = True)
     if not stationFile is None:
         stationInfo = pd.read_csv(stationFile, names = ['SN', 'network', 'station', 'location'], dtype = {'network':'str', 'SN':'str', 'station':'str', 'location':'str'})
         network = []
@@ -72,7 +100,7 @@ def SummarizeAllGPS(gpsDirPattern, outputFilename = ''):
         coords['network'] = network
         coords['station'] = station
         coords['location'] = location
-    if len(outputFilename) > 0:
+    if not outputFilename is None:
         coords.to_csv(outputFilename)
     return coords
     
