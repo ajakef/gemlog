@@ -1,10 +1,16 @@
 #/usr/bin/env python
 # conda create -n g1 python=3.7.6 numpy obspy rpy2 pandas matplotlib
-import numpy as np
-import sys, os, glob, getopt, requests
-import logging, traceback
-import gemlog
-#import logging
+import sys # should always be available, doesn't need to be in "try"
+try:
+    import numpy as np
+    import os, glob, getopt, requests
+    import logging, traceback
+    import gemlog
+except Exception as e:
+    print('Either dependencies are missing, or the environment is not active')
+    print('Error message:')
+    print(e)
+    sys.exit(2)
 
 #%%
 def FindSN(x):

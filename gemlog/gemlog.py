@@ -11,9 +11,6 @@
 ## fixed issues:
 ## from gemlog ReadGemv0.85C (and others too): NaNs in L$gps due to unnecessary and harmful doubling of wna indexing. Also, added python code to drop NaNs.
 import pdb
-#pdb.set_trace()
-#import rpy2 ## needed for R types. if omitted, can cause "malformed file" error.
-#import rpy2.robjects.packages as rpackages
 import warnings
 import numpy as np
 from numpy import NaN, Inf
@@ -23,13 +20,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 import obspy
 import datetime
-    
 
-#import obspy
-
-#import obspy.io.mseed.core
-#import matplotlib.pyplot as plt
-#gemlogR = rpackages.importr('gemlog')
 #####################
 def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
@@ -38,7 +29,6 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     assert os.path.isdir(rawpath), 'Raw directory ' + rawpath + ' does not exist'
     assert len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) > 0, 'No data files found in directory ' + rawpath
 
-    #pdb.set_trace()
     ## make sure bitweight is a scalar
     if((type(nums) == type(1)) or (type(nums) == type(1.0))):
         nums = np.array([nums])
@@ -94,18 +84,30 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## set up the gps and metadata files. create directories if necessary
     if(len(gpsfile) == 0):
         if(not os.path.isdir(gpspath)):
-            os.makedirs(gpspath) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir1/dir2 will be created
-        gpsfile = makefilename(gpspath, SN, 'gps')
+            try:
+                os.makedirs(gpspath) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir1/dir2 will be created
+            except:
+                print('Failed to make directory ' + gpspath)
+                sys.exit(2)
+            gpsfile = makefilename(gpspath, SN, 'gps')
 
   
     if(len(metadatafile) == 0):
         if(not os.path.isdir(metadatapath)):
-            os.makedirs(metadatapath)
+            try:
+                os.makedirs(metadatapath)
+            except:
+                print('Failed to make directory ' + metadatapath)
+                sys.exit(2)
         metadatafile = makefilename(metadatapath, SN, 'metadata')
   
     ## if the converted directory does not exist, make it
     if(not os.path.isdir(convertedpath)):
-        os.makedirs(convertedpath)
+        try:
+            os.makedirs(convertedpath)
+        except:
+            print('Failed to make directory ' + metadatapath)
+            sys.exit(2)
   
     ## start metadata and gps files
     metadata = L['metadata']   
@@ -592,19 +594,24 @@ def ReadGem_v0_9(fnList):
     startMillis = 0
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
-        L = ReadGem_v0_9_single(fn, startMillis)
-        if(L['data'][0,0] < startMillis):
-            L['metadata'].millis += 2**13
-            L['gps'].msPPS += 2**13
-            L['data'][:,0] += 2**13
-        M = pd.concat((M, L['metadata']))
-        G = pd.concat((G, L['gps']))
-        D = np.vstack((D, L['data']))
-        startMillis = D[-1,0]
-        header.loc[i,'lat'] = np.median(L['gps']['lat'])
-        header.loc[i,'lon'] = np.median(L['gps']['lon'])
-        header.loc[i, 't1'] = L['data'][0,0] # save this as a millis first, then convert
-        header.loc[i,'t2'] = L['data'][-1,0]
+        try:
+            L = ReadGem_v0_9_single(fn, startMillis)
+        except:
+            print('Failed to read ' + fn + ', skipping')
+        else:
+            if(L['data'][0,0] < startMillis):
+                L['metadata'].millis += 2**13
+                L['gps'].msPPS += 2**13
+                L['data'][:,0] += 2**13
+            M = pd.concat((M, L['metadata']))
+            G = pd.concat((G, L['gps']))
+            D = np.vstack((D, L['data']))
+            startMillis = D[-1,0]
+            header.loc[i,'lat'] = np.median(L['gps']['lat'])
+            header.loc[i,'lon'] = np.median(L['gps']['lon'])
+            header.loc[i, 't1'] = L['data'][0,0] # save this as a millis first, then convert
+            header.loc[i,'t2'] = L['data'][-1,0]
+        ## end of fn loop
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
 
@@ -619,10 +626,11 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
         L = ReadGem_v0_9(fnList)
     elif version == '0.85C':
         L = ReadGem_v0_9(fnList) # will the same function work for both?
+    elif (version == '0.85') | (version == '0.8') :
+        raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
-        raise Exception('Obsolete data format ' + version + ' not yet supported')
-    if L['gps'].shape[0] == 0:
-        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+        raise Exception(fnList[0] + ': Invalid or missing data format')
+    assert L['gps'].shape[0] > 0, 'No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion'
     M = L['metadata']
     D = L['data']
     G = ReformatGPS(L['gps'])
