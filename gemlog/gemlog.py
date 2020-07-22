@@ -89,7 +89,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             except:
                 print('Failed to make directory ' + gpspath)
                 sys.exit(2)
-            gpsfile = makefilename(gpspath, SN, 'gps')
+        gpsfile = makefilename(gpspath, SN, 'gps')
 
   
     if(len(metadatafile) == 0):
