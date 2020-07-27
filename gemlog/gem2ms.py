@@ -61,7 +61,7 @@ def main(argv = None):
     test = False
     fmt = 'MSEED'
     try:
-        opts, args = getopt.getopt(argv,"hti:s:x:o:f:",["inputdir=","serialnumber="])
+        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
         PrintCall()
         sys.exit(2)
@@ -72,6 +72,8 @@ def main(argv = None):
         if opt in ('-h', '--help'):
             PrintCall()
             sys.exit()
+        elif opt in ("-d", "--debug"):
+            gemlog._debug = True
         elif opt in ("-i", "--inputdir"):
             inputdir = arg
         elif opt in ("-s", "--serialnumbers"):

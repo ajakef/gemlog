@@ -21,6 +21,11 @@ with warnings.catch_warnings():
 import obspy
 import datetime
 
+_debug = True
+
+def _breakpoint():
+    if _debug: # skip if we aren't in debug mode
+        breakpoint()
 #####################
 def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
@@ -144,7 +149,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 
             ## process newly-read data
             if(any(L['header'].SN != SN) | any(L['header'].SN.apply(len) == 0)):
-                #breakpoint()
+                #_breakpoint()
                 w = (L['header'].SN != SN) | (L['header'].SN.apply(len) == 0)
                 print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
             
@@ -183,7 +188,7 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
     pp = p.copy()
     pp.trim(writeHour, writeHourEnd)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
-    #breakpoint()
+    #_breakpoint()
     for tr in pp:
         tr.stats.calib = bitweight
         fn = MakeFilenameMS(tr, fmt)
@@ -634,7 +639,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     M = L['metadata']
     D = L['data']
     G = ReformatGPS(L['gps'])
-    #breakpoint()
+    #_breakpoint()
     breaks = FindBreaks(L)
     piecewiseTimeFit = PiecewiseRegression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
     M['t'] = ApplySegments(M['millis'], piecewiseTimeFit)
@@ -645,7 +650,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     D = np.hstack((D, ApplySegments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     
     ## interpolate data to equal spacing to make obspy trace
-    #breakpoint()
+    #_breakpoint()
     st = InterpTime(D) # populates known fields: channel, delta, and starttime
     for tr in st:
         ## populate the rest of the trace stats
@@ -674,7 +679,7 @@ def InterpTime(data, t1 = -np.Inf, t2 = np.Inf):
     w_nonnan = ~np.isnan(data[:,2])
     t_in = data[w_nonnan,2]
     p_in = data[w_nonnan,1]
-    #breakpoint()
+    #_breakpoint()
     t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## 2019-09-11
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
     ## R code here had code to catch t2 <= t1. should add that.
@@ -695,7 +700,7 @@ def InterpTime(data, t1 = -np.Inf, t2 = np.Inf):
         try:
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
-            breakpoint()
+            _breakpoint()
         t_interp = np.arange(starts[i], ends[i] + eps, 0.01)
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
@@ -795,7 +800,7 @@ def ReformatGPS(G_in):
 
 
 def FindBreaks(L):
-    #breakpoint()
+    #_breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -808,7 +813,7 @@ def FindBreaks(L):
                    (L['gps'].lon == 0)) # exclude points within ~1m of the prime meridian
         L['gps'] = L['gps'].iloc[np.where(~badTags)[0],:]
     except:
-        breakpoint()
+        _breakpoint()
     tD = np.array(L['data'][:,0])
     dtD = np.diff(tD)
     starts = np.array([])
@@ -822,7 +827,7 @@ def FindBreaks(L):
         tD = tD[:-1]
         dtD = dtD[:-1]
         dataBreaks = dataBreaks[dataBreaks != len(dtD)]
-    #breakpoint()
+    #_breakpoint()
     for i in dataBreaks:
         starts = np.append(starts, np.max(tD[(i-1):(i+2)]))
         ends = np.append(ends, np.min(tD[(i-1):(i+2)]))
@@ -848,7 +853,7 @@ def FindBreaks(L):
             try:
                 starts = np.append(starts, mG[wmin][tG[wmin] == tG[wmin].min()])
             except:
-                breakpoint()
+                _breakpoint()
             wmax = np.argwhere(tG < tG[i+1])
             ends = np.append(ends, mG[wmax][tG[wmax] == tG[wmax].max()])
     starts = np.append(tD.min(), starts)

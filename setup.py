@@ -74,7 +74,7 @@ def setupPackage():
     # setup package
     setup(
         name='gemlog',
-        version = '0.0.5',
+        version = '0.1.1',
         packages=find_packages(),
         entry_points=ENTRY_POINTS#,
     )
