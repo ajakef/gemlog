@@ -60,6 +60,7 @@ def main(argv = None):
     outputdir = 'mseed'
     test = False
     fmt = 'MSEED'
+    gemlog._debug = False
     try:
         opts, args = getopt.getopt(argv,"hdti:s:x:o:f:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
