@@ -10,5 +10,3 @@ pip install --upgrade https://github.com/ajakef/gemlog/archive/master.zip
 
 --Finally, get the syntax to run gem2ms.
 gem2ms -h # print the help page
-
-
