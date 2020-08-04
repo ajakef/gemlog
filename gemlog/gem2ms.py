@@ -17,7 +17,7 @@ def FindSN(x):
     return x[9:13]
 
 # function to get unique values from list while preserving order (set-based shortcut doesn't do this)
-def unique(list1): 
+def old_unique(list1):  # O(n^2), bad
     # intilize a null list 
     unique_list = [] 
     # traverse for all elements 
@@ -26,6 +26,11 @@ def unique(list1):
         if x not in unique_list: 
             unique_list.append(x) 
     return unique_list
+
+def unique(list1): # thanks Kevin!
+    unique, index = np.unique(list1, return_index=True)
+    sorted_unique = list1[sorted(index)]
+    return list(sorted_unique)
 
 def PrintCall():
     print('gem2ms.py -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')

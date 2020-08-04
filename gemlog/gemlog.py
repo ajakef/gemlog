@@ -621,6 +621,7 @@ def ReadGem_v0_9(fnList):
 
 
 def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
+    breakpoint()
     if(len(station) == 0):
         station = SN
     ## add asserts, especially for SN
