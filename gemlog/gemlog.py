@@ -529,7 +529,116 @@ def MillisToTime(L):
     pf = np.poly1d(coefficients)
     return pf
 
-def ReadGem_v0_9_single(fn, startMillis):
+def ReadGem_v0_9_single(filename, offset=0):
+    """
+    Read a Gem logfile.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Filepath of a file containing data to read.
+
+    offset : int, default 0
+        A timing offset to include in the millisecond timestamp values.
+
+    Returns
+    -------
+    dict of dataframes
+
+        - data: the analog readings and associated timings
+        - metadata: datalogger metadata
+        - gps: GPS timing and location values
+    """
+    # skiprows is important so that the header doesn't force dtype=='object'
+    df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+    df['linetype'] = df[0].str[0]
+    df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+    # unroll the ms rollover sawtooth
+    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',
+                                     df[0].str[1:],
+                                     df[1]).astype(int)
+    df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -2**12).cumsum()
+    df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > 2**12).cumsum()
+    df['millis-stairstep'] *= 2**13
+    df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
+    df['millis-corrected'] += offset
+
+    # groupby is somewhat faster than repeated subsetting like
+    # df.loc[df['linetype'] == 'D', :], ...
+    grouper = df.groupby('linetype')
+    D = grouper.get_group('D')
+    G = grouper.get_group('G')
+    M = grouper.get_group('M')
+
+    # pick out columns of interest and rename
+    D_cols = ['msSamp', 'ADC']
+    G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute',
+              'second', 'lat', 'lon']
+    M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
+              'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
+              'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+
+    # column names are currently integers (except for the calculated cols)
+    D = D[['millis-corrected', 1]]
+    D.columns = D_cols
+    G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
+    G.columns = G_cols
+    M = M[['millis-corrected'] + list(range(2, len(M_cols)+1))]
+    M.columns = M_cols
+
+    # now that columns aren't mixed dtype anymore,
+    # convert to numeric where possible
+    D = D.apply(pd.to_numeric)
+    G = G.apply(pd.to_numeric)
+    M = M.apply(pd.to_numeric)
+
+    # filter bad GPS data and combine into datetimes
+    valid_gps = _valid_gps(G)
+    G = G.loc[valid_gps, :]
+
+    def make_gps_time(row):
+        try:
+            return obspy.UTCDateTime(*row)
+        except Exception:
+            return np.NaN
+
+    G['t'] = G.iloc[:, 2:8].astype(int).apply(make_gps_time, axis=1)
+
+    # process data (version-dependent)
+    D['ADC'] = D['ADC'].astype(float).cumsum()
+
+    return {'data': D, 'metadata': M, 'gps': G}
+
+
+def _valid_gps(G):
+    # vectorized GPS data validation
+    # basic lower and upper bounds:
+    limits = {
+        'lat': (-90, 90),
+        'lon': (-180, 180),
+        'msLag': (0, 1000),
+        'year': (2014, 2040),
+        'month': (1, 12),
+        'day': (1, 31),
+        'hour': (0, 24),
+        'minute': (0, 60),
+        'second': (0, 60),
+    }
+    bad_gps = False
+    for key, (lo, hi) in limits.items():
+        data = G[key]
+        bad_gps |= (data < lo) | (data > hi)
+
+    # custom limits:
+    bad_gps |= (
+        (G['lat'] == 0) |
+        (G['lon'] == 0) |
+        (G['second'] != np.round(G['second']))
+    )
+    return ~bad_gps
+
+
+def old_ReadGem_v0_9_single(fn, startMillis):
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
     G = np.ndarray([15000,11]) # no more than 14400
