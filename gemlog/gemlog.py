@@ -555,8 +555,10 @@ def ReadGem_v0_9_single(filename, offset=0):
         df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
     except:
         df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
-    df['linetype'] = df[0].str[0]
-    df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+    df['linetype'] = df.iloc[:,0].str[0]
+    #df['linetype'] = df[0].str[0]
+    df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
+    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
     df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
@@ -566,7 +568,7 @@ def ReadGem_v0_9_single(filename, offset=0):
     df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
     first_millis = df['millis-corrected'].iloc[0]
     df['millis-corrected'] += (offset-first_millis) + ((first_millis-(offset % 2**13)+2**12) % 2**13) - 2**12
-    #df['millis-corrected'] += (offset-df['millis-corrected'][0]) - ((df['millis_corrected'][0] - offset) % 2**13)
+    #df['millis-corrected'] += (offset-first_millis) - ((first_millis - offset) % 2**13)
 
     # groupby is somewhat faster than repeated subsetting like
     # df.loc[df['linetype'] == 'D', :], ...
@@ -643,7 +645,8 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def old_ReadGem_v0_9_single(fn, startMillis):
+def slow_ReadGem_v0_9_single(fn, startMillis):
+    ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
     G = np.ndarray([15000,11]) # no more than 14400
@@ -714,10 +717,10 @@ def ReadGem_v0_9(fnList):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            L = old_ReadGem_v0_9_single(fn, startMillis)
+            L = ReadGem_v0_9_single(fn, startMillis)
         except:
             print('Failed to read ' + fn + ', skipping')
-            breakpoint()
+            _breakpoint()
         else:
             if(L['data'][0,0] < startMillis):
                 L['metadata'].millis += 2**13
@@ -915,7 +918,6 @@ def ReformatGPS(G_in):
 
 
 def FindBreaks(L):
-    #_breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
