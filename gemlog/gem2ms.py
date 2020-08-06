@@ -29,8 +29,7 @@ def old_unique(list1):  # O(n^2), bad
 
 def unique(list1): # thanks Kevin!
     unique, index = np.unique(list1, return_index=True)
-    sorted_unique = list1[sorted(index)]
-    return list(sorted_unique)
+    return sorted(unique)
 
 def PrintCall():
     print('gem2ms.py -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')

@@ -550,18 +550,23 @@ def ReadGem_v0_9_single(filename, offset=0):
         - gps: GPS timing and location values
     """
     # skiprows is important so that the header doesn't force dtype=='object'
-    df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+    # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
+    try:
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+    except:
+        df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
     df['linetype'] = df[0].str[0]
     df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+    ## most of the runtime is before here
     # unroll the ms rollover sawtooth
-    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',
-                                     df[0].str[1:],
-                                     df[1]).astype(int)
+    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -2**12).cumsum()
     df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > 2**12).cumsum()
     df['millis-stairstep'] *= 2**13
     df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
-    df['millis-corrected'] += offset
+    first_millis = df['millis-corrected'].iloc[0]
+    df['millis-corrected'] += (offset-first_millis) + ((first_millis-(offset % 2**13)+2**12) % 2**13) - 2**12
+    #df['millis-corrected'] += (offset-df['millis-corrected'][0]) - ((df['millis_corrected'][0] - offset) % 2**13)
 
     # groupby is somewhat faster than repeated subsetting like
     # df.loc[df['linetype'] == 'D', :], ...
@@ -607,7 +612,7 @@ def ReadGem_v0_9_single(filename, offset=0):
     # process data (version-dependent)
     D['ADC'] = D['ADC'].astype(float).cumsum()
 
-    return {'data': D, 'metadata': M, 'gps': G}
+    return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G.reset_index().astype('float')}
 
 
 def _valid_gps(G):
@@ -709,9 +714,10 @@ def ReadGem_v0_9(fnList):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            L = ReadGem_v0_9_single(fn, startMillis)
+            L = old_ReadGem_v0_9_single(fn, startMillis)
         except:
             print('Failed to read ' + fn + ', skipping')
+            breakpoint()
         else:
             if(L['data'][0,0] < startMillis):
                 L['metadata'].millis += 2**13
@@ -730,7 +736,6 @@ def ReadGem_v0_9(fnList):
 
 
 def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
-    breakpoint()
     if(len(station) == 0):
         station = SN
     ## add asserts, especially for SN
@@ -749,7 +754,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     M = L['metadata']
     D = L['data']
     G = ReformatGPS(L['gps'])
-    #_breakpoint()
+    #breakpoint()
     breaks = FindBreaks(L)
     piecewiseTimeFit = PiecewiseRegression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
     M['t'] = ApplySegments(M['millis'], piecewiseTimeFit)
@@ -941,8 +946,8 @@ def FindBreaks(L):
     for i in dataBreaks:
         starts = np.append(starts, np.max(tD[(i-1):(i+2)]))
         ends = np.append(ends, np.min(tD[(i-1):(i+2)]))
-    tG = np.array(L['gps'].t)
-    mG = np.array(L['gps'].msPPS)
+    tG = np.array(L['gps'].t).astype('float')
+    mG = np.array(L['gps'].msPPS).astype('float')
     dmG_dtG = np.diff(mG)/np.diff(tG)
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
                          ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # drift between cycles
@@ -953,6 +958,7 @@ def FindBreaks(L):
         ## This part is tricky: what if a gpsEnd happens between a dataEnd and dataStart?
         ## Let's be conservative: if either the gpsEnd or gpsStart is within a bad data interval, or what if they bracket a bad data interval?
         ## choose them so that they exclude the most data
+        #breakpoint()
         overlaps = (mG[i] <= starts) & (mG[i+1] >= ends)
         if(np.any(overlaps)):
             w = np.argwhere(overlaps)
