@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+\#! /usr/bin/env python
 import pdb
 try:
     import setuptools  # @UnusedImport # NOQA
@@ -18,7 +18,7 @@ import inspect
 import os
 import sys
 import platform
-from distutils.util import change_root
+from distutils.util import change_root, convert_path
 
 from setuptools import setup, find_packages
 # The minimum python version which can be used to run ObsPy
@@ -56,8 +56,6 @@ ENTRY_POINTS = {
 KEYWORDS = ['']
 DOCSTRING = ['', '', '', '']
 classifiers=[
-    'Development Status :: 5 - Production/Stable',
-    'Environment :: Console',
     'Intended Audience :: Science/Research',
     'Intended Audience :: Developers',
     'License :: OSI Approved :: GNU GPL 3',
@@ -74,11 +72,15 @@ def setupPackage():
     # setup package
     setup(
         name='gemlog',
-        version = '0.2.0',
+        version = version_dict['__version__'],
         packages=find_packages(),
-        entry_points=ENTRY_POINTS#,
+        entry_points=ENTRY_POINTS
     )
 
+version_dict = {}
+version_path = convert_path('gemlog/version.py')
+with open(version_path) as version_file:
+    exec(version_file.read(), version_dict)
 
 if __name__ == '__main__':
     # clean --all does not remove extensions automatically

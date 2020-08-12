@@ -40,6 +40,7 @@ def PrintCall():
     print('-f --format: mseed, sac, or wav; default mseed')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-h --help: print this message')
+    print('gemlog version ' + __version__)
 
 def ParseError(e):
     e = str(e)
