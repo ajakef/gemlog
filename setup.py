@@ -1,4 +1,4 @@
-\#! /usr/bin/env python
+#! /usr/bin/env python
 import pdb
 try:
     import setuptools  # @UnusedImport # NOQA

@@ -555,7 +555,7 @@ def ReadGem_v0_9_single(filename, offset=0):
         df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
     except:
         df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
-    df['linetype'] = df.iloc[:,0].str[0]
+    df['linetype'] = df.iloc[:,0].str[0] # replace this with list comprehension instead
     #df['linetype'] = df[0].str[0]
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
     #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
