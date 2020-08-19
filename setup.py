@@ -5,13 +5,6 @@ try:
 except ImportError:
     pass
 
-try:
-    import numpy  # @UnusedImport # NOQA
-except ImportError:
-    msg = ("No module named numpy. "
-           "Please install numpy first, it is needed before installing ObsPy.")
-    raise ImportError(msg)
-
 #import fnmatch
 import glob
 import inspect
