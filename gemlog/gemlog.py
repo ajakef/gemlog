@@ -26,7 +26,7 @@ _debug = True
 
 def _breakpoint():
     if _debug: # skip if we aren't in debug mode
-        breakpoint()
+        pdb.set_trace()
 #####################
 def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
@@ -197,7 +197,7 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
             print(tr)
             if(fmt.lower() == 'wav'):
                 ## this is supposed to work for uint8, int16, and int32, but actually only works for uint8. obspy bug?
-                    tr[i].data = np.array(tr[i].data, dtype = 'uint8')# - np.min(tr[i].data)
+                    tr.data = np.array(tr.data, dtype = 'uint8')# - np.min(tr[i].data)
                     tr.write(convertedpath +'/'+ fn, format = 'WAV', framerate=7000, width=1) 
             else:
                 tr.write(convertedpath +'/'+ fn, format = fmt, encoding=10) # encoding 10 is Steim 1
@@ -235,119 +235,6 @@ def MakeFilenameMS(pp, fmt):
     t0 = pp.stats.starttime
     return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + fmt.lower()
 #import pdb
-
-def ReadGemPy(nums = np.arange(10000), path = './', SN = str(), units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, alloutput = False, verbose = True, requireGPS = False, time_adjustment = 0, network = '', station = '', location = '', output_int32 = False):
-    emptyGPS = pd.DataFrame.from_dict({'year':np.array([]), 
-                                      'date':np.array([]), 
-                                      'lat':np.array([]), 
-                                      'lon':np.array([]), 
-                                      't':np.array([])})
-    if(len(station) == 0):
-        station = SN
-    L = gemlogR.ReadGem([float(x) for x in nums], path, SN, units, float(bitweight), float(bitweight_V), float(bitweight_Pa), alloutput, verbose, requireGPS, network = '', station = '', location = '')
-    #pdb.set_trace()
-    dataGood = True
-    timingGood = True
-    ## verify that ReadGem output is good
-    if(type(L) == rpy2.rinterface.NULLType): #if it's null, flag it
-        dataGood = False
-        timingGood = False
-    elif((len(L[0]) == 0) | np.isnan(np.sum(L[0]))): # if it's missing GPS data, flag it
-        timingGood = False
-        LI = L
-    else:
-        ## try interpolating the time, which may fail
-        try:    
-            LI = gemlogR.InterpTime(L)
-        except:
-            timingGood = False
-            LI = L
-        
-    #pdb.set_trace()
-    if((not dataGood) | ((not timingGood) & requireGPS)): # if no timing info, return nothing
-        data = np.array([])
-        if(output_int32):
-            data = np.array(data.round(), dtype = 'int32') ## apparently int32 is needed for steim1
-        tr = obspy.Trace(data)
-        tr.stats.station = station
-        tr.stats.location = location # this may well be ''
-        tr.stats.channel = 'HDF' # Gem is always HDF
-        tr.stats.delta = 0.01
-        tr.stats.network = network # can be '' for now and set later
-        tr.stats.starttime = obspy.core.UTCDateTime(0)
-
-        gps = emptyGPS
-        metadata = pd.DataFrame.from_dict({'millis':[], 'maxWriteTime':[], 'minFifoFree':[], 
-                                           'maxFifoUsed':[], 'maxOverruns':[], 'gpsOnFlag':[],
-                                           'unusedStack1':[], 'unusedStackIdle':[], 't':[]})
-        output = {'data': tr,
-                  'metadata': metadata,
-                  'gps': gps,
-                  'header': pd.DataFrame.from_dict({'SN':[SN],'bitweight_Pa':[np.NaN], 'bitweight_V':[np.NaN]})
-                  }   
-        return output
-    
-    header1=pd.DataFrame.from_dict({ key : np.asarray(L[2].rx2(key)) for key in L[2].names[0:-1] }) # normal header
-    header2=pd.DataFrame.from_dict({ key : np.asarray(L[2][-1].rx2(key)) for key in L[2][-1].names }) # config
-    header = pd.concat([header1, header2], axis=1, sort=False)
-          
-    metadata = pd.DataFrame.from_dict({ key : np.asarray(L[3].rx2(key)) for key in L[3].names })
-    metadata.millis = metadata.millis.apply(int)
-    metadata.maxWriteTime = metadata.maxWriteTime.apply(int)
-    metadata.minFifoFree = metadata.minFifoFree.apply(int)
-    metadata.maxFifoUsed = metadata.maxFifoUsed.apply(int)
-    metadata.maxOverruns = metadata.maxOverruns.apply(int)
-    metadata.gpsOnFlag = metadata.gpsOnFlag.apply(int)
-    metadata.unusedStack1 = metadata.unusedStack1.apply(int)
-    metadata.unusedStackIdle=metadata.unusedStackIdle.apply(int)
-    
-    if(timingGood):
-        metadata.t=metadata.t.apply(obspy.core.UTCDateTime)
-        gps = pd.DataFrame.from_dict({ key : np.asarray(L[4].rx2(key)) for key in L[4].names })
-        gps=gps.dropna() # ignore rows containing NaNs to avoid conversion errors
-        gps.year = gps.year.apply(int)
-        year = gps.year
-        hour = (24*(gps.date % 1))
-        minute = (60*(hour % 1))
-        second = (60*(minute % 1))
-        ts=year.apply(str) + ' ' + gps.date.apply(int).apply(str) + ' ' + hour.apply(int).apply(str) + ':' + minute.apply(int).apply(str) + ':' + second.apply(int).apply(str)
-        t = pd.Series(ts.apply(obspy.core.UTCDateTime.strptime, format='%Y %j %H:%M:%S') + (second % 1))
-        t.name='t'
-        gps = gps.join(t)
-    else:
-        metadata.t = (metadata.millis/1000).apply(obspy.core.UTCDateTime)
-        gps = emptyGPS
-        
-    data = np.array(LI[1]) # p
-    if(output_int32):
-        data = np.array(data.round(), dtype = 'int32') ## apparently int32 is needed for steim1
-    tr = obspy.Trace(data)
-    tr.stats.delta = 0.01
-    tr.stats.network = network # can be '' for now and set later
-    if(timingGood):
-        tr.stats.starttime = LI[0][0] + time_adjustment
-    else:
-        tr.stats.starttime = obspy.core.UTCDateTime(0)
-
-    if(len(station) == 0): # have to have a station; assume SN if not given
-        print(header.SN)
-        wsn = 0
-        while(True):
-            tr.stats.station = header.SN[wsn]
-            wsn = wsn + 1
-            if((wsn >= len(header.SN)) | (len(tr.stats.station) >= 3)):
-                break
-    else:
-        tr.stats.station = station
-    tr.stats.location = location # this may well be ''
-    tr.stats.channel = 'HDF' # Gem is always HDF
-
-    output = {'data': tr,
-              'metadata': metadata,
-              'gps': gps,
-              'header': header
-    }
-    return output
 
 def NewGemVar():
     tr = obspy.Trace()
@@ -416,17 +303,6 @@ def CalcStationStats(DB, t1, t2):
 ## 55 (3.03), 84 (4.37), 108 (2.04), 49 (1.78), others (1.3-1.6)
 
 #L55=gemlog.ReadGemPy(nums=np.arange(6145,6151),SN='055', path = 'raw')
-#import matplotlib.pyplot as plt
-def PlotAmp(DB):
-    allSta = DB.station.unique()
-    allSta.sort()
-    for sta in DB.station.unique():
-        w = np.where(DB.station == sta)[0]
-        w.sort()
-        plt.plot(DB.t1[w], np.log10(DB.amp_HP[w]), '.')
-        print(str(sta) + ' ' + str(np.quantile(DB.amp_HP[w], 0.25)))
-    plt.legend(allSta)
-    plt.show()
 
 ################################################
 def ReadSN(fn):

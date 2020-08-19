@@ -11,7 +11,7 @@ def test_ReadGem_v0_9_single():
     for i in ['gps', 'metadata']:
         for x in L0[i].keys():
             assert np.abs(L0[i][x] - L1[i][x]).max() < eps
-            #assert L0[i]['t'].dtype == L1[i]['t'].dtype
+            assert L0[i][x].dtype == L1[i][x].dtype
 
 def test_ReadGem():
     ## ReadGem always reads files in one block, so no sense in testing 25 files
