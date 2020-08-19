@@ -1,26 +1,13 @@
-#! /usr/bin/env python
-import pdb
-try:
-    import setuptools  # @UnusedImport # NOQA
-except ImportError:
-    pass
+#!/usr/bin/env python
 
 try:
-    import numpy  # @UnusedImport # NOQA
+    from setuptools import setup
 except ImportError:
-    msg = ("No module named numpy. "
-           "Please install numpy first, it is needed before installing ObsPy.")
-    raise ImportError(msg)
+    raise RuntimeError('setuptools is required')
 
-#import fnmatch
-import glob
-import inspect
-import os
+from distutils.util import convert_path
 import sys
-import platform
-from distutils.util import change_root, convert_path
 
-from setuptools import setup, find_packages
 # The minimum python version which can be used to run ObsPy
 MIN_PYTHON_VERSION = (3, 6)
 
@@ -31,79 +18,97 @@ if sys.version_info < MIN_PYTHON_VERSION:
     print(msg, file=sys.stderr)
     sys.exit(1)
 
-# Directory of the current file in the (hopefully) most reliable way
-# possible, according to krischer
-SETUP_DIRECTORY = os.path.dirname(os.path.abspath(inspect.getfile(
-    inspect.currentframe())))
+
+DESCRIPTION = 'A set of functions for processing Gem datalogger files.'
+LONG_DESCRIPTION = """
+gemlog is a python package that provides functions for processing the
+log files from the Gem infrasound datalogger. The Gem infrasound logger
+is a low-cost, lightweight, low-power instrument for recording infrasound
+in field campaigns.
+
+Source code: https://github.com/ajakef/gemlog
+"""
+
+DISTNAME = 'gemlog'
+LICENSE = 'GPL-3.0'
+AUTHOR = 'Jake Anderson'
+MAINTAINER_EMAIL = 'ajakef@gmail.com'
+URL = 'https://github.com/ajakef/gemlog'
+
+
+# TO-DO: replace this with versioneer
+version_dict = {}
+version_path = convert_path('gemlog/version.py')
+with open(version_path) as version_file:
+    exec(version_file.read(), version_dict)
+VERSION = version_dict['__version__']
+
 INSTALL_REQUIRES = [
     'obspy',
     'numpy>=1.15.0',
+    'pandas>=1.0.0',
     'scipy>=1.0.0',
     'matplotlib>=3.2.0',
     'lxml',
     'setuptools',
     'sqlalchemy',
     'decorator',
-    'requests']
+    'requests'
+]
 
-EXTRAS_REQUIRE = []
-ENTRY_POINTS = {
-    'console_scripts': [
-        'gem2ms = gemlog.gem2ms:main'
-    ]
+TESTS_REQUIRE = ['pytest']
+
+EXTRAS_REQUIRE = {
+    # 'optional': [...],
+    # 'doc': [...],
+    'test': TESTS_REQUIRE
 }
+EXTRAS_REQUIRE['all'] = sorted(set(sum(EXTRAS_REQUIRE.values(), [])))
 
-KEYWORDS = ['']
-DOCSTRING = ['', '', '', '']
-classifiers=[
+CLASSIFIERS = [
+    'Development Status :: 4 - Beta',
+    'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+    'Operating System :: OS Independent',
     'Intended Audience :: Science/Research',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: GNU GPL 3',
-    'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
     'Topic :: Scientific/Engineering',
     'Topic :: Scientific/Engineering :: Physics'
 ]
 
-def setupPackage():
-    # setup package
-    setup(
-        name='gemlog',
-        version = version_dict['__version__'],
-        packages=find_packages(),
-        entry_points=ENTRY_POINTS
-    )
+ENTRY_POINTS = {
+    'console_scripts': [
+        'gem2ms = gemlog.gem2ms:main'
+    ]
+}
 
-version_dict = {}
-version_path = convert_path('gemlog/version.py')
-with open(version_path) as version_file:
-    exec(version_file.read(), version_dict)
+setuptools_kwargs = {
+    'zip_safe': False,
+    'scripts': [],
+    'include_package_data': True,
+}
 
-if __name__ == '__main__':
-    # clean --all does not remove extensions automatically
-    if 'clean' in sys.argv and '--all' in sys.argv:
-        import shutil
-        # delete complete build directory
-        path = os.path.join(SETUP_DIRECTORY, 'build')
-        try:
-            shutil.rmtree(path)
-        except Exception:
-            pass
-        # delete all shared libs from lib directory
-        path = os.path.join(SETUP_DIRECTORY, 'gemlog', 'lib')
-        for filename in glob.glob(path + os.sep + '*.pyd'):
-            try:
-                os.remove(filename)
-            except Exception:
-                pass
-        for filename in glob.glob(path + os.sep + '*.so'):
-            try:
-                os.remove(filename)
-            except Exception:
-                pass
-    else:
-        setupPackage()
+PACKAGES = ['gemlog']
 
+extensions = []
+
+setup(name=DISTNAME,
+      version=VERSION,
+      packages=PACKAGES,
+      install_requires=INSTALL_REQUIRES,
+      extras_require=EXTRAS_REQUIRE,
+      tests_require=TESTS_REQUIRE,
+      ext_modules=extensions,
+      description=DESCRIPTION,
+      long_description=LONG_DESCRIPTION,
+      author=AUTHOR,
+      maintainer_email=MAINTAINER_EMAIL,
+      license=LICENSE,
+      url=URL,
+      classifiers=CLASSIFIERS,
+      entry_points=ENTRY_POINTS,
+      **setuptools_kwargs)
