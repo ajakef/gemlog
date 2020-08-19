@@ -303,17 +303,6 @@ def CalcStationStats(DB, t1, t2):
 ## 55 (3.03), 84 (4.37), 108 (2.04), 49 (1.78), others (1.3-1.6)
 
 #L55=gemlog.ReadGemPy(nums=np.arange(6145,6151),SN='055', path = 'raw')
-#import matplotlib.pyplot as plt
-def PlotAmp(DB):
-    allSta = DB.station.unique()
-    allSta.sort()
-    for sta in DB.station.unique():
-        w = np.where(DB.station == sta)[0]
-        w.sort()
-        plt.plot(DB.t1[w], np.log10(DB.amp_HP[w]), '.')
-        print(str(sta) + ' ' + str(np.quantile(DB.amp_HP[w], 0.25)))
-    plt.legend(allSta)
-    plt.show()
 
 ################################################
 def ReadSN(fn):
