@@ -20,6 +20,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 import obspy
 import datetime
+import sys
 
 _debug = True
 
