@@ -406,6 +406,42 @@ def MillisToTime(L):
     pf = np.poly1d(coefficients)
     return pf
 
+
+def read_with_cython(filename, offset=0):
+    """
+    Read a Gem logfile.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Filepath of a file containing data to read.
+    offset : int, default 0
+        A timing offset to include in the millisecond timestamp values.
+
+    Returns
+    -------
+    dict of dataframes
+        - data: the analog readings and associated timings
+        - metadata: datalogger metadata
+        - gps: GPS timing and location values
+    """
+    try:
+        from gemlog.parsers import parse_gemfile
+    except ImportError:
+        raise ImportError(
+            "gemlog's C-extensions are not available. Reinstall gemlog with "
+            "C-extensions to use this function."
+        )
+
+    # use cythonized reader file instead of pd.read_csv and slow string ops
+    values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+    df = pd.DataFrame(values, columns=range(2, 13))
+    # convert bytes to string:
+    df['linetype'] = types
+    df['millis-sawtooth'] = millis
+    return _process_gemlog_data(df, offset)
+
+
 def ReadGem_v0_9_single(filename, offset=0):
     """
     Read a Gem logfile.
@@ -438,20 +474,38 @@ def ReadGem_v0_9_single(filename, offset=0):
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
     df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
+    return _process_gemlog_data(df, offset)
+
+
+def _process_gemlog_data(df, offset):
+
+    # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -2**12).cumsum()
     df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > 2**12).cumsum()
     df['millis-stairstep'] *= 2**13
     df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
     first_millis = df['millis-corrected'].iloc[0]
-    df['millis-corrected'] += (offset-first_millis) + ((first_millis-(offset % 2**13)+2**12) % 2**13) - 2**12
-    #df['millis-corrected'] += (offset-first_millis) - ((first_millis - offset) % 2**13)
-
+    df['millis-corrected'] += (
+        (offset-first_millis)
+        + ((first_millis-(offset % 2**13)+2**12) % 2**13)
+        - 2**12
+    )
     # groupby is somewhat faster than repeated subsetting like
     # df.loc[df['linetype'] == 'D', :], ...
     grouper = df.groupby('linetype')
-    D = grouper.get_group('D')
-    G = grouper.get_group('G')
-    M = grouper.get_group('M')
+    # the python-based reader uses strings for linetype but the cython version
+    # uses bytes.  figure out which one we need:
+    if isinstance(df['linetype'].iloc[0], bytes):
+        Dkey = b'D'
+        Gkey = b'G'
+        Mkey = b'M'
+        data_col = 2
+    else:
+        Dkey, Gkey, Mkey = 'DGM'
+        data_col = 1
+    D = grouper.get_group(Dkey)
+    G = grouper.get_group(Gkey)
+    M = grouper.get_group(Mkey)
 
     # pick out columns of interest and rename
     D_cols = ['msSamp', 'ADC']
@@ -462,7 +516,7 @@ def ReadGem_v0_9_single(filename, offset=0):
               'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
 
     # column names are currently integers (except for the calculated cols)
-    D = D[['millis-corrected', 1]]
+    D = D[['millis-corrected', data_col]]
     D.columns = D_cols
     G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
     G.columns = G_cols
@@ -490,7 +544,9 @@ def ReadGem_v0_9_single(filename, offset=0):
     # process data (version-dependent)
     D['ADC'] = D['ADC'].astype(float).cumsum()
 
-    return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G.reset_index().astype('float')}
+    return {'data': np.array(D),
+            'metadata': M.reset_index().astype('float'),
+            'gps': G.reset_index().astype('float')}
 
 
 def _valid_gps(G):
