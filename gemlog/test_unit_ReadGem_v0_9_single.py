@@ -13,8 +13,3 @@ def test_ReadGem_v0_9_single():
             assert np.abs(L0[i][x] - L1[i][x]).max() < eps
             assert L0[i][x].dtype == L1[i][x].dtype
 
-def test_ReadGem():
-    ## ReadGem always reads files in one block, so no sense in testing 25 files
-    ReadGem(np.arange(3), 'data', SN = '077')
-
-
