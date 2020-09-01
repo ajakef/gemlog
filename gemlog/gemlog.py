@@ -370,7 +370,7 @@ def FindRightFiles(path, SN, nums):
     ## make sure they aren't empty
     goodNonemptyFnList = []
     for fn in goodFnList:
-        if os.path.getsize(fn) > 0:
+        if os.path.getsize(fn) > 10: # to be safe, anything under 10 bytes is treated as empty 
             goodNonemptyFnList.append(fn)
     if(len(goodNonemptyFnList) == 0):
         ## warning
