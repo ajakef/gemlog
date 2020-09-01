@@ -1,15 +1,9 @@
 ## gemlog changes:
-## new gps column (time)
-## metadata time format change
-
 ## known potential problems:
 ## missing/repeated samples at block boundaries due to InterpGem at the beginning
-## bitweight missing in output mseed
 ## not starting files on the hour
 ## doesn't handle nearly-empty raw files well
 
-## fixed issues:
-## from gemlog ReadGemv0.85C (and others too): NaNs in L$gps due to unnecessary and harmful doubling of wna indexing. Also, added python code to drop NaNs.
 import pdb
 import warnings
 import numpy as np
@@ -19,10 +13,22 @@ import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 import obspy
-import datetime
+#import datetime
 import sys
 
-_debug = True
+_debug = False
+
+class EmptyRawFile(Exception):
+    """Raised when the input file is empty"""
+    pass
+class CorruptRawFile(Exception):
+    """Raised when the input file cannot be read for some reason"""
+    pass
+
+class MissingRawFiles(Exception):
+    """Raised when no input files are readable"""
+    pass
+
 
 def _breakpoint():
     if _debug: # skip if we aren't in debug mode
@@ -32,8 +38,10 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     
     ## make sure the raw directory exists and has real data
-    assert os.path.isdir(rawpath), 'Raw directory ' + rawpath + ' does not exist'
-    assert len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) > 0, 'No data files found in directory ' + rawpath
+    if not os.path.isdir(rawpath):
+        raise Exception('Raw directory ' + rawpath + ' does not exist')
+    if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
+        raise Exception('No data files found in directory ' + rawpath)
 
     ## make sure bitweight is a scalar
     if((type(nums) == type(1)) or (type(nums) == type(1.0))):
@@ -432,6 +440,10 @@ def ReadGem_v0_9_single(filename, offset=0):
         df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
     except:
         df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
+
+    if df.shape[0] == 0:
+        raise EmptyRawFile(filename)
+    
     df['linetype'] = [value[0] for value in df[0]]
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
     #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
@@ -574,11 +586,11 @@ def slow_ReadGem_v0_9_single(fn, startMillis):
 
 def ReadGem_v0_9(fnList):
     ## initialize the output variables
-    G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon', 't'])
-    M = pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', \
-                                               'maxWriteTime', 'minFifoFree', 'maxFifoUsed', \
-                                               'maxOverruns', 'gpsOnFlag', 'unusedStack1',\
-                                               'unusedStackIdle'])
+    G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
+                                'second', 'lat', 'lon', 't'])
+    M = pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', \
+                                'minFifoFree', 'maxFifoUsed', 'maxOverruns', 'gpsOnFlag', \
+                                'unusedStack1', 'unusedStackIdle'])
     D = np.ndarray([0,2]) # expected number 7.2e5
     num_filler = np.zeros(len(fnList))
     header = pd.DataFrame.from_dict({'file': fnList,
@@ -617,10 +629,14 @@ def ReadGem_v0_9(fnList):
 def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
     if(len(station) == 0):
         station = SN
-    ## add asserts, especially for SN
     fnList = FindRightFiles(path, SN, nums)
-    version = ReadVersion(fnList[0])
-    config = ReadConfig(fnList[0])
+    if len(fnList) == 0:
+        raise MissingRawFiles
+    try:
+        version = ReadVersion(fnList[0])
+        config = ReadConfig(fnList[0])
+    except:
+        raise CorruptRawFile(fnList[0])
     if version == '0.9':
         L = ReadGem_v0_9(fnList)
     elif version == '0.85C':
@@ -629,7 +645,10 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
         raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
-    assert L['gps'].shape[0] > 0, 'No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion'
+
+    if L['gps'].shape[0] == 0:
+        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    
     M = L['metadata']
     D = L['data']
     G = ReformatGPS(L['gps'])
