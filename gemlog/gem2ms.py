@@ -13,7 +13,7 @@ except Exception as e:
     sys.exit(2)
 
 #%%
-def FindSN(x):
+def find_SN(x):
     return x[9:13]
 
 # function to get unique values from list while preserving order (set-based shortcut doesn't do this)
@@ -31,7 +31,7 @@ def unique(list1): # thanks Kevin!
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
-def PrintCall():
+def print_call():
     print('gem2ms.py -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')
     print('-i --inputdir: default ./raw/')
     print('-s --serialnumbers: separate by commas (no spaces); default all')
@@ -42,7 +42,7 @@ def PrintCall():
     print('-h --help: print this message')
     print('gemlog version: ' + gemlog.__version__)
 
-def ParseError(e):
+def parse_error(e):
     e = str(e)
     if(e.find('Unable to allocate') > 0):
         return 'Tried to allocate very large data array, probably due to large time gap between adjacent files'
@@ -69,14 +69,14 @@ def main(argv = None):
     try:
         opts, args = getopt.getopt(argv,"hdti:s:x:o:f:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
-        PrintCall()
+        print_call()
         sys.exit(2)
     #print(2)
     #print(opts)
     for opt, arg in opts:
         #print([opt, arg])
         if opt in ('-h', '--help'):
-            PrintCall()
+            print_call()
             sys.exit()
         elif opt in ("-d", "--debug"):
             gemlog._debug = True
@@ -102,11 +102,11 @@ def main(argv = None):
     except:
         print("Problem opening input data folder " + inputdir + ". Did you give the right folder name after -i?")
         print("")
-        PrintCall()
+        print_call()
         sys.exit()
 
     if(len(SN_list) == 0): # if user does not provide SN_list, take unique SNs in order
-        SN_list = unique([FindSN(fn[i]) for i in range(len(fn))]) # set takes unique values
+        SN_list = unique([find_SN(fn[i]) for i in range(len(fn))]) # set takes unique values
         SN_list.sort()
     else: # if user provided SNs, keep the order, but take unique values
         SN_list = unique(SN_list)
@@ -114,7 +114,7 @@ def main(argv = None):
     if (len(SN_list) == 0) & (len(opts) == 0):
         print("No data to convert; printing help message instead")
         print("")
-        PrintCall()
+        print_call()
         sys.exit()
 
     SN_list = [i for i in SN_list if i not in exclude]
@@ -129,7 +129,7 @@ def main(argv = None):
                 gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
-                logging.exception(ParseError(e))
+                logging.exception(parse_error(e))
                 #logging.exception(traceback.format_exc())
                 logging.info('Error in ' + SN)
             else:

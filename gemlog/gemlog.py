@@ -132,8 +132,8 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     if(len(wgps) > 0):
         gps[wgps].to_csv(gpsfile, index=False)
 
-    writeHour = max(t1, p[0].stats.starttime)
-    writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
+    hour_to_write = max(t1, p[0].stats.starttime)
+    hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -143,8 +143,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         if((t1 > t2) & (not np.isnan(t1 > t2))):
             break # already converted the requested data
         ## load new data if necessary
-        tt2 = min(t2, truncUTC(t1, 86400*blockdays) + 86400*blockdays)
-        #print([tt2, n1, nums, SN])
+        tt2 = min(t2, trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             L = ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             #pdb.set_trace()
@@ -172,30 +171,28 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 gps.to_csv(gpsfile, index=False, mode='a', header=False)
                 
         ## run the conversion and write new converted files
-        #if((pp.stats.endtime >= t1) & (pp.stats.starttime <= tt2))):
-        while((writeHour + fileLength) <= p[-1].stats.endtime):
-            writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
+        while((hour_to_write + fileLength) <= p[-1].stats.endtime):
+            hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
             
         ## update start time to convert
-        p.trim(writeHour, t2)
-        t1 = truncUTC(tt2+(86400*blockdays) + 1, 86400*blockdays)
-    ## while True
+        p.trim(hour_to_write, t2)
+        t1 = trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
-    while((writeHour <= p[-1].stats.endtime) & (len(p) > 0)):
-        writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
-        p.trim(writeHour, t2)
+    while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
+        hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+        p.trim(hour_to_write, t2)
         p = p.split()
         if(len(p) > 0):
-            writeHour = p[0].stats.starttime
+            hour_to_write = p[0].stats.starttime
         else:
             break
 
-def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd = np.nan, fmt='mseed'):
+def write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, fmt='mseed'):
     #pdb.set_trace()
-    if(np.isnan(writeHourEnd)):
-        writeHourEnd = truncUTC(writeHour, fileLength) + fileLength
+    if(np.isnan(hour_end)):
+        hour_end = trunc_UTCDateTime(hour_to_write, fileLength) + fileLength
     pp = p.copy()
-    pp.trim(writeHour, writeHourEnd)
+    pp.trim(hour_to_write, hour_end)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
     #_breakpoint()
     for tr in pp:
@@ -211,8 +208,8 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
                 tr.write(convertedpath +'/'+ fn, format = fmt, encoding=10) # encoding 10 is Steim 1
         #mseed_core._write_mseed(pp, convertedpath +'/'+ fn, format = 'MSEED', encoding=10)
 
-    writeHour = writeHourEnd
-    return writeHour
+    hour_to_write = hour_end
+    return hour_to_write
     
 ## DONE
 ####################################
@@ -226,7 +223,7 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
 
 ####################################
 
-def truncUTC(x, n=86400):
+def trunc_UTCDateTime(x, n=86400):
     return obspy.core.UTCDateTime(int(float(x)/n)*n)#, origin='1970-01-01')
 
 def makefilename(dir, SN, dirtype):
@@ -313,17 +310,17 @@ def CalcStationStats(DB, t1, t2):
 #L55=gemlog.ReadGemPy(nums=np.arange(6145,6151),SN='055', path = 'raw')
 
 ################################################
-def ReadSN(fn):
+def read_SN(fn):
     SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'])
     SN = SN_line['SN'][0]
     return SN
 
-def ReadVersion(fn):
+def read_format_version(fn):
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'])
     version = versionLine['s'][0][7:]
     return version
     
-def ReadConfig(fn):
+def read_config(fn):
     config = pd.Series({'gps_mode': 1,
                     'gps_cycle' : 15,
                     'gps_quota' : 20,
@@ -345,7 +342,7 @@ def fn2nums(fn_list):
     return nums
 
 
-def FindRightFiles(path, SN, nums):
+def find_nonmissing_files(path, SN, nums):
     ## list all Gem files in the path
     fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
     fnList.sort()
@@ -355,7 +352,7 @@ def FindRightFiles(path, SN, nums):
     ext = np.array([x[-3:] for x in fnList])
     for i in range(len(ext)):
         if ext[i] == 'TXT':
-            ext[i] = ReadSN(fnList[i])
+            ext[i] = read_SN(fnList[i])
     ## check the files for SN and num
     goodFnList = []
     for i, fn in enumerate(fnList):
@@ -629,12 +626,12 @@ def ReadGem_v0_9(fnList):
 def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
     if(len(station) == 0):
         station = SN
-    fnList = FindRightFiles(path, SN, nums)
+    fnList = find_nonmissing_files(path, SN, nums)
     if len(fnList) == 0:
         raise MissingRawFiles
     try:
-        version = ReadVersion(fnList[0])
-        config = ReadConfig(fnList[0])
+        version = read_format_version(fnList[0])
+        config = read_config(fnList[0])
     except:
         raise CorruptRawFile(fnList[0])
     if version == '0.9':
@@ -651,16 +648,16 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     
     M = L['metadata']
     D = L['data']
-    G = ReformatGPS(L['gps'])
+    G = reformat_GPS(L['gps'])
     #breakpoint()
-    breaks = FindBreaks(L)
-    piecewiseTimeFit = PiecewiseRegression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
-    M['t'] = ApplySegments(M['millis'], piecewiseTimeFit)
+    breaks = find_breaks(L)
+    piecewiseTimeFit = piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
+    M['t'] = apply_segments(M['millis'], piecewiseTimeFit)
     header = L['header']
     header.SN = SN
-    header.t1 = ApplySegments(header.t1, piecewiseTimeFit)
-    header.t2 = ApplySegments(header.t2, piecewiseTimeFit)
-    D = np.hstack((D, ApplySegments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
+    header.t1 = apply_segments(header.t1, piecewiseTimeFit)
+    header.t2 = apply_segments(header.t2, piecewiseTimeFit)
+    D = np.hstack((D, apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     
     ## interpolate data to equal spacing to make obspy trace
     #_breakpoint()
@@ -671,7 +668,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
         tr.stats.location = location # this may well be ''
         tr.stats.network = network # can be '' for now and set later
     ## add bitweight and config info to header
-    bitweight_info = GetBitweightInfo(SN, config)
+    bitweight_info = get_bitweight_info(SN, config)
     for key in bitweight_info.keys():
         header[key] = bitweight_info[key]
     for key in config.keys():
@@ -765,7 +762,7 @@ def __gain__(version):
     else:
         return 1 + 49.4/0.470
 
-def GemSpecs(SN):
+def get_gem_specs(SN):
     versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
                     'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
                     'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.Inf])
@@ -779,8 +776,8 @@ def GemSpecs(SN):
     }
 
 
-## Eventually, GetBitweightInfo should perform all the functions of the R gemlog equivalent...but not yet.
-def GetBitweightInfo(SN, config, units = 'Pa'):
+## Eventually, get_bitweight_info should perform all the functions of the R gemlog equivalent...but not yet.
+def get_bitweight_info(SN, config, units = 'Pa'):
     if config['adc_range'] == 0: # high gain
         multiplier = 1
     elif config['adc_range'] == 1: # low gain
@@ -788,7 +785,7 @@ def GetBitweightInfo(SN, config, units = 'Pa'):
     else:
         #pdb.set_trace()
         raise BaseException('Invalid Configuration')
-    specs = GemSpecs(SN)
+    specs = get_gem_specs(SN)
     specs['bitweight_Pa'] *= multiplier
     specs['bitweight_V'] *= multiplier
     if units.upper() == 'PA':
@@ -801,7 +798,7 @@ def GetBitweightInfo(SN, config, units = 'Pa'):
         raise BaseException('Invalid Units')
     return specs
 
-def ReformatGPS(G_in):
+def reformat_GPS(G_in):
     t = [obspy.UTCDateTime(tt) for tt in G_in['t']]
     date = [tt.julday + tt.hour/24.0 + tt.minute/1440.0 + tt.second/86400.0 for tt in t]
     G_dict = {'year': np.array([int(year) for year in G_in.year]),
@@ -812,7 +809,7 @@ def ReformatGPS(G_in):
     return pd.DataFrame.from_dict(G_dict)
 
 
-def FindBreaks(L):
+def find_breaks(L):
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -873,7 +870,7 @@ def FindBreaks(L):
     ends = np.append(ends, tD.max())
     return {'starts':starts, 'ends':ends}
 
-def ApplySegments(x, model):
+def apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
     for i in range(len(model['start'])):
@@ -881,7 +878,7 @@ def ApplySegments(x, model):
         y[w] = model['intercept'][i] + model['slope'][i] * x[w]
     return y
 
-def PiecewiseRegression(x, y, breaks):
+def piecewise_regression(x, y, breaks):
     output = {'slope': [], 'intercept':[], 'r':[], 'p':[], 'stderr':[], 'start': [], 'end':[]}
     for i in range(len(breaks['starts'])):
         w = np.where((x >= breaks['starts'][i]) & (x <= breaks['ends'][i]))[0]
