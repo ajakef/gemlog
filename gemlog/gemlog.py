@@ -34,7 +34,99 @@ def _breakpoint():
     if _debug: # skip if we aren't in debug mode
         pdb.set_trace()
 #####################
-def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
+def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
+            metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
+            SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
+            fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
+    """
+    Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
+
+    Parameters
+    ----------
+    rawpath : str, default '.' 
+        Path of folder containing raw Gem data files to read.
+
+    convertedpath : str, 'converted'
+        Path of folder where converted data files should be written. If this folder does 
+        not exist, Convert will try to create it.
+    
+    metadatapath : str, 'metadata'
+        Path of folder where metadata files should be written. If this folder does 
+        not exist, Convert will try to create it.
+    
+    metadatafile : str
+        File name for metadata file. Default is of the form 'XXXmetadata_NNN.txt', where
+        'XXX' is the Gem's serial number and 'NNN' is the file index (000 at first, incrementing by one for each subsequent calculation).
+
+    gpspath : str, 'gps'
+        Path of folder where gps files should be written. If this folder does 
+        not exist, Convert will try to create it.
+    
+    gpsfile : str
+        File name for gps file. Default is of the form 'XXXgps_NNN.txt', where
+        'XXX' is the Gem's serial number and 'NNN' is the file index (000 at first, incrementing by one for each subsequent calculation).
+    
+    t1 : float or obspy.UTCDateTime, default -np.inf
+        Start time for the conversion. If float, the number of seconds 
+        since the epoch (1970-01-01 00:00:00 UTC). 
+
+    t2 : float or obspy.UTCDateTime, default np.inf
+        Stop time for the conversion. If float, the number of seconds 
+        since the epoch (1970-01-01 00:00:00 UTC). 
+
+    nums : list or np.array of integers
+        Numbers of raw Gem files to read. By default, it reads all files
+        in rawpath for the specified serial number.
+    
+    SN : str
+        One Gem serial number to read and convert. Use a loop to convert
+        multiple Gems.
+
+    bitweight : float
+        The value of each count when converting between counts and other 
+        units (typically Pascals, possibly Volts). By default, it looks
+        up the correct bitweight given the Gem's serial number and gain 
+        configuration. Leave this blank unless the Gem has been modified
+        in a way that changes the bitweight.
+
+    units : str, default 'Pa'
+        Desired output units. Options are 'Pa' (Pascals), 'V' (Volts), 
+        or 'counts'.
+
+    time_adjustment : float, default 0
+        Amount to shift the sample times by in case of timing error, 
+        possibly due to leap second issues.
+
+    blockdays : float, default 1
+        Number of days worth of data to read in and convert at a time.
+        If you have memory issues when converting data, try setting this
+        to a smaller value.
+
+    fileLength : float, default 3600 (one hour)
+        Length of the output files in seconds.
+            
+    station : str
+        Name of the station (up to five characters) to assign to the 
+        data. If not provided, uses the Gem's serial number as the 
+        station ID.
+
+    network : str
+        Two-character name of the sensor network. Leaving this blank is
+        usually fine
+
+    location : str
+        Two-character location code for this Gem. Leaving this blank is 
+        usually fine.
+    
+    fmt : str, default 'MSEED'
+        Output file format. Currently, formats 'MSEED' and 'SAC' are 
+        supported.
+
+    Returns: None, writes output files only (converted, metadata, and gps)
+
+    Note: All sample times involving the Gem (and most other passive 
+    seismic/acoustic data) are in UTC; time zones are not supported.
+    """
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     
     ## make sure the raw directory exists and has real data
@@ -624,6 +716,80 @@ def ReadGem_v0_9(fnList):
 
 
 def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
+    """
+    Read raw Gem files.
+
+    Parameters
+    ----------
+    nums : list or np.array of integers
+        Numbers of raw Gem files to read. By default, it reads all files
+        in 'path' for the specified serial number.
+    
+    path : str, default '.' 
+        Path of folder containing raw Gem data files to read.
+
+    SN : str
+        One Gem serial number to read. Use a loop to read multiple Gems.
+
+    units : str, default 'Pa'
+        Desired output units. Options are 'Pa' (Pascals), 'V' (Volts), 
+        or 'counts'.
+
+    bitweight : float
+        The value of each count when converting between counts and other 
+        units (typically Pascals, possibly Volts). By default, it looks
+        up the correct bitweight given the Gem's serial number and gain 
+        configuration. Leave this blank unless the Gem has been modified
+        in a way that changes the bitweight.
+
+    bitweight_V : float
+        The value of each count when converting between counts and Volts. 
+        By default, it looks up the correct bitweight given the Gem's 
+        serial number and gain configuration. Leave blank unless the Gem
+        has been modified in a way that changes the voltage bitweight.
+
+    bitweight_Pa : float
+        The value of each count when converting between counts and 
+        Pascals. By default, it looks up the correct bitweight given the 
+        Gem's serial number and gain configuration. Leave this blank 
+        unless the Gem has been modified in a way that changes the 
+        pressure bitweight.
+
+    verbose : boolean, default True
+        Whether to print verbose progress messages to the screen.
+
+    network : str
+        Two-character name of the sensor network. Leaving this blank is
+        usually fine.
+
+    station : str
+        Name of the station (up to five characters) to assign to the 
+        data. If not provided, uses the Gem's serial number as the 
+        station ID.
+
+    location : str
+        Two-character location code for this Gem. Leaving this blank is 
+        usually fine.
+    
+   
+
+    Returns: 
+
+    -------
+    dict:
+        - data: obspy.Stream 
+            infrasound data
+        - header: pandas.dataframe 
+            information on raw Gem data files
+        - metadata: pandas.dataframe 
+            state-of-health and other metadata time series
+        - gps: pandas.dataframe 
+            GPS timing and location values
+
+    Note: All sample times involving the Gem (and most other passive 
+    seismic/acoustic data) are in UTC; time zones are not supported.
+    """
+    
     if(len(station) == 0):
         station = SN
     fnList = find_nonmissing_files(path, SN, nums)
