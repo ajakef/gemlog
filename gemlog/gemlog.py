@@ -112,17 +112,19 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
     network : str
         Two-character name of the sensor network. Leaving this blank is
-        usually fine
+        normally fine in subsequent data processing.
 
     location : str
         Two-character location code for this Gem. Leaving this blank is 
-        usually fine.
+        usually fine in subsequent data processing.
     
     fmt : str, default 'MSEED'
         Output file format. Currently, formats 'MSEED' and 'SAC' are 
         supported.
 
-    Returns: None, writes output files only (converted, metadata, and gps)
+    Returns: 
+    ----------
+    None, writes output files only (converted, metadata, and gps)
 
     Note: All sample times involving the Gem (and most other passive 
     seismic/acoustic data) are in UTC; time zones are not supported.
@@ -760,7 +762,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
 
     network : str
         Two-character name of the sensor network. Leaving this blank is
-        usually fine.
+        usually fine in subsequent data processing.
 
     station : str
         Name of the station (up to five characters) to assign to the 
@@ -769,7 +771,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
 
     location : str
         Two-character location code for this Gem. Leaving this blank is 
-        usually fine.
+        usually fine in subsequent data processing.
     
    
 
