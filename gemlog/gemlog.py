@@ -1,15 +1,9 @@
 ## gemlog changes:
-## new gps column (time)
-## metadata time format change
-
 ## known potential problems:
 ## missing/repeated samples at block boundaries due to InterpGem at the beginning
-## bitweight missing in output mseed
 ## not starting files on the hour
 ## doesn't handle nearly-empty raw files well
 
-## fixed issues:
-## from gemlog ReadGemv0.85C (and others too): NaNs in L$gps due to unnecessary and harmful doubling of wna indexing. Also, added python code to drop NaNs.
 import pdb
 import warnings
 import numpy as np
@@ -19,21 +13,127 @@ import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 import obspy
-import datetime
+#import datetime
 import sys
 
-_debug = True
+_debug = False
+
+class EmptyRawFile(Exception):
+    """Raised when the input file is empty"""
+    pass
+class CorruptRawFile(Exception):
+    """Raised when the input file cannot be read for some reason"""
+    pass
+
+class MissingRawFiles(Exception):
+    """Raised when no input files are readable"""
+    pass
+
 
 def _breakpoint():
     if _debug: # skip if we aren't in debug mode
         pdb.set_trace()
 #####################
-def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
+def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
+            metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
+            SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
+            fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
+    """
+    Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
+
+    Parameters
+    ----------
+    rawpath : str, default '.' 
+        Path of folder containing raw Gem data files to read.
+
+    convertedpath : str, 'converted'
+        Path of folder where converted data files should be written. If this folder does 
+        not exist, Convert will try to create it.
+    
+    metadatapath : str, 'metadata'
+        Path of folder where metadata files should be written. If this folder does 
+        not exist, Convert will try to create it.
+    
+    metadatafile : str
+        File name for metadata file. Default is of the form 'XXXmetadata_NNN.txt', where
+        'XXX' is the Gem's serial number and 'NNN' is the file index (000 at first, incrementing by one for each subsequent calculation).
+
+    gpspath : str, 'gps'
+        Path of folder where gps files should be written. If this folder does 
+        not exist, Convert will try to create it.
+    
+    gpsfile : str
+        File name for gps file. Default is of the form 'XXXgps_NNN.txt', where
+        'XXX' is the Gem's serial number and 'NNN' is the file index (000 at first, incrementing by one for each subsequent calculation).
+    
+    t1 : float or obspy.UTCDateTime, default -np.inf
+        Start time for the conversion. If float, the number of seconds 
+        since the epoch (1970-01-01 00:00:00 UTC). 
+
+    t2 : float or obspy.UTCDateTime, default np.inf
+        Stop time for the conversion. If float, the number of seconds 
+        since the epoch (1970-01-01 00:00:00 UTC). 
+
+    nums : list or np.array of integers
+        Numbers of raw Gem files to read. By default, it reads all files
+        in rawpath for the specified serial number.
+    
+    SN : str
+        One Gem serial number to read and convert. Use a loop to convert
+        multiple Gems.
+
+    bitweight : float
+        The value of each count when converting between counts and other 
+        units (typically Pascals, possibly Volts). By default, it looks
+        up the correct bitweight given the Gem's serial number and gain 
+        configuration. Leave this blank unless the Gem has been modified
+        in a way that changes the bitweight.
+
+    units : str, default 'Pa'
+        Desired output units. Options are 'Pa' (Pascals), 'V' (Volts), 
+        or 'counts'.
+
+    time_adjustment : float, default 0
+        Amount to shift the sample times by in case of timing error, 
+        possibly due to leap second issues.
+
+    blockdays : float, default 1
+        Number of days worth of data to read in and convert at a time.
+        If you have memory issues when converting data, try setting this
+        to a smaller value.
+
+    fileLength : float, default 3600 (one hour)
+        Length of the output files in seconds.
+            
+    station : str
+        Name of the station (up to five characters) to assign to the 
+        data. If not provided, uses the Gem's serial number as the 
+        station ID.
+
+    network : str
+        Two-character name of the sensor network. Leaving this blank is
+        usually fine
+
+    location : str
+        Two-character location code for this Gem. Leaving this blank is 
+        usually fine.
+    
+    fmt : str, default 'MSEED'
+        Output file format. Currently, formats 'MSEED' and 'SAC' are 
+        supported.
+
+    Returns: None, writes output files only (converted, metadata, and gps)
+
+    Note: All sample times involving the Gem (and most other passive 
+    seismic/acoustic data) are in UTC; time zones are not supported.
+    """
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     
     ## make sure the raw directory exists and has real data
-    assert os.path.isdir(rawpath), 'Raw directory ' + rawpath + ' does not exist'
-    assert len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) > 0, 'No data files found in directory ' + rawpath
+    if not os.path.isdir(rawpath):
+        raise Exception('Raw directory ' + rawpath + ' does not exist')
+    if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
+        raise Exception('No data files found in directory ' + rawpath)
 
     ## make sure bitweight is a scalar
     if((type(nums) == type(1)) or (type(nums) == type(1.0))):
@@ -124,8 +224,8 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     if(len(wgps) > 0):
         gps[wgps].to_csv(gpsfile, index=False)
 
-    writeHour = max(t1, p[0].stats.starttime)
-    writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
+    hour_to_write = max(t1, p[0].stats.starttime)
+    hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -135,8 +235,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         if((t1 > t2) & (not np.isnan(t1 > t2))):
             break # already converted the requested data
         ## load new data if necessary
-        tt2 = min(t2, truncUTC(t1, 86400*blockdays) + 86400*blockdays)
-        #print([tt2, n1, nums, SN])
+        tt2 = min(t2, trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             L = ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             #pdb.set_trace()
@@ -164,30 +263,28 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 gps.to_csv(gpsfile, index=False, mode='a', header=False)
                 
         ## run the conversion and write new converted files
-        #if((pp.stats.endtime >= t1) & (pp.stats.starttime <= tt2))):
-        while((writeHour + fileLength) <= p[-1].stats.endtime):
-            writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
+        while((hour_to_write + fileLength) <= p[-1].stats.endtime):
+            hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
             
         ## update start time to convert
-        p.trim(writeHour, t2)
-        t1 = truncUTC(tt2+(86400*blockdays) + 1, 86400*blockdays)
-    ## while True
+        p.trim(hour_to_write, t2)
+        t1 = trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
-    while((writeHour <= p[-1].stats.endtime) & (len(p) > 0)):
-        writeHour = WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, fmt=fmt)
-        p.trim(writeHour, t2)
+    while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
+        hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+        p.trim(hour_to_write, t2)
         p = p.split()
         if(len(p) > 0):
-            writeHour = p[0].stats.starttime
+            hour_to_write = p[0].stats.starttime
         else:
             break
 
-def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd = np.nan, fmt='mseed'):
+def write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, fmt='mseed'):
     #pdb.set_trace()
-    if(np.isnan(writeHourEnd)):
-        writeHourEnd = truncUTC(writeHour, fileLength) + fileLength
+    if(np.isnan(hour_end)):
+        hour_end = trunc_UTCDateTime(hour_to_write, fileLength) + fileLength
     pp = p.copy()
-    pp.trim(writeHour, writeHourEnd)
+    pp.trim(hour_to_write, hour_end)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
     #_breakpoint()
     for tr in pp:
@@ -203,8 +300,8 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
                 tr.write(convertedpath +'/'+ fn, format = fmt, encoding=10) # encoding 10 is Steim 1
         #mseed_core._write_mseed(pp, convertedpath +'/'+ fn, format = 'MSEED', encoding=10)
 
-    writeHour = writeHourEnd
-    return writeHour
+    hour_to_write = hour_end
+    return hour_to_write
     
 ## DONE
 ####################################
@@ -218,7 +315,7 @@ def WriteHourMS(p, writeHour, fileLength, bitweight, convertedpath, writeHourEnd
 
 ####################################
 
-def truncUTC(x, n=86400):
+def trunc_UTCDateTime(x, n=86400):
     return obspy.core.UTCDateTime(int(float(x)/n)*n)#, origin='1970-01-01')
 
 def makefilename(dir, SN, dirtype):
@@ -305,17 +402,17 @@ def CalcStationStats(DB, t1, t2):
 #L55=gemlog.ReadGemPy(nums=np.arange(6145,6151),SN='055', path = 'raw')
 
 ################################################
-def ReadSN(fn):
+def read_SN(fn):
     SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'])
     SN = SN_line['SN'][0]
     return SN
 
-def ReadVersion(fn):
+def read_format_version(fn):
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'])
     version = versionLine['s'][0][7:]
     return version
     
-def ReadConfig(fn):
+def read_config(fn):
     config = pd.Series({'gps_mode': 1,
                     'gps_cycle' : 15,
                     'gps_quota' : 20,
@@ -337,7 +434,7 @@ def fn2nums(fn_list):
     return nums
 
 
-def FindRightFiles(path, SN, nums):
+def find_nonmissing_files(path, SN, nums):
     ## list all Gem files in the path
     fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
     fnList.sort()
@@ -347,7 +444,7 @@ def FindRightFiles(path, SN, nums):
     ext = np.array([x[-3:] for x in fnList])
     for i in range(len(ext)):
         if ext[i] == 'TXT':
-            ext[i] = ReadSN(fnList[i])
+            ext[i] = read_SN(fnList[i])
     ## check the files for SN and num
     goodFnList = []
     for i, fn in enumerate(fnList):
@@ -362,7 +459,7 @@ def FindRightFiles(path, SN, nums):
     ## make sure they aren't empty
     goodNonemptyFnList = []
     for fn in goodFnList:
-        if os.path.getsize(fn) > 0:
+        if os.path.getsize(fn) > 10: # to be safe, anything under 10 bytes is treated as empty 
             goodNonemptyFnList.append(fn)
     if(len(goodNonemptyFnList) == 0):
         ## warning
@@ -468,6 +565,10 @@ def ReadGem_v0_9_single(filename, offset=0):
         df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
     except:
         df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
+
+    if df.shape[0] == 0:
+        raise EmptyRawFile(filename)
+    
     df['linetype'] = [value[0] for value in df[0]]
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
     #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
@@ -630,11 +731,11 @@ def slow_ReadGem_v0_9_single(fn, startMillis):
 
 def ReadGem_v0_9(fnList):
     ## initialize the output variables
-    G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon', 't'])
-    M = pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', \
-                                               'maxWriteTime', 'minFifoFree', 'maxFifoUsed', \
-                                               'maxOverruns', 'gpsOnFlag', 'unusedStack1',\
-                                               'unusedStackIdle'])
+    G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
+                                'second', 'lat', 'lon', 't'])
+    M = pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', \
+                                'minFifoFree', 'maxFifoUsed', 'maxOverruns', 'gpsOnFlag', \
+                                'unusedStack1', 'unusedStackIdle'])
     D = np.ndarray([0,2]) # expected number 7.2e5
     num_filler = np.zeros(len(fnList))
     header = pd.DataFrame.from_dict({'file': fnList,
@@ -671,12 +772,90 @@ def ReadGem_v0_9(fnList):
 
 
 def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
+    """
+    Read raw Gem files.
+
+    Parameters
+    ----------
+    nums : list or np.array of integers
+        Numbers of raw Gem files to read. By default, it reads all files
+        in 'path' for the specified serial number.
+    
+    path : str, default '.' 
+        Path of folder containing raw Gem data files to read.
+
+    SN : str
+        One Gem serial number to read. Use a loop to read multiple Gems.
+
+    units : str, default 'Pa'
+        Desired output units. Options are 'Pa' (Pascals), 'V' (Volts), 
+        or 'counts'.
+
+    bitweight : float
+        The value of each count when converting between counts and other 
+        units (typically Pascals, possibly Volts). By default, it looks
+        up the correct bitweight given the Gem's serial number and gain 
+        configuration. Leave this blank unless the Gem has been modified
+        in a way that changes the bitweight.
+
+    bitweight_V : float
+        The value of each count when converting between counts and Volts. 
+        By default, it looks up the correct bitweight given the Gem's 
+        serial number and gain configuration. Leave blank unless the Gem
+        has been modified in a way that changes the voltage bitweight.
+
+    bitweight_Pa : float
+        The value of each count when converting between counts and 
+        Pascals. By default, it looks up the correct bitweight given the 
+        Gem's serial number and gain configuration. Leave this blank 
+        unless the Gem has been modified in a way that changes the 
+        pressure bitweight.
+
+    verbose : boolean, default True
+        Whether to print verbose progress messages to the screen.
+
+    network : str
+        Two-character name of the sensor network. Leaving this blank is
+        usually fine.
+
+    station : str
+        Name of the station (up to five characters) to assign to the 
+        data. If not provided, uses the Gem's serial number as the 
+        station ID.
+
+    location : str
+        Two-character location code for this Gem. Leaving this blank is 
+        usually fine.
+    
+   
+
+    Returns: 
+
+    -------
+    dict:
+        - data: obspy.Stream 
+            infrasound data
+        - header: pandas.dataframe 
+            information on raw Gem data files
+        - metadata: pandas.dataframe 
+            state-of-health and other metadata time series
+        - gps: pandas.dataframe 
+            GPS timing and location values
+
+    Note: All sample times involving the Gem (and most other passive 
+    seismic/acoustic data) are in UTC; time zones are not supported.
+    """
+    
     if(len(station) == 0):
         station = SN
-    ## add asserts, especially for SN
-    fnList = FindRightFiles(path, SN, nums)
-    version = ReadVersion(fnList[0])
-    config = ReadConfig(fnList[0])
+    fnList = find_nonmissing_files(path, SN, nums)
+    if len(fnList) == 0:
+        raise MissingRawFiles
+    try:
+        version = read_format_version(fnList[0])
+        config = read_config(fnList[0])
+    except:
+        raise CorruptRawFile(fnList[0])
     if version == '0.9':
         L = ReadGem_v0_9(fnList)
     elif version == '0.85C':
@@ -685,19 +864,22 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
         raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
-    assert L['gps'].shape[0] > 0, 'No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion'
+
+    if L['gps'].shape[0] == 0:
+        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    
     M = L['metadata']
     D = L['data']
-    G = ReformatGPS(L['gps'])
+    G = reformat_GPS(L['gps'])
     #breakpoint()
-    breaks = FindBreaks(L)
-    piecewiseTimeFit = PiecewiseRegression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
-    M['t'] = ApplySegments(M['millis'], piecewiseTimeFit)
+    breaks = find_breaks(L)
+    piecewiseTimeFit = piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
+    M['t'] = apply_segments(M['millis'], piecewiseTimeFit)
     header = L['header']
     header.SN = SN
-    header.t1 = ApplySegments(header.t1, piecewiseTimeFit)
-    header.t2 = ApplySegments(header.t2, piecewiseTimeFit)
-    D = np.hstack((D, ApplySegments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
+    header.t1 = apply_segments(header.t1, piecewiseTimeFit)
+    header.t2 = apply_segments(header.t2, piecewiseTimeFit)
+    D = np.hstack((D, apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     
     ## interpolate data to equal spacing to make obspy trace
     #_breakpoint()
@@ -708,7 +890,7 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
         tr.stats.location = location # this may well be ''
         tr.stats.network = network # can be '' for now and set later
     ## add bitweight and config info to header
-    bitweight_info = GetBitweightInfo(SN, config)
+    bitweight_info = get_bitweight_info(SN, config)
     for key in bitweight_info.keys():
         header[key] = bitweight_info[key]
     for key in config.keys():
@@ -802,7 +984,7 @@ def __gain__(version):
     else:
         return 1 + 49.4/0.470
 
-def GemSpecs(SN):
+def get_gem_specs(SN):
     versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
                     'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
                     'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.Inf])
@@ -816,8 +998,8 @@ def GemSpecs(SN):
     }
 
 
-## Eventually, GetBitweightInfo should perform all the functions of the R gemlog equivalent...but not yet.
-def GetBitweightInfo(SN, config, units = 'Pa'):
+## Eventually, get_bitweight_info should perform all the functions of the R gemlog equivalent...but not yet.
+def get_bitweight_info(SN, config, units = 'Pa'):
     if config['adc_range'] == 0: # high gain
         multiplier = 1
     elif config['adc_range'] == 1: # low gain
@@ -825,7 +1007,7 @@ def GetBitweightInfo(SN, config, units = 'Pa'):
     else:
         #pdb.set_trace()
         raise BaseException('Invalid Configuration')
-    specs = GemSpecs(SN)
+    specs = get_gem_specs(SN)
     specs['bitweight_Pa'] *= multiplier
     specs['bitweight_V'] *= multiplier
     if units.upper() == 'PA':
@@ -838,7 +1020,7 @@ def GetBitweightInfo(SN, config, units = 'Pa'):
         raise BaseException('Invalid Units')
     return specs
 
-def ReformatGPS(G_in):
+def reformat_GPS(G_in):
     t = [obspy.UTCDateTime(tt) for tt in G_in['t']]
     date = [tt.julday + tt.hour/24.0 + tt.minute/1440.0 + tt.second/86400.0 for tt in t]
     G_dict = {'year': np.array([int(year) for year in G_in.year]),
@@ -849,7 +1031,7 @@ def ReformatGPS(G_in):
     return pd.DataFrame.from_dict(G_dict)
 
 
-def FindBreaks(L):
+def find_breaks(L):
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -910,7 +1092,7 @@ def FindBreaks(L):
     ends = np.append(ends, tD.max())
     return {'starts':starts, 'ends':ends}
 
-def ApplySegments(x, model):
+def apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
     for i in range(len(model['start'])):
@@ -918,7 +1100,7 @@ def ApplySegments(x, model):
         y[w] = model['intercept'][i] + model['slope'][i] * x[w]
     return y
 
-def PiecewiseRegression(x, y, breaks):
+def piecewise_regression(x, y, breaks):
     output = {'slope': [], 'intercept':[], 'r':[], 'p':[], 'stderr':[], 'start': [], 'end':[]}
     for i in range(len(breaks['starts'])):
         w = np.where((x >= breaks['starts'][i]) & (x <= breaks['ends'][i]))[0]
