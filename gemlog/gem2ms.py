@@ -55,13 +55,6 @@ def parse_error(e):
 def main(argv = None):
     if argv is None:
         argv = sys.argv[1:]
-    if gemlog._debug:
-        logging.basicConfig(level=logging.DEBUG, filename="gem2ms_logfile.txt", filemode="a+",
-                        format="%(asctime)-15s %(levelname)-8s %(message)s")
-    else:
-        logging.basicConfig(level=logging.INFO, filename="gem2ms_logfile.txt", filemode="a+",
-                        format="%(asctime)-15s %(levelname)-8s %(message)s")
-        
     #print(sys.executable)
     inputdir = 'raw'
     SN_list = ''
@@ -101,6 +94,13 @@ def main(argv = None):
         elif opt in ("-f", "--format"):
             fmt = arg
             
+    if gemlog._debug:
+        logging.basicConfig(level=logging.DEBUG, filename="gem2ms_logfile.txt", filemode="a+",
+                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, filename="gem2ms_logfile.txt", filemode="a+",
+                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+        
     try:
         fn = os.listdir(inputdir)
     except:
