@@ -1,4 +1,5 @@
 from gemlog import *
+import pytest
 ## This function accounts for most of the runtime, so it's a candidate for speeding up.
 ## Any exception raised in this function should be interpreted as a bad data input raw file and
 ## handled immediately. Data files can be bad in unpredictable ways and can trigger exceptions
@@ -40,19 +41,9 @@ def test_read_with_cython():
 ## files. No need to classify the type of exception; any exception
 ## should be interpreted as a bad file.
 def test_ReadGem_v0_9_single_empty():
-    try:
+    with pytest.raises(EmptyRawFile):
         ReadGem_v0_9_single('data/FILE0000.000') # test empty file
-    except EmptyRawFile:
-        print("Correctly catches empty raw file")
-    except:
-        raise Exception("Fails to catch empty raw file")
-    else:
-        raise Exception("Fails to catch empty raw file")
 
 def test_ReadGem_v0_9_single_corrupt():
-    try:
+    with pytest.raises(Exception):
         ReadGem_v0_9_single('data/FILE0023.096') # test a malformed file
-    except:
-        print("Correctly catches corrupt raw file")
-    else:
-        raise Exception("Fails to catch corrupt raw file")
