@@ -41,11 +41,11 @@ def parse_gemfile(filename):
     cdef int DmsSamp = 0, ADC = 0
     # G placeholders
     cdef int msPPS = 0, msLag = 0, yr = 0, mo = 0, day = 0, hr = 0, mn = 0
-    cdef float sec = 0, lat = 0, lon = 0  # sscanf requires float (not double)
+    cdef double sec = 0, lat = 0, lon = 0
     # M placeholders
     cdef int ms = 0, maxLag = 0, minFree = 0, maxUsed = 0, maxOver = 0
     cdef int gpsFlag = 0, freeStack1 = 0, freeStackIdle = 0
-    cdef float batt = 0, temp = 0, A2 = 0, A3 = 0  # must be float
+    cdef double batt = 0, temp = 0, A2 = 0, A3 = 0
 
     # array to store parsed data
     n_row = 780000  # max number of rows to expect: 750000 + 15000 + 15000
@@ -81,7 +81,7 @@ def parse_gemfile(filename):
             # G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
             # G,8171,70,2020,6,20,5,21,22.0,43.62226,-116.20594
             n_matched = sscanf(line + 2,
-                               "%d,%d,%d,%d,%d,%d,%d,%f,%f,%f",
+                               "%d,%d,%d,%d,%d,%d,%d,%lf,%lf,%lf",
                                &msPPS, &msLag, &yr, &mo, &day, &hr, &mn,
                                &sec, &lat, &lon)
             view[line_number, 0] = msLag
@@ -100,7 +100,7 @@ def parse_gemfile(filename):
             # gpsFlag,freeStack1,freeStackIdle
             # M,8001,3.02,22.1,1.412,2.052,94,66,9,0,0,57,86
             n_matched = sscanf(line + 2,
-                               "%d,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d",
+                               "%d,%lf,%lf,%lf,%lf,%d,%d,%d,%d,%d,%d,%d",
                                &ms, &batt, &temp, &A2, &A3, &maxLag,
                                &minFree, &maxUsed, &maxOver, &gpsFlag,
                                &freeStack1, &freeStackIdle)
