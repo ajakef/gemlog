@@ -505,6 +505,65 @@ def MillisToTime(L):
     pf = np.poly1d(coefficients)
     return pf
 
+
+def _read_with_cython(filename, offset=0):
+    """
+    Read a Gem logfile.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Filepath of a file containing data to read.
+    offset : int, default 0
+        A timing offset to include in the millisecond timestamp values.
+
+    Returns
+    -------
+    dict of dataframes
+        - data: the analog readings and associated timings
+        - metadata: datalogger metadata
+        - gps: GPS timing and location values
+    """
+    try:
+        from gemlog.parsers import parse_gemfile
+    except ImportError:
+        raise ImportError(
+            "gemlog's C-extensions are not available. Reinstall gemlog with "
+            "C-extensions to use this function."
+        )
+
+    # use cythonized reader file instead of pd.read_csv and slow string ops
+    values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+    if values.shape[0] == 0:
+        raise EmptyRawFile(filename)
+
+    df = pd.DataFrame(values, columns=range(2, 13))
+    # note that linetype has type bytes here, not str like in the pandas func
+    df['linetype'] = types
+    df['millis-sawtooth'] = millis
+    return _process_gemlog_data(df, offset)
+
+
+def _read_with_pandas(filename, offset=0):
+    # skiprows is important so that the header doesn't force dtype=='object'
+    # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
+    try:
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+    except Exception:
+        df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
+
+    if df.shape[0] == 0:
+        raise EmptyRawFile(filename)
+
+    df['linetype'] = [value[0] for value in df[0]]
+    df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
+    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+    ## most of the runtime is before here
+    # unroll the ms rollover sawtooth
+    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
+    return _process_gemlog_data(df, offset)
+
+
 def ReadGem_v0_9_single(filename, offset=0):
     """
     Read a Gem logfile.
@@ -525,36 +584,54 @@ def ReadGem_v0_9_single(filename, offset=0):
         - metadata: datalogger metadata
         - gps: GPS timing and location values
     """
-    # skiprows is important so that the header doesn't force dtype=='object'
-    # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
-    try:
-        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
-    except:
-        df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
+    # Try each of the three file readers in order of decreasing speed but
+    # probably increasing likelihood of success.
 
-    if df.shape[0] == 0:
-        raise EmptyRawFile(filename)
-    
-    df['linetype'] = [value[0] for value in df[0]]
-    df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
-    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
-    ## most of the runtime is before here
+    readers = [
+        _read_with_cython, _read_with_pandas, _slow_ReadGem_v0_9_single
+    ]
+    for reader in readers:
+        try:
+            return reader(filename, offset)
+        except (EmptyRawFile, FileNotFoundError):
+            # If the file is definitely not going to work, exit early and
+            # re-raise the exception that caused the problem
+            raise
+        except Exception:
+            pass
+
+    raise CorruptRawFile(filename)
+
+
+def _process_gemlog_data(df, offset):
+
     # unroll the ms rollover sawtooth
-    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -2**12).cumsum()
     df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > 2**12).cumsum()
     df['millis-stairstep'] *= 2**13
     df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
     first_millis = df['millis-corrected'].iloc[0]
-    df['millis-corrected'] += (offset-first_millis) + ((first_millis-(offset % 2**13)+2**12) % 2**13) - 2**12
-    #df['millis-corrected'] += (offset-first_millis) - ((first_millis - offset) % 2**13)
-
+    df['millis-corrected'] += (
+        (offset-first_millis)
+        + ((first_millis-(offset % 2**13)+2**12) % 2**13)
+        - 2**12
+    )
     # groupby is somewhat faster than repeated subsetting like
     # df.loc[df['linetype'] == 'D', :], ...
     grouper = df.groupby('linetype')
-    D = grouper.get_group('D')
-    G = grouper.get_group('G')
-    M = grouper.get_group('M')
+    # the python-based reader uses strings for linetype but the cython version
+    # uses bytes.  figure out which one we need:
+    if isinstance(df['linetype'].iloc[0], bytes):
+        Dkey = b'D'
+        Gkey = b'G'
+        Mkey = b'M'
+        data_col = 2
+    else:
+        Dkey, Gkey, Mkey = 'DGM'
+        data_col = 1
+    D = grouper.get_group(Dkey)
+    G = grouper.get_group(Gkey)
+    M = grouper.get_group(Mkey)
 
     # pick out columns of interest and rename
     D_cols = ['msSamp', 'ADC']
@@ -565,7 +642,7 @@ def ReadGem_v0_9_single(filename, offset=0):
               'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
 
     # column names are currently integers (except for the calculated cols)
-    D = D[['millis-corrected', 1]]
+    D = D[['millis-corrected', data_col]]
     D.columns = D_cols
     G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
     G.columns = G_cols
@@ -593,7 +670,9 @@ def ReadGem_v0_9_single(filename, offset=0):
     # process data (version-dependent)
     D['ADC'] = D['ADC'].astype(float).cumsum()
 
-    return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G.reset_index().astype('float')}
+    return {'data': np.array(D),
+            'metadata': M.reset_index().astype('float'),
+            'gps': G.reset_index().astype('float')}
 
 
 def _valid_gps(G):
@@ -624,7 +703,7 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def slow_ReadGem_v0_9_single(fn, startMillis):
+def _slow_ReadGem_v0_9_single(fn, startMillis):
     ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400

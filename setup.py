@@ -4,6 +4,21 @@ try:
 except ImportError:
     raise RuntimeError('setuptools is required')
 
+
+import os
+use_cython = os.environ.get("USE_CYTHON", 'True').lower() != 'false'
+
+if use_cython:
+    try:
+        from Cython.Build import cythonize
+    except ImportError:
+        msg = (
+            'Could not import cython. Make sure cython is installed and a C '
+            'compiler is available and retry, or disable the C-extension with '
+            '`USE_CYTHON=False pip install gemlog`.'
+        )
+        raise RuntimeError(msg)
+
 from distutils.util import convert_path
 import sys
 
@@ -93,7 +108,10 @@ setuptools_kwargs = {
 
 PACKAGES = ['gemlog']
 
-extensions = []
+if use_cython:
+    ext_modules = cythonize("gemlog/parsers.pyx")
+else:
+    ext_modules = []
 
 setup(name=DISTNAME,
       version=VERSION,
@@ -101,7 +119,7 @@ setup(name=DISTNAME,
       install_requires=INSTALL_REQUIRES,
       extras_require=EXTRAS_REQUIRE,
       tests_require=TESTS_REQUIRE,
-      ext_modules=extensions,
+      ext_modules=ext_modules,
       description=DESCRIPTION,
       long_description=LONG_DESCRIPTION,
       author=AUTHOR,
