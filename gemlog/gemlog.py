@@ -506,7 +506,7 @@ def MillisToTime(L):
     return pf
 
 
-def read_with_cython(filename, offset=0):
+def _read_with_cython(filename, offset=0):
     """
     Read a Gem logfile.
 
@@ -535,9 +535,29 @@ def read_with_cython(filename, offset=0):
     # use cythonized reader file instead of pd.read_csv and slow string ops
     values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
     df = pd.DataFrame(values, columns=range(2, 13))
-    # convert bytes to string:
+    # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
     df['millis-sawtooth'] = millis
+    return _process_gemlog_data(df, offset)
+
+
+def _read_with_pandas(filename, offset=0):
+    # skiprows is important so that the header doesn't force dtype=='object'
+    # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
+    try:
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+    except:
+        df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
+
+    if df.shape[0] == 0:
+        raise EmptyRawFile(filename)
+
+    df['linetype'] = [value[0] for value in df[0]]
+    df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
+    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+    ## most of the runtime is before here
+    # unroll the ms rollover sawtooth
+    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
     return _process_gemlog_data(df, offset)
 
 
@@ -561,23 +581,21 @@ def ReadGem_v0_9_single(filename, offset=0):
         - metadata: datalogger metadata
         - gps: GPS timing and location values
     """
-    # skiprows is important so that the header doesn't force dtype=='object'
-    # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
-    try:
-        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
-    except:
-        df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
+    # Try each of the three file readers in order of decreasing speed but
+    # probably increasing likelihood of success:
 
-    if df.shape[0] == 0:
-        raise EmptyRawFile(filename)
-    
-    df['linetype'] = [value[0] for value in df[0]]
-    df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
-    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
-    ## most of the runtime is before here
-    # unroll the ms rollover sawtooth
-    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
-    return _process_gemlog_data(df, offset)
+    # first the cython-based file reader
+    try:
+        return _read_with_cython(filename, offset)
+    except Exception:
+
+        # fall back to the pandas-based file reader
+        try:
+            return _read_with_pandas(filename, offset)
+        except Exception:
+
+            # otherwise use the pure-python reader
+            return slow_ReadGem_v0_9_single(filename, offset)
 
 
 def _process_gemlog_data(df, offset):
