@@ -534,6 +534,9 @@ def _read_with_cython(filename, offset=0):
 
     # use cythonized reader file instead of pd.read_csv and slow string ops
     values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+    if values.shape[0] == 0:
+        raise EmptyRawFile(filename)
+
     df = pd.DataFrame(values, columns=range(2, 13))
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
@@ -546,7 +549,7 @@ def _read_with_pandas(filename, offset=0):
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
         df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
-    except:
+    except Exception:
         df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
 
     if df.shape[0] == 0:
@@ -582,20 +585,22 @@ def ReadGem_v0_9_single(filename, offset=0):
         - gps: GPS timing and location values
     """
     # Try each of the three file readers in order of decreasing speed but
-    # probably increasing likelihood of success:
+    # probably increasing likelihood of success.
 
-    # first the cython-based file reader
-    try:
-        return _read_with_cython(filename, offset)
-    except Exception:
-
-        # fall back to the pandas-based file reader
+    readers = [
+        _read_with_cython, _read_with_pandas, _slow_ReadGem_v0_9_single
+    ]
+    for reader in readers:
         try:
-            return _read_with_pandas(filename, offset)
+            return reader(filename, offset)
+        except (EmptyRawFile, FileNotFoundError):
+            # If the file is definitely not going to work, exit early and
+            # re-raise the exception that caused the problem
+            raise
         except Exception:
+            pass
 
-            # otherwise use the pure-python reader
-            return slow_ReadGem_v0_9_single(filename, offset)
+    raise CorruptRawFile(filename)
 
 
 def _process_gemlog_data(df, offset):
@@ -698,7 +703,7 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def slow_ReadGem_v0_9_single(fn, startMillis):
+def _slow_ReadGem_v0_9_single(fn, startMillis):
     ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
