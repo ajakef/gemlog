@@ -897,7 +897,10 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     D = L['data']
     G = reformat_GPS(L['gps'])
     #breakpoint()
-    breaks = find_breaks(L)
+    try:
+        breaks = find_breaks(L)
+    except:
+        raise CorruptRawFile('Crashed between files ' + fnList[0] + ' and ' + fnList[-1] + '. Is this the end of a recording period, or are there bad files here?')
     piecewiseTimeFit = piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
     M['t'] = apply_segments(M['millis'], piecewiseTimeFit)
     header = L['header']
