@@ -55,9 +55,13 @@ def parse_error(e):
 def main(argv = None):
     if argv is None:
         argv = sys.argv[1:]
-    logging.basicConfig(level=logging.DEBUG, filename="gem2ms_logfile.txt", filemode="a+",
+    if gemlog._debug:
+        logging.basicConfig(level=logging.DEBUG, filename="gem2ms_logfile.txt", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
-    #print(1)
+    else:
+        logging.basicConfig(level=logging.INFO, filename="gem2ms_logfile.txt", filemode="a+",
+                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+        
     #print(sys.executable)
     inputdir = 'raw'
     SN_list = ''
