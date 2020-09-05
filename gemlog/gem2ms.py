@@ -133,7 +133,7 @@ def main(argv = None):
                 gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
-                logging.exception(parse_error(e), exc_info = False)
+                logging.exception(parse_error(e), exc_info = gemlog._debug)
                 #logging.exception(traceback.format_exc())
                 logging.info('Error in ' + SN)
             else:
