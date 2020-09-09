@@ -59,7 +59,7 @@ def main(argv = None):
     inputdir = 'raw'
     SN_list = ''
     exclude = []
-    outputdir = 'mseed'
+    outputdir = None
     test = False
     fmt = 'MSEED'
     gemlog._debug = False
@@ -93,7 +93,9 @@ def main(argv = None):
             outputdir = arg
         elif opt in ("-f", "--format"):
             fmt = arg
-            
+
+    if outputdir is None:
+        outputdir = fmt.lower()
     if gemlog._debug:
         logging.basicConfig(level=logging.DEBUG, filename="gem2ms_logfile.txt", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
