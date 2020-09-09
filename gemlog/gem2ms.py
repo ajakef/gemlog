@@ -37,7 +37,7 @@ def print_call():
     print('-s --serialnumbers: separate by commas (no spaces); default all')
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
     print('-o --outputdir: default ./mseed')
-    print('-f --format: mseed, sac, or wav; default mseed')
+    print('-f --format: mseed, sac, or tspair (text) currently supported; default mseed')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-h --help: print this message')
     print('gemlog version: ' + gemlog.__version__)
