@@ -67,7 +67,6 @@ def make_gem_inventory(station_info, coords, response = 'default'):
     return inventory
     
 def rename_files(infile_pattern, station_info, output_dir, output_format = 'mseed'):
-    #stationInfo = pd.read_csv(station_info, names = ['SN', 'network', 'station', 'location'], dtype = {'network':'str', 'SN':'str', 'station':'str', 'location':'str'})
     station_info = _get_station_info(station_info)
     
     if not os.path.isdir(output_dir):
