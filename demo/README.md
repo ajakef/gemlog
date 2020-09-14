@@ -7,7 +7,7 @@ You must have anaconda or miniconda installed to proceed. If you don't have eith
 Then, follow the gemlog installation procedure [here](https://github.com/ajakef/gemlog/blob/master/README). Note that the resulting conda environment includes relevant packages like obspy and pandas.
 
 ### Getting Started
-First, download the zip file containing the inputs for this demonstration from [this site](https://github.com/ajakef/gemlog/blob/master/demo/demo.zip). Move the file to some convenient folder, unzip it, and cd into the project folder.
+First, download the zip file in the list of files above; this contains the inputs for this demonstration. Move the file to some convenient folder, unzip it, and cd into the project folder.
 
 Notice the structure of this project folder. It includes a “raw” folder where the gem data files go. You don't have to use the folder name “raw”--or even have a separate folder for the raw data files--but all the default settings assume you're doing it this way.
 ```
@@ -87,6 +87,7 @@ You can now create a basic station map using the following code. Note that the G
 ```
 import matplotlib.pyplot as plt
 plt.plot(coords.lon, coords.lat, 'k.') # plot the lon and lat as black dots
+## you may need to run plt.show() to see the plot, depending on your python interface
 ```
 Finally, you can create an obspy 'Inventory' object and write it as a stationXML file using this code:
 ```
