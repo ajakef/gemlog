@@ -63,8 +63,7 @@ $ cat station_info.txt
 Begin by activating your conda environment as before: `conda activate gem` and open python within your project directory. Run the following code:
 ```
 import gemlog
-coords = gemlog.SummarizeAllGPS('gps', output_file = 'project_coords.csv',
-station_info = 'station_info.txt')
+coords = gemlog.SummarizeAllGPS('gps', output_file = 'project_coords.csv', station_info = 'station_info.txt')
 gemlog.rename_files('mseed/*', station_info = 'station_info.txt', output_dir = 'renamed_mseed')
 ```
 
@@ -95,7 +94,9 @@ import obspy
 from obspy.clients.nrl import NRL
 ## download the instrument response from the IRIS Nominal Response Library
 nrl = NRL()
-response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'], datalogger_keys = ['Gem
+response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
+	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
+			    '0 - 128000 counts/V'])
 ## create an inventory of all sensors used in this project--may cause warnings
 inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
 inv.write('NM_inventory.xml', format='STATIONXML')
