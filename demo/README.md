@@ -97,7 +97,7 @@ from obspy.clients.nrl import NRL
 nrl = NRL()
 response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
 	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
-			    '0 - 128000 counts/V'])
+			    '0 - 128000 counts/V']) # may cause warning--ok to ignore
 ## create an inventory of all sensors used in this project--may cause warnings
 inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
 inv.write('NM_inventory.xml', format='STATIONXML')
@@ -116,7 +116,7 @@ data.merge()
 print(data)
 ## deconvolve the instrument responses using the inventory already created
 inv = obspy.read_inventory('NM_inventory.xml')
-data.remove_response(inv) # may cause warnings
+data.remove_response(inv) # may cause warnings--ok to ignore
 ## filter data above 1 Hz (lower frequencies are often wind noise)
 data.filter("highpass", freq=1.0)
 ## trim the data around a known event
