@@ -2,16 +2,12 @@
 September 14, 2020
 
 ### Installing the gemlog 0.3.2 software
-You must have anaconda or miniconda installed to proceed. If you don't have either and don't know which to use, install miniconda from here: [https://docs.conda.io/en/latest/miniconda.html]
-Then, follow the gemlog installation procedure at [https://github.com/ajakef/gemlog/blob/master/README]
-Note that the resulting conda environment includes relevant packages like obspy and pandas.
+You must have anaconda or miniconda installed to proceed. If you don't have either and don't know which to use, install miniconda from [here](https://docs.conda.io/en/latest/miniconda.html).
+
+Then, follow the gemlog installation procedure [here](https://github.com/ajakef/gemlog/blob/master/README). Note that the resulting conda environment includes relevant packages like obspy and pandas.
 
 ### Getting Started
-First, download the zip file containing the inputs for this demonstration with:
-```
-$ wget https://github.com/ajakef/gemlog/blob/master/demo/demo.zip
-```
-Move the file to some convenient folder, unzip it, and cd into the project folder.
+First, download the zip file containing the inputs for this demonstration from [this site](https://github.com/ajakef/gemlog/blob/master/demo/demo.zip). Move the file to some convenient folder, unzip it, and cd into the project folder.
 
 Notice the structure of this project folder. It includes a “raw” folder where the gem data files go. You don't have to use the folder name “raw”--or even have a separate folder for the raw data files--but all the default settings assume you're doing it this way.
 ```
