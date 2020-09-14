@@ -1,6 +1,5 @@
 # Gem Data Pre-Processing Workflow
-Jake Anderson
-September 9, 2020
+September 14, 2020
 
 ### Installing the gemlog 0.3.2 software
 You must have anaconda or miniconda installed to proceed. If you don't have either and don't know which to use, install miniconda from here: [https://docs.conda.io/en/latest/miniconda.html]
@@ -14,9 +13,9 @@ $ wget https://github.com/ajakef/gemlog/blob/master/demo/demo.zip
 ```
 Move the file to some convenient folder, unzip it, and cd into the project folder.
 
-Notice the structure of this project folder. It includes a “raw” folder where the gem data files go. You don't have to use the folder name “raw”–or even have a separate folder for the raw data files–but all the default settings assume you're doing it this way.
+Notice the structure of this project folder. It includes a “raw” folder where the gem data files go. You don't have to use the folder name “raw”--or even have a separate folder for the raw data files--but all the default settings assume you're doing it this way.
 ```
---Project_Folder/
+Project_Folder/
 |__station_info.txt (table of SEED codes vs Gem serial number)
 |__raw/ (raw data from all loggers, FROM THIS PROJECT ONLY)
 ```
@@ -33,16 +32,12 @@ FILE0012.077
 ```
 Gem data files have the Gem's serial number as the extension, meaning that we have data from Gems 077, 088, 096, 103, 106, and 109. Empty or nearly-empty data files (like those from quick tests between field campaigns) can cause problems in the data conversion. It's a good idea to start each field campaign with clean disks, and to inspect your raw files and remove bad files before converting them.
 
-The file “station info.txt” is used to (optionally) assign SEED codes (network, station, and location) to your output data. By default, your converted data will use the Gem serial number as the station name, and leave the network and location codes blank. If you want to assign different names, you need to include a comma-separated text file containing a table of serial numbers, network codes, station codes, and location codes. Because all Gem recordings are infrasound sampled at 100 Hz, they are automatically assigned the channel code HDF.
-
-Info on SEED and SEED codes at [https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/]
-SEED channel naming convention: [https://ds.iris.edu/ds/nodes/dmc/data/formats/seed-channel-naming/]
+The optional file `station info.txt` is used to assign [SEED codes](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/) (network, station, and location) to your output data. By default, your converted data will use the Gem serial number as the station name, and leave the network and location codes blank. If you want to assign different names, you need to include a comma-separated text file containing a table of serial numbers, network codes, station codes, and location codes. Because all Gem recordings are infrasound sampled at 100 Hz, they are automatically assigned the [channel code](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed-channel-naming/) HDF.
 
 ### Converting raw gem data
-Set your conda environment to whatever you set up during the installation using a terminal command like `conda activate gem` and run the data conversion using the terminal command `gem2ms`. This may take a while to run if you have a lot of data! gem2ms will add the following folders to your
-directory structure:
+Set your conda environment to whatever you set up during the installation using a terminal command like `conda activate gem` and run the data conversion using the terminal command `gem2ms`. This may take a while to run if you have a lot of data! `gem2ms` will add the following folders to your directory structure:
 ```
---Project_Folder/
+Project_Folder/
 |__station_info.txt (unchanged, and unused in this step)
 |__raw/ (unchanged)
 |__mseed/ (NEW: contains hour-long miniSEED waveform files)
@@ -51,15 +46,15 @@ directory structure:
 |__gem2ms_logfile.txt (NEW: contains a record of the conversion process and any messages)
 ```
 
-By now, all the useful information has been extracted from the raw files; there is no reason to work with them further except for possible debugging. For more info on the gem2ms options and capabilities (e.g., the ability to write SAC files and the text format TSPAIR), run gem2ms -h
+By now, all the useful information has been extracted from the raw files; there is no reason to work with them further except for possible debugging. For more info on the gem2ms options and capabilities (e.g., the ability to write SAC files and the text format TSPAIR), run `gem2ms -h`.
 
 ##### Multiple conversion attempts
-If the conversion is run multiple times, gem2ms will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. gem2ms logfile.txt is appended to on each conversion attempt, so it is also not overwritten.
+If the conversion is run multiple times, `gem2ms` will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. `gem2ms_logfile.txt `is appended to on each conversion attempt, so it is also not overwritten.
 
 ### Organizing the data
 If your dataset is from an array or network, you probably want to create a station map and assign network, station, and location codes to your miniSEED files. You can do this using python functions from gemlog. Before starting python, you need a csv file assigning Gem serial numbers to network, station, and location codes.
 
-In this example, 'station info.txt' describes a network (NM) containing two stations (LADR and MANZ), each containing three locations; each of the six Gem serial numbers is assigned to a network, station, and location. For more information on SEED codes, see the IRIS page [https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/].
+In this example, `station_info.txt` describes a network (NM) containing two stations (LADR and MANZ), each containing three locations; each of the six Gem serial numbers is assigned to a network, station, and location. For more information on SEED codes, see [this IRIS page](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/).
 ```
 $ cat station_info.txt
 077,NM,LADR,00
@@ -89,16 +84,16 @@ The first command creates a new csv file containing the following columns:
 * network: Network code
 * station: Station code
 * location: Location code
-It saves the same information to variable 'coords' as a pandas DataFrame. If the stationFile input (which assigns network, station, and location codes to each serial number) is not provided, the last three columns will be omitted.
+It saves the same information to variable `coords` as a pandas DataFrame. If the stationFile input (which assigns network, station, and location codes to each serial number) is not provided, the last three columns will be omitted.
 
-The second command reads each miniSEED file from the 'mseed/' folder, assigns the corresponding network, station, and location codes, and writes it to the new folder 'renamed mseed/'.
+The second command reads each miniSEED file from the `mseed/` folder, assigns the corresponding network, station, and location codes, and writes it to the new folder `renamed mseed/`.
 
 You can now create a basic station map using the following code. Note that the GPS coordinate averages may not be accurate enough for array processing if only a short period of data is used (less than a day or two).
 ```
 import matplotlib.pyplot as plt
 plt.plot(coords.lon, coords.lat, 'k.') # plot the lon and lat as black dots
 ```
-Finally, you can create an obspy “Inventory” object and write it as a stationXML file using this code:
+Finally, you can create an obspy 'Inventory' object and write it as a stationXML file using this code:
 ```
 import obspy
 from obspy.clients.nrl import NRL
