@@ -93,11 +93,13 @@ Finally, you can create an obspy 'Inventory' object and write it as a stationXML
 ```
 import obspy
 from obspy.clients.nrl import NRL
+
 ## download the instrument response from the IRIS Nominal Response Library
 nrl = NRL()
 response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
 	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
 			    '0 - 128000 counts/V']) # may cause warning--ok to ignore
+
 ## create an inventory of all sensors used in this project--may cause warnings
 inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
 inv.write('NM_inventory.xml', format='STATIONXML')
@@ -108,21 +110,27 @@ The following workflow can be used to read the renamed mseed data and deconvolve
 Because wind noise is severe at lower frequencies, it is generally necessary to apply a high-pass filter to obtain good data; 1 Hz is a good corner frequency to start with. Obspy's plot functions do not handle long plotting periods well; a program like PASSCAL's PQL is probably better for perusing the data.
 ```
 import obspy
+
 ## read the data
 data = obspy.read('renamed_mseed/*')
 print(data)
+
 ## combine traces so that each station has one trace
 data.merge()
 print(data)
+
 ## deconvolve the instrument responses using the inventory already created
 inv = obspy.read_inventory('NM_inventory.xml')
 data.remove_response(inv) # may cause warnings--ok to ignore
+
 ## filter data above 1 Hz (lower frequencies are often wind noise)
 data.filter("highpass", freq=1.0)
+
 ## trim the data around a known event
 t1 = obspy.UTCDateTime('2020-05-10T12:14:00')
 t2 = obspy.UTCDateTime('2020-05-10T12:15:00')
 data.trim(t1, t2)
+
 ## plot the results
 data.plot()
 ```
