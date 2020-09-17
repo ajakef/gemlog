@@ -1,6 +1,7 @@
 ## List of old versions is not yet comprehensive
 
-__version__  = '0.3.2' # added demo with inventory functions
+__version__ = '1.0.0' # function name changes (some with aliases) to follow python standards
+#__version__  = '0.3.2' # added demo with inventory functions
 #__version__  = '0.3.1' #  more helpful logging output
 #__version__  = '0.3.0' # 2020-09-04, cython added
 #__version__  = '0.2.3' # improving testing, including empty/bad files

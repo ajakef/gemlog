@@ -1,4 +1,4 @@
-from gemlog import *
+from gemlog.gemlog import *
 import pytest
 import shutil, os
 
@@ -15,22 +15,22 @@ def teardown_module():
     shutil.rmtree('tmp') 
 
 
-def test_ReadGem_missing():
+def test_read_gem_missing():
     with pytest.raises(MissingRawFiles):
-        ReadGem(np.arange(10, 20), '../data', SN = '000') # test missing files
+        read_gem(np.arange(10, 20), '../data', SN = '000') # test missing files
 
-def test_ReadGem_missing():
+def test_read_gem_missing():
     with pytest.raises(MissingRawFiles):
-        ReadGem(np.arange(5), '../data', SN = '000') # test purely empty files
+        read_gem(np.arange(5), '../data', SN = '000') # test purely empty files
 
-def test_ReadGem_edge_cases():
+def test_read_gem_edge_cases():
     print(os.getcwd())
     with pytest.raises(CorruptRawFile):
-        ReadGem(np.array([23]), '../data', SN = '096') # test a malformed file
+        read_gem(np.array([23]), '../data', SN = '096') # test a malformed file
 
-def test_ReadGem_good_data():
-    ## ReadGem always reads files in one block, so no sense in testing 25 files
-    ReadGem(np.arange(3), '../data', SN = '077') # test good data
+def test_read_gem_good_data():
+    ## read_gem always reads files in one block, so no sense in testing 25 files
+    read_gem(np.arange(3), '../data', SN = '077') # test good data
 
 
 ## Convert tests: ensure that it doesn't crash, and that the output mseed file is identical to a reference

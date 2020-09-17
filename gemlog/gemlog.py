@@ -1,9 +1,3 @@
-## gemlog changes:
-## known potential problems:
-## missing/repeated samples at block boundaries due to InterpGem at the beginning
-## not starting files on the hour
-## doesn't handle nearly-empty raw files well
-
 import pdb
 import warnings
 import numpy as np
@@ -34,7 +28,7 @@ def _breakpoint():
     if _debug: # skip if we aren't in debug mode
         pdb.set_trace()
 #####################
-def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
+def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
             metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
             SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
             fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
@@ -157,7 +151,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     n1 = np.min(nums)
   
     ## read the first set of up to (24*blockdays) files
-    L = NewGemVar()
+    L = _new_gem_var()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
         nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
         L = ReadGem(nums_block, rawpath, SN = SN, network = network, station = station, location = location)
@@ -197,7 +191,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             except:
                 print('Failed to make directory ' + gpspath)
                 sys.exit(2)
-        gpsfile = makefilename(gpspath, SN, 'gps')
+        gpsfile = _make_filename(gpspath, SN, 'gps')
 
   
     if(len(metadatafile) == 0):
@@ -207,7 +201,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             except:
                 print('Failed to make directory ' + metadatapath)
                 sys.exit(2)
-        metadatafile = makefilename(metadatapath, SN, 'metadata')
+        metadatafile = _make_filename(metadatapath, SN, 'metadata')
   
     ## if the converted directory does not exist, make it
     if(not os.path.isdir(convertedpath)):
@@ -227,7 +221,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+    hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -237,7 +231,7 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         if((t1 > t2) & (not np.isnan(t1 > t2))):
             break # already converted the requested data
         ## load new data if necessary
-        tt2 = min(t2, trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
+        tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             L = ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             #pdb.set_trace()
@@ -266,14 +260,14 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 
         ## run the conversion and write new converted files
         while((hour_to_write + fileLength) <= p[-1].stats.endtime):
-            hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+            hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
             
         ## update start time to convert
         p.trim(hour_to_write, t2)
-        t1 = trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
+        t1 = _trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
     while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
-        hour_to_write = write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+        hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
         p.trim(hour_to_write, t2)
         p = p.split()
         if(len(p) > 0):
@@ -281,17 +275,19 @@ def Convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         else:
             break
 
-def write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, fmt='mseed'):
+Convert = convert # alias; v1.0.0
+
+def _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, fmt='mseed'):
     #pdb.set_trace()
     if(np.isnan(hour_end)):
-        hour_end = trunc_UTCDateTime(hour_to_write, fileLength) + fileLength
+        hour_end = _trunc_UTCDateTime(hour_to_write, fileLength) + fileLength
     pp = p.copy()
     pp.trim(hour_to_write, hour_end)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
     #_breakpoint()
     for tr in pp:
         tr.stats.calib = bitweight
-        fn = MakeFilenameMS(tr, fmt)
+        fn = _make_filename_converted(tr, fmt)
         if(len(tr) > 0):
             print(tr)
             if(fmt.lower() == 'wav'):
@@ -317,10 +313,10 @@ def write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath,
 
 ####################################
 
-def trunc_UTCDateTime(x, n=86400):
+def _trunc_UTCDateTime(x, n=86400):
     return obspy.core.UTCDateTime(int(float(x)/n)*n)#, origin='1970-01-01')
 
-def makefilename(dir, SN, dirtype):
+def _make_filename(dir, SN, dirtype):
     n = 0
     fn = dir + '/' + SN + dirtype + '_'+ f'{n:03}' + '.txt'
     while(os.path.exists(fn)):
@@ -330,12 +326,12 @@ def makefilename(dir, SN, dirtype):
     return fn
 
 
-def MakeFilenameMS(pp, fmt):
+def _make_filename_converted(pp, fmt):
     t0 = pp.stats.starttime
     return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + fmt.lower()
 #import pdb
 
-def NewGemVar():
+def _new_gem_var():
     tr = obspy.Trace()
     tr.stats.delta = 0.01
     gps = pd.DataFrame(columns=['year', 'date', 'lat', 'lon'])
@@ -350,7 +346,7 @@ def NewGemVar():
     return output
 
 
-def MakeDB(path, pattern = '*', savefile = './DB.csv'):
+def make_db(path, pattern = '*', savefile = './DB.csv'):
     #path = 'mseed'
     #pattern = '*'
     files = glob.glob(path + '/' + pattern)
@@ -373,7 +369,7 @@ def MakeDB(path, pattern = '*', savefile = './DB.csv'):
     DB.to_csv(savefile)
     return(DB)
 
-def CalcStationStats(DB, t1, t2):
+def calc_channel_stats(DB, t1, t2):
     import obspy, glob
     import pandas as pd
     from obspy import UTCDateTime as T
@@ -399,22 +395,18 @@ def CalcStationStats(DB, t1, t2):
     return(out)
 
 
-## 55 (3.03), 84 (4.37), 108 (2.04), 49 (1.78), others (1.3-1.6)
-
-#L55=gemlog.ReadGemPy(nums=np.arange(6145,6151),SN='055', path = 'raw')
-
 ################################################
-def read_SN(fn):
+def _read_SN(fn):
     SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'])
     SN = SN_line['SN'][0]
     return SN
 
-def read_format_version(fn):
+def _read_format_version(fn):
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'])
     version = versionLine['s'][0][7:]
     return version
     
-def read_config(fn):
+def _read_config(fn):
     config = pd.Series({'gps_mode': 1,
                     'gps_cycle' : 15,
                     'gps_quota' : 20,
@@ -429,14 +421,14 @@ def read_config(fn):
             break
     return config
 
-def fn2nums(fn_list):
+def _fn2nums(fn_list):
     nums = []
     for i, fn in enumerate(fn_list):
         nums[i] = int(fn[-8:-5])
     return nums
 
 
-def find_nonmissing_files(path, SN, nums):
+def _find_nonmissing_files(path, SN, nums):
     ## list all Gem files in the path
     fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
     fnList.sort()
@@ -446,7 +438,7 @@ def find_nonmissing_files(path, SN, nums):
     ext = np.array([x[-3:] for x in fnList])
     for i in range(len(ext)):
         if ext[i] == 'TXT':
-            ext[i] = read_SN(fnList[i])
+            ext[i] = _read_SN(fnList[i])
     ## check the files for SN and num
     goodFnList = []
     for i, fn in enumerate(fnList):
@@ -473,12 +465,12 @@ def find_nonmissing_files(path, SN, nums):
 
 
 
-def UnwrapMillis(new, old, maxNegative = 2**12, rollover = 2**13):
+def _unwrap_millis(new, old, maxNegative = 2**12, rollover = 2**13):
     ## maxNegative is the greatest allowable negative difference.
     ## negative differences can happen between data and GPS lines, or between metadata and data lines.
     return old + ((new - (old % rollover) + maxNegative) % rollover) - maxNegative
 
-def CheckGPS(line): # return True if GPS line is good
+def _check_gps(line): # return True if GPS line is good
     #G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
     return not ((line[8] == 0) or (line[8] > 90) or (line[8] < -90) or # lat
                 (line[9] == 0) or (line[9] > 180) or (line[9] < -180) or # lon
@@ -491,13 +483,13 @@ def CheckGPS(line): # return True if GPS line is good
                 (line[7]>60) or (line[7]<0) or (line[7]!=np.round(line[7]))) # second
 
 
-def MakeGPSTime(line):
+def _make_gps_time(line):
     try:
         return obspy.UTCDateTime(int(line[2]), int(line[3]), int(line[4]), int(line[5]), int(line[6]), int(line[7]))
     except:
         return np.NaN
 
-def MillisToTime(L):
+def _millis_to_time(L):
     G = L['gps']
     D = L['data']
     coefficients = np.polyfit(G.msPPS, G.t, 3)    
@@ -564,7 +556,7 @@ def _read_with_pandas(filename, offset=0):
     return _process_gemlog_data(df, offset)
 
 
-def ReadGem_v0_9_single(filename, offset=0):
+def _read_single_v0_9(filename, offset=0):
     """
     Read a Gem logfile.
 
@@ -588,7 +580,7 @@ def ReadGem_v0_9_single(filename, offset=0):
     # probably increasing likelihood of success.
 
     readers = [
-        _read_with_cython, _read_with_pandas, _slow_ReadGem_v0_9_single
+        _read_with_cython, _read_with_pandas, _slow__read_single_v0_9
     ]
     for reader in readers:
         try:
@@ -703,7 +695,7 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def _slow_ReadGem_v0_9_single(fn, startMillis):
+def _slow__read_single_v0_9(fn, startMillis):
     ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
@@ -729,7 +721,7 @@ def _slow_ReadGem_v0_9_single(fn, startMillis):
                 line = line[1:]
             line = np.array([float(x) for x in line])
             ## unwrap the millis count (always first element of line)
-            millis = UnwrapMillis(line[0], millis)
+            millis = _unwrap_millis(line[0], millis)
             line[0] = millis
             ## write the line to its matrix
             if lineType == 'D':
@@ -738,9 +730,9 @@ def _slow_ReadGem_v0_9_single(fn, startMillis):
             elif lineType == 'M':
                 M[m_index,:] = line
                 m_index += 1
-            elif (lineType == 'G') and CheckGPS(line):
+            elif (lineType == 'G') and _check_gps(line):
                 G[g_index,:10] = line
-                G[g_index,10] = MakeGPSTime(line)
+                G[g_index,10] = _make_gps_time(line)
                 g_index += 1
     #pdb.set_trace()
     ## remove unused space in pre-allocated arrays
@@ -754,7 +746,7 @@ def _slow_ReadGem_v0_9_single(fn, startMillis):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
-def ReadGem_v0_9(fnList):
+def _read_several_v0_9(fnList):
     ## initialize the output variables
     G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
                                 'second', 'lat', 'lon', 't'])
@@ -775,7 +767,7 @@ def ReadGem_v0_9(fnList):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            L = ReadGem_v0_9_single(fn, startMillis)
+            L = _read_single_v0_9(fn, startMillis)
         except:
             print('Failed to read ' + fn + ', skipping')
             _breakpoint()
@@ -796,7 +788,7 @@ def ReadGem_v0_9(fnList):
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
 
-def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
+def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
     """
     Read raw Gem files.
 
@@ -873,18 +865,18 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     
     if(len(station) == 0):
         station = SN
-    fnList = find_nonmissing_files(path, SN, nums)
+    fnList = _find_nonmissing_files(path, SN, nums)
     if len(fnList) == 0:
         raise MissingRawFiles
     try:
-        version = read_format_version(fnList[0])
-        config = read_config(fnList[0])
+        version = _read_format_version(fnList[0])
+        config = _read_config(fnList[0])
     except:
         raise CorruptRawFile(fnList[0])
     if version == '0.9':
-        L = ReadGem_v0_9(fnList)
+        L = _read_several_v0_9(fnList)
     elif version == '0.85C':
-        L = ReadGem_v0_9(fnList) # will the same function work for both?
+        L = _read_several_v0_9(fnList) # same function works for both
     elif (version == '0.85') | (version == '0.8') :
         raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
@@ -895,23 +887,23 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     
     M = L['metadata']
     D = L['data']
-    G = reformat_GPS(L['gps'])
+    G = _reformat_GPS(L['gps'])
     #breakpoint()
     try:
-        breaks = find_breaks(L)
+        breaks = _find_breaks_(L)
     except:
         raise CorruptRawFile('Problem between ' + fnList[0] + '-' + fnList[-1] + '; stopping before this interval. Break between recording periods? Corrupt files?')
-    piecewiseTimeFit = piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
-    M['t'] = apply_segments(M['millis'], piecewiseTimeFit)
+    piecewiseTimeFit = _piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
+    M['t'] = _apply_segments(M['millis'], piecewiseTimeFit)
     header = L['header']
     header.SN = SN
-    header.t1 = apply_segments(header.t1, piecewiseTimeFit)
-    header.t2 = apply_segments(header.t2, piecewiseTimeFit)
-    D = np.hstack((D, apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
+    header.t1 = _apply_segments(header.t1, piecewiseTimeFit)
+    header.t2 = _apply_segments(header.t2, piecewiseTimeFit)
+    D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     
     ## interpolate data to equal spacing to make obspy trace
     #_breakpoint()
-    st = InterpTime(D) # populates known fields: channel, delta, and starttime
+    st = _interp_time(D) # populates known fields: channel, delta, and starttime
     for tr in st:
         ## populate the rest of the trace stats
         tr.stats.station = station
@@ -926,13 +918,13 @@ def ReadGem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweig
     header['file_format_version'] = version
     return {'data': st, 'metadata': M, 'gps': G, 'header' : header}
 
-
+ReadGem = read_gem ## alias, v1.0.0
 
 
 
 
 #########################################################
-def InterpTime(data, t1 = -np.Inf, t2 = np.Inf):
+def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
     ## t1 is the first output sample; should be first integer second after or including the first sample (ceiling)
@@ -1048,7 +1040,7 @@ def get_bitweight_info(SN, config, units = 'Pa'):
         raise BaseException('Invalid Units')
     return specs
 
-def reformat_GPS(G_in):
+def _reformat_GPS(G_in):
     t = [obspy.UTCDateTime(tt) for tt in G_in['t']]
     date = [tt.julday + tt.hour/24.0 + tt.minute/1440.0 + tt.second/86400.0 for tt in t]
     G_dict = {'year': np.array([int(year) for year in G_in.year]),
@@ -1059,7 +1051,7 @@ def reformat_GPS(G_in):
     return pd.DataFrame.from_dict(G_dict)
 
 
-def find_breaks(L):
+def _find_breaks_(L):
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -1120,7 +1112,7 @@ def find_breaks(L):
     ends = np.append(ends, tD.max())
     return {'starts':starts, 'ends':ends}
 
-def apply_segments(x, model):
+def _apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
     for i in range(len(model['start'])):
@@ -1128,7 +1120,7 @@ def apply_segments(x, model):
         y[w] = model['intercept'][i] + model['slope'][i] * x[w]
     return y
 
-def piecewise_regression(x, y, breaks):
+def _piecewise_regression(x, y, breaks):
     output = {'slope': [], 'intercept':[], 'r':[], 'p':[], 'stderr':[], 'start': [], 'end':[]}
     for i in range(len(breaks['starts'])):
         w = np.where((x >= breaks['starts'][i]) & (x <= breaks['ends'][i]))[0]

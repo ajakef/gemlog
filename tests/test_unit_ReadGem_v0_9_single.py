@@ -1,6 +1,6 @@
-from gemlog import ReadGem_v0_9_single, EmptyRawFile
+from gemlog.gemlog import _read_single_v0_9, EmptyRawFile
 from gemlog.gemlog import (
-    _read_with_cython, _read_with_pandas, _slow_ReadGem_v0_9_single
+    _read_with_cython, _read_with_pandas, _slow__read_single_v0_9
 )
 import numpy as np
 import pytest
@@ -24,7 +24,7 @@ def reference_output(inputs):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness
     fn, offset = inputs
-    return _slow_ReadGem_v0_9_single(fn, offset)
+    return _slow__read_single_v0_9(fn, offset)
 
 
 def assert_gem_results_equal(L0, L1, eps=1e-12):
@@ -37,7 +37,7 @@ def assert_gem_results_equal(L0, L1, eps=1e-12):
 
 @pytest.mark.parametrize('reader_function', [_read_with_cython,
                                              _read_with_pandas,
-                                             ReadGem_v0_9_single])
+                                             _read_single_v0_9])
 def test_file_readers(reader_function, inputs, reference_output):
     # test that the file readers work on a legitimate file,
     # and test that the output matches the reference output
@@ -51,15 +51,15 @@ def test_file_readers(reader_function, inputs, reference_output):
 # should be interpreted as a bad file.
 @pytest.mark.parametrize('reader_function', [_read_with_cython,
                                              _read_with_pandas,
-                                             ReadGem_v0_9_single])
-def test_ReadGem_v0_9_single_empty(reader_function):
+                                             _read_single_v0_9])
+def test__read_single_v0_9_empty(reader_function):
     with pytest.raises(EmptyRawFile):
         reader_function('data/FILE0000.000')  # test empty file
 
 
 @pytest.mark.parametrize('reader_function', [_read_with_cython,
                                              _read_with_pandas,
-                                             ReadGem_v0_9_single])
-def test_ReadGem_v0_9_single_corrupt(reader_function):
+                                             _read_single_v0_9])
+def test__read_single_v0_9_corrupt(reader_function):
     with pytest.raises(Exception):
         reader_function('data/FILE0023.096')  # test a malformed file

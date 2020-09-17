@@ -32,7 +32,7 @@ def unique(list1): # thanks Kevin!
     return sorted(unique)
 
 def print_call():
-    print('gem2ms.py -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')
+    print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')
     print('-i --inputdir: default ./raw/')
     print('-s --serialnumbers: separate by commas (no spaces); default all')
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
@@ -40,7 +40,7 @@ def print_call():
     print('-f --format: mseed, sac, or tspair (text) currently supported; default mseed')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-h --help: print this message')
-    print('gemlog version: ' + gemlog.__version__)
+    print('alias: gem2ms. gemlog version: ' + gemlog.__version__)
 
 def parse_error(e):
     e = str(e)
@@ -97,10 +97,10 @@ def main(argv = None):
     if outputdir is None:
         outputdir = fmt.lower()
     if gemlog._debug:
-        logging.basicConfig(level=logging.DEBUG, filename="gem2ms_logfile.txt", filemode="a+",
+        logging.basicConfig(level=logging.DEBUG, filename="gemconvert_logfile.txt", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
     else:
-        logging.basicConfig(level=logging.INFO, filename="gem2ms_logfile.txt", filemode="a+",
+        logging.basicConfig(level=logging.INFO, filename="gemconvert_logfile.txt", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
         
     try:
