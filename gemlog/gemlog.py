@@ -42,11 +42,11 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
     convertedpath : str, 'converted'
         Path of folder where converted data files should be written. If this folder does 
-        not exist, Convert will try to create it.
+        not exist, convert will try to create it.
     
     metadatapath : str, 'metadata'
         Path of folder where metadata files should be written. If this folder does 
-        not exist, Convert will try to create it.
+        not exist, convert will try to create it.
     
     metadatafile : str
         File name for metadata file. Default is of the form 'XXXmetadata_NNN.txt', where
@@ -54,7 +54,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
     gpspath : str, 'gps'
         Path of folder where gps files should be written. If this folder does 
-        not exist, Convert will try to create it.
+        not exist, convert will try to create it.
     
     gpsfile : str
         File name for gps file. Default is of the form 'XXXgps_NNN.txt', where
@@ -154,7 +154,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     L = _new_gem_var()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
         nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
-        L = ReadGem(nums_block, rawpath, SN = SN, network = network, station = station, location = location)
+        L = read_gem(nums_block, rawpath, SN = SN, network = network, station = station, location = location)
         n1 = n1 + (12*blockdays) # increment file number counter
 
     p = L['data']
@@ -216,7 +216,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     gps = L['gps']
     metadata.to_csv(metadatafile, index=False) ## change to metadata format. need to make ScanMnetadata compatible with both
 
-    wgps = (gps['t'] > (t1 - 1)) ## see ReadGemPy to get gps.t working. update gemlog accordingly.
+    wgps = (gps['t'] > (t1 - 1)) 
     if(len(wgps) > 0):
         gps[wgps].to_csv(gpsfile, index=False)
 
@@ -233,7 +233,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         ## load new data if necessary
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
-            L = ReadGem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
+            L = read_gem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             #pdb.set_trace()
             if(len(L['data']) > 0):
                 p = p + L['data']
@@ -253,7 +253,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             metadata = L['metadata']   
             gps = L['gps']
             metadata.to_csv(metadatafile, index=False, mode='a', header=False)
-            wgps = (gps['t'] > (t1 - 1)) ## see ReadGemPy to get gps.t working. update gemlog accordingly.
+            wgps = (gps['t'] > (t1 - 1)) 
             ## update the gps file
             if(len(wgps) > 0):
                 gps.to_csv(gpsfile, index=False, mode='a', header=False)
@@ -301,16 +301,6 @@ def _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath
     hour_to_write = hour_end
     return hour_to_write
     
-## DONE
-####################################
-## test command
-#rawpath = '/home/jake/Work/Gem_Tests/2019-05-29_RoofTestIsolation/raw/'
-#SN = '051'
-#Convert(rawpath = rawpath, SN = SN, nums = range(14, 15)) 
-#Convert(rawpath = rawpath, SN = SN, nums = range(6,8))
-#4,15; 5,15; 6,8; 8,10; :ValueError: cannot convert float NaN to integer
-#10,12: no error
-
 ####################################
 
 def _trunc_UTCDateTime(x, n=86400):

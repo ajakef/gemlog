@@ -96,7 +96,7 @@ CLASSIFIERS = [
 
 ENTRY_POINTS = {
     'console_scripts': [
-        'gem2ms = gemlog.gem2ms:main'
+        'gem2ms = gemlog.gem2ms:main',
         'gemconvert = gemlog.gem2ms:main'
     ]
 }

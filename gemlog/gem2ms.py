@@ -132,7 +132,7 @@ def main(argv = None):
         for SN in SN_list:
             logging.info('Beginning ' + SN)
             try:
-                gemlog.Convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
+                gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
                 logging.exception(parse_error(e), exc_info = gemlog._debug)

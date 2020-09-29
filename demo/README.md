@@ -1,5 +1,5 @@
 # Gem Data Pre-Processing Workflow
-September 14, 2020
+September 28, 2020
 
 ### Installing the gemlog 0.3.2 software
 You must have anaconda or miniconda installed to proceed. If you don't have either and don't know which to use, install miniconda from [here](https://docs.conda.io/en/latest/miniconda.html).
@@ -31,7 +31,7 @@ Gem data files have the Gem's serial number as the extension, meaning that we ha
 The optional file `station info.txt` is used to assign [SEED codes](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/) (network, station, and location) to your output data. By default, your converted data will use the Gem serial number as the station name, and leave the network and location codes blank. If you want to assign different names, you need to include a comma-separated text file containing a table of serial numbers, network codes, station codes, and location codes. Because all Gem recordings are infrasound sampled at 100 Hz, they are automatically assigned the [channel code](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed-channel-naming/) HDF.
 
 ### Converting raw gem data
-Set your conda environment to whatever you set up during the installation using a terminal command like `conda activate gem` and run the data conversion using the terminal command `gem2ms`. This may take a while to run if you have a lot of data! `gem2ms` will add the following folders to your directory structure:
+Set your conda environment to whatever you set up during the installation using a terminal command like `conda activate gem` and run the data conversion using the terminal command `gemconvert`. This may take a while to run if you have a lot of data! `gemconvert` will add the following folders to your directory structure:
 ```
 Project_Folder/
 |__station_info.txt (unchanged, and unused in this step)
@@ -39,13 +39,13 @@ Project_Folder/
 |__mseed/ (NEW: contains hour-long miniSEED waveform files)
 |__metadata/ (NEW: contains csv files with state-of-health data)
 |__gps/ (NEW: contains gps logs)
-|__gem2ms_logfile.txt (NEW: contains a record of the conversion process and any messages)
+|__gemconvert_logfile.txt (NEW: contains a record of the conversion process and any messages)
 ```
 
-By now, all the useful information has been extracted from the raw files; there is no reason to work with them further except for possible debugging. For more info on the gem2ms options and capabilities (e.g., the ability to write SAC files and the text format TSPAIR), run `gem2ms -h`.
+By now, all the useful information has been extracted from the raw files; there is no reason to work with them further except for possible debugging. For more info on the gemconvert options and capabilities (e.g., the ability to write SAC files and the text format TSPAIR), run `gemconvert -h`.
 
 ##### Multiple conversion attempts
-If the conversion is run multiple times, `gem2ms` will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. `gem2ms_logfile.txt `is appended to on each conversion attempt, so it is also not overwritten.
+If the conversion is run multiple times, `gemconvert` will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. `gemconvert_logfile.txt `is appended to on each conversion attempt, so it is also not overwritten.
 
 ### Organizing the data
 If your dataset is from an array or network, you probably want to create a station map and assign network, station, and location codes to your miniSEED files. You can do this using python functions from gemlog. Before starting python, you need a csv file assigning Gem serial numbers to network, station, and location codes.
@@ -63,7 +63,7 @@ $ cat station_info.txt
 Begin by activating your conda environment as before: `conda activate gem` and open python within your project directory. Run the following code:
 ```
 import gemlog
-coords = gemlog.SummarizeAllGPS('gps', output_file = 'project_coords.csv', station_info = 'station_info.txt')
+coords = gemlog.summarize_gps('gps', output_file = 'project_coords.csv', station_info = 'station_info.txt')
 gemlog.rename_files('mseed/*', station_info = 'station_info.txt', output_dir = 'renamed_mseed')
 ```
 
