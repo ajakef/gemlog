@@ -32,7 +32,7 @@ User contributions are welcome! If you want to improve performance or address ou
 * Set up the conda environment just like above, but add the testing module 'pytest' at the end: `pip install pytest`.
 * Contributing code via github pull request is *required* unless, for a good reason, you have a complete and significant contribution and you are totally unable to share using github. Code contributed via other channels is less transparent and more burdensome on maintainers.
 * Begin your contribution by raising an issue to get quick feedback from maintainers and users.
-* Be sure you are editing the most current gemlog version! See instructions below on how to do this.
+* Be sure you are editing the most current gemlog version! 
 * After finishing your changes, commit them and push them to the gemlog fork on your github account. A suite of tests will run after the push. Your code must pass all tests before it can be considered for merging.
 * Send a pull request when your code is ready for review. This is often at the point when you think you're done, but it can be earlier if you need to share your code to get specific feedback.
 
