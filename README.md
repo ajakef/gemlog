@@ -14,7 +14,7 @@ pip install --upgrade https://github.com/ajakef/gemlog/archive/master.zip
 
 * Get the syntax to run gem2ms.
 ```
-gem2ms -h # print the help page
+gemconvert -h # print the help page
 ```
 
 * Finally, run the demo [here](https://github.com/ajakef/gemlog/tree/master/demo), both to ensure that everything works on your system, and as an example of a typical workflow.
