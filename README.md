@@ -9,7 +9,7 @@ conda activate gem
 
 * Next, install the gemlog python package from github. This will create an executable gem2ms in a folder where it will be recognized.
 ```
-pip install --upgrade https://github.com/ajakef/gemlog/archive/master.zip
+pip install --upgrade https://github.com/ajakef/gemlog/archive/main.zip
 ```
 
 * Get the syntax to run gem2ms.
@@ -17,7 +17,7 @@ pip install --upgrade https://github.com/ajakef/gemlog/archive/master.zip
 gemconvert -h # print the help page
 ```
 
-* Finally, run the demo [here](https://github.com/ajakef/gemlog/tree/master/demo), both to ensure that everything works on your system, and as an example of a typical workflow.
+* Finally, run the demo [here](https://github.com/ajakef/gemlog/tree/main/demo), both to ensure that everything works on your system, and as an example of a typical workflow.
 
 * If you've found a bug, please raise an issue on github. Please be sure you've installed all the dependencies correctly with conda, that the environment is activated on your computer, and that you're including information about your system and enough info for your issue to be reproduced. If you have an idea for an improvement, you can raise an issue for that too--especially if you're willing to implement it! gemlog has no dedicated employees and discretionary development time is limited in general.
 
