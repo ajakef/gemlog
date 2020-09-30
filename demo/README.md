@@ -1,7 +1,7 @@
 # Gem Data Pre-Processing Workflow
 September 28, 2020
 
-### Installing the gemlog 0.3.2 software
+### Installing the gemlog software (version 1.0.0 or higher)
 You must have anaconda or miniconda installed to proceed. If you don't have either and don't know which to use, install miniconda from [here](https://docs.conda.io/en/latest/miniconda.html).
 
 Then, follow the gemlog installation procedure [here](https://github.com/ajakef/gemlog/blob/main/README.md). Note that the resulting conda environment includes relevant packages like obspy and pandas.
