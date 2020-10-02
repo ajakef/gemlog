@@ -32,6 +32,7 @@ def make_gem_inventory(station_info, coords, response = 'default'):
         all_stations = _unique(station_info[station_info['network'] == network_name]['station'])
         for station_name in all_stations:
             station = obspy.core.inventory.Station(station_name, latitude = 0, longitude = 0, elevation = 0)
+            station.site.name = station_name
             ## loop through all the locations/channels in the current station
             all_locations = _unique(station_info[(station_info['network'] == network_name) & (station_info['station'] == station_name)]['location'])
             for location_name in all_locations:
@@ -54,8 +55,8 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                     t1 = obspy.UTCDateTime('1970-01-01T00:00:00')
                     t2 = obspy.UTCDateTime('9999-12-31T23:59:59')
                 ## Assume it's a gem v1.0--safe for now
-                equipment = obspy.core.inventory.util.Equipment(serial_number = SN, model = 'Gem Infrasound Logger v1.0')
-                channel = obspy.core.inventory.Channel('HDF', location_code = location_name, latitude = lat, longitude = lon, elevation = 0, depth = 0, response = response, equipments = equipment, start_date = t1, end_date = t2)
+                equipment = obspy.core.inventory.util.Equipment(serial_number = SN, model = 'Gem Infrasound Logger v1.0', description = 'Gem 1.0 (Infrasound), 0.039-27.1 Hz, 0.0035012 Pa/count')
+                channel = obspy.core.inventory.Channel('HDF', location_code = location_name, latitude = lat, longitude = lon, elevation = 0, depth = 0, response = response, equipments = equipment, start_date = t1, end_date = t2, sample_rate = 100, clock_drift_in_seconds_per_sample = 0, types = ['GEOPHYSICAL'], sensor = equipment)
                 station.channels.append(channel)
             ## calculate the current station's coordinate as the mean of its locations,
             ## then append it to the network

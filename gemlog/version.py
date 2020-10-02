@@ -1,6 +1,5 @@
-## List of old versions is not yet comprehensive
-
-__version__ = '1.0.1' # changed 'master' branch to 'main'
+__version__ = '1.0.2' # changed make_gem_inventory so that output stationXML passes the stationXML validator: https://github.com/iris-edu/StationXML-Validator/
+#__version__ = '1.0.1' # changed 'master' branch to 'main'
 #__version__ = '1.0.0' # function name changes (some with aliases) to follow python standards
 #__version__  = '0.3.2' # added demo with inventory functions
 #__version__  = '0.3.1' #  more helpful logging output
@@ -9,3 +8,4 @@ __version__ = '1.0.1' # changed 'master' branch to 'main'
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
+## List of old versions is not yet comprehensive
