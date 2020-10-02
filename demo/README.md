@@ -104,6 +104,7 @@ response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
 inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
 inv.write('NM_inventory.xml', format='STATIONXML')
 ```
+When validating the stationXML file using the [IRIS stationXML Validator](https://github.com/iris-edu/StationXML-Validator/), it should pass with no errors but probably with common warnings related to response units case.
 
 ### Inspect the Data
 The following workflow can be used to read the renamed mseed data and deconvolve the instrument response.
