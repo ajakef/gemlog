@@ -1,4 +1,5 @@
-__version__ = '1.0.2' # changed make_gem_inventory so that output stationXML passes the stationXML validator: https://github.com/iris-edu/StationXML-Validator/
+__version__ = '1.1.0' # added new gem_cat feature for combining no-GPS files
+#__version__ = '1.0.2' # changed make_gem_inventory so that output stationXML passes the stationXML validator: https://github.com/iris-edu/StationXML-Validator/
 #__version__ = '1.0.1' # changed 'master' branch to 'main'
 #__version__ = '1.0.0' # function name changes (some with aliases) to follow python standards
 #__version__  = '0.3.2' # added demo with inventory functions

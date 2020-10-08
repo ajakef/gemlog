@@ -31,7 +31,7 @@ def _breakpoint():
 def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
             metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
             SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
-            fileLength = 3600, station = '', network = '', location = '', fmt = 'MSEED'):
+            fileLength = 3600, station = '', network = '', location = '', output_format = 'MSEED'):
     """
     Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
 
@@ -112,7 +112,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         Two-character location code for this Gem. Leaving this blank is 
         usually fine in subsequent data processing.
     
-    fmt : str, default 'MSEED'
+    output_format : str, default 'MSEED'
         Output file format. Currently, formats 'MSEED' and 'SAC' are 
         supported.
 
@@ -221,7 +221,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+    hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, output_format=output_format)
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -260,14 +260,14 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 
         ## run the conversion and write new converted files
         while((hour_to_write + fileLength) <= p[-1].stats.endtime):
-            hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+            hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, output_format=output_format)
             
         ## update start time to convert
         p.trim(hour_to_write, t2)
         t1 = _trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
     while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
-        hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, fmt=fmt)
+        hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, output_format=output_format)
         p.trim(hour_to_write, t2)
         p = p.split()
         if(len(p) > 0):
@@ -277,7 +277,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
 Convert = convert # alias; v1.0.0
 
-def _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, fmt='mseed'):
+def _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
     #pdb.set_trace()
     if(np.isnan(hour_end)):
         hour_end = _trunc_UTCDateTime(hour_to_write, fileLength) + fileLength
@@ -287,15 +287,15 @@ def _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath
     #_breakpoint()
     for tr in pp:
         tr.stats.calib = bitweight
-        fn = _make_filename_converted(tr, fmt)
+        fn = _make_filename_converted(tr, output_format)
         if(len(tr) > 0):
             print(tr)
-            if(fmt.lower() == 'wav'):
+            if(output_format.lower() == 'wav'):
                 ## this is supposed to work for uint8, int16, and int32, but actually only works for uint8. obspy bug?
                     tr.data = np.array(tr.data, dtype = 'uint8')# - np.min(tr[i].data)
                     tr.write(convertedpath +'/'+ fn, format = 'WAV', framerate=7000, width=1) 
             else:
-                tr.write(convertedpath +'/'+ fn, format = fmt, encoding=10) # encoding 10 is Steim 1
+                tr.write(convertedpath +'/'+ fn, format = output_format, encoding=10) # encoding 10 is Steim 1
         #mseed_core._write_mseed(pp, convertedpath +'/'+ fn, format = 'MSEED', encoding=10)
 
     hour_to_write = hour_end
@@ -316,9 +316,9 @@ def _make_filename(dir, SN, dirtype):
     return fn
 
 
-def _make_filename_converted(pp, fmt):
+def _make_filename_converted(pp, output_format):
     t0 = pp.stats.starttime
-    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + fmt.lower()
+    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + output_format.lower()
 #import pdb
 
 def _new_gem_var():
@@ -1126,3 +1126,136 @@ def _piecewise_regression(x, y, breaks):
         output['end'].append(breaks['ends'][i])
     return output
         
+#Concatenate Gem files with no GPS data
+import shutil
+def gem_cat(input_dir, output_dir):
+    """
+    gem_cat
+    Search through Gem files, look for ones with no GPS lines, concatenate 
+    them, and then renumber everything.
+    
+    Translated from R code originally by Danny Bowman
+    
+    Parameters:
+    -----------
+    input_dir: raw gem directory
+    output_dir: path for renumbered and concatenated files
+    
+    Returns:
+    --------
+    None; file output only
+    """
+    gem_files = sorted(glob.glob(input_dir + '/' + 'FILE[0-9][0-9][0-9][0-9].*'))
+    
+    has_gps = np.zeros(len(gem_files))
+    counter = 0
+    out_file = [] ## note that out_file being empty acts as a flag saying that no files have been processed yet
+    SN = pd.read_csv(gem_files[0], delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN']).SN[0]
+
+    for k in range(len(gem_files)):
+        #for k in range(2):        
+        print(str(k) + ' of ' + str(len(gem_files)) + ': ' + gem_files[k])
+        lines = pd.read_csv(gem_files[k], delimiter = '\n', dtype = 'str', names = ['line'])
+        #gps_grep = grepl("^G.*-?\\d+\\.\\d+,-?\\d+\\.\\d+$", lines)
+        gps_grep = lines.line.str.contains('^G')
+        ## if no files have been processed yet and the current file has no GPS data, skip it
+   
+        if (sum(gps_grep) == 0) & (len(out_file) == 0):
+            continue
+
+        ## if this is the first file being processed, simply copy it and advance
+        if len(out_file) == 0:
+            #out_file = output_dir + "/FILE", sprintf("%04d", counter) + "." + SN
+            out_file = output_dir + '/FILE%04d.%s' % (counter, SN)
+            shutil.copy(gem_files[k], out_file)
+            counter += 1
+            has_gps[k] = 1
+            continue
+
+        if sum(gps_grep) > 0:
+            has_gps[k] = 1
+            if has_gps[k - 1] == 0:
+                ## if this isn't the first file being processed and it does have GPS data but the previous file didn't, append it to the current outfile
+                AppendFile(gem_files[k], out_file, gem_files[k-1])
+            else:
+                ## if this isn't the first file being processed and it has gps data and the previous file did too, start a new outfile
+                #out_file = output_dir + "/FILE" + sprintf("%04d", counter) + "." + SN
+                #file_copy(gem_files[k], out_file, overwrite = TRUE)
+                out_file = output_dir + '/FILE%04d.%s' % (counter, SN)
+                shutil.copy(gem_files[k], out_file)
+                counter += 1
+        else:
+            ## if this isn't the first file being processed and there's no GPS data, append it to the current outfile
+            if k == 1:
+                next
+            else:
+                ##system(paste0("cat ", gem_files[k], " >> ",    out_file))
+                AppendFile(gem_files[k], out_file, gem_files[k-1])
+    return 
+
+#%%
+#infile = gem_files[1]
+#outfile = out_file
+#prev_infile = gem_files[0]
+#if True:
+def AppendFile(infile, outfile, prev_infile):
+    # ensure that the output path exists
+    outpath = os.path.dirname(outfile)
+    if not os.exists(outpath):
+        os.makedirs(outpath)
+        
+    header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
+    format = header[7:]
+    if format in ['0.85C', '0.9']:
+        #SN = scan(infile, skip = 4, sep = ',', what = list(character(), character()), nlines = 1, flush = TRUE)[[1]][2]
+        ## determine what the last ADC reading is before the start of this file
+        #if len(prev_infile) == 12:
+        #    path = '.'
+        #else:
+        #    path = prev_infile[0:-12]
+        ###########################################
+        #L = suppressWarnings(ReadGem(nums = num, path = path, units = 'counts')) # suppressWarnings because it'll warn that there's no GPS issue (which is kind of the point) or SN (which doesn't matter)
+        #p_start = L$p[length(L$p)]
+        p_start = int(_read_single_v0_9(prev_infile)['data'][-1,1])
+        ########################################
+
+        ## read the first data line of the infile and convert it to an ADC reading difference
+        j=0
+        while True:
+            ###################
+            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\n', nrows=1, dtype = 'str', names=['s']).s[0][0]
+            ###############
+            if linetype == 'D':
+                break
+            j += 1
+
+        ## adjust the data line and append it to the outfile
+        s = pd.read_csv(infile, delimiter = ',', nrows=1, skiprows=j, dtype = 'str', names=['c1','c2'])
+        with open(outfile, 'a') as OF, open(infile, 'r') as IF:
+            OF.write(s['c1'].iloc[0] + ',' + str(int(s['c2'].iloc[0])-p_start) + '\n')
+            ## append the rest of the file
+            #system(paste0('tail -n +', j+2, ' ', infile, ' >> ', outfile))
+            for k, line in enumerate(IF):
+                if k >= (j+1):
+                    OF.write(line)
+                #if k > 10: # testing only
+                #    break
+    else:
+        ## earlier format version
+        ## Find the end of the header and append the infile to the outfile past that point
+        j=0
+        while True:
+            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\n', nrows=1, dtype = 'str', names=['s']).s[0][0]
+            if linetype == 'D':
+                break
+            j += 1
+        
+        ## append the rest of the file
+        #system(paste0('tail -n +', j+1, ' ', infile, ' >> ', outfile))
+        with open(outfile, 'a') as OF, open(infile, 'r') as IF:
+            #system(paste0('tail -n +', j+2, ' ', infile, ' >> ', outfile))
+            for k, line in enumerate(IF):
+                if k >= j:
+                    OF.write(line)
+
+    return
