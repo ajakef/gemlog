@@ -1040,7 +1040,6 @@ def _reformat_GPS(G_in):
               't': np.array(t)}
     return pd.DataFrame.from_dict(G_dict)
 
-
 def _find_breaks_(L):
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
@@ -1186,11 +1185,11 @@ def gem_cat(input_dir, output_dir):
                 counter += 1
         else:
             ## if this isn't the first file being processed and there's no GPS data, append it to the current outfile
-            if k == 1:
-                next
-            else:
+            #if k == 1:
+            #    next
+            #else:
                 ##system(paste0("cat ", gem_files[k], " >> ",    out_file))
-                AppendFile(gem_files[k], out_file, gem_files[k-1])
+            AppendFile(gem_files[k], out_file, gem_files[k-1])
     return 
 
 #%%
@@ -1201,7 +1200,7 @@ def gem_cat(input_dir, output_dir):
 def AppendFile(infile, outfile, prev_infile):
     # ensure that the output path exists
     outpath = os.path.dirname(outfile)
-    if not os.exists(outpath):
+    if not os.path.exists(outpath):
         os.makedirs(outpath)
         
     header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
