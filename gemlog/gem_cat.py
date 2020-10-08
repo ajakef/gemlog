@@ -12,7 +12,7 @@ import sys
 import shutil
 from gemlog.gemlog import _read_single_v0_9, EmptyRawFile, CorruptRawFile
 
-def gem_cat(input_dir, output_dir):
+def gem_cat(input_dir, output_dir, ext = ''):
     """
     gem_cat
     Search through Gem files, look for ones with no GPS lines, concatenate 
@@ -24,6 +24,7 @@ def gem_cat(input_dir, output_dir):
     -----------
     input_dir: raw gem directory
     output_dir: path for renumbered and concatenated files
+    ext: extension of raw files to convert (normally the serial number; sometimes TXT for old Gems)
     
     Returns:
     --------
@@ -39,7 +40,7 @@ def gem_cat(input_dir, output_dir):
             raise Exception('Output path ' + output_dir + ' does not exist and cannot be created')
         else:
             print('Created output folder ' + output_dir)
-    gem_files = sorted(glob.glob(input_dir + '/' + 'FILE[0-9][0-9][0-9][0-9].*'))
+    gem_files = sorted(glob.glob(input_dir + '/' + 'FILE[0-9][0-9][0-9][0-9].' + ext + '*'))
     
     has_gps = np.zeros(len(gem_files))
     counter = 0
@@ -161,15 +162,20 @@ def AppendFile(infile, outfile, prev_infile):
     return
 
 def print_call():
-    print('gem_cat -i <inputdir> -o <outputdir>')
+    print('gem_cat -i <input_dir> -o <output_dir> -e <ext>')
+    print('input_dir: raw gem directory')
+    print('output_dir: path for renumbered and concatenated files')
+    print('ext: extension of raw files to convert (normally the serial number; sometimes TXT for old Gems)')
+    
 
 def main(argv = None):
     if argv is None:
         argv = sys.argv[1:]
     inputdir = 'raw'
     outputdir = 'raw_merged'
+    ext = ''
     try:
-        opts, args = getopt.getopt(argv,"hi:o:")
+        opts, args = getopt.getopt(argv,"hi:o:e:")
     except getopt.GetoptError:
         print_call()
         sys.exit(2)
@@ -181,6 +187,8 @@ def main(argv = None):
             inputdir = arg
         elif opt in ("-o", "--outputdir"):
             outputdir = arg
+        elif opt in ("-e", "--ext"):
+            ext = arg
     try:
         fn = os.listdir(inputdir)
     except:
@@ -192,7 +200,7 @@ def main(argv = None):
         print('Data folder ' + inputdir + ' does not contain any data files.')
         sys.exit()
     try:
-        gem_cat(inputdir, outputdir)
+        gem_cat(inputdir, outputdir, ext)
     except:
         print('gem_cat failed')
         sys.exit()
