@@ -41,8 +41,10 @@ Set your conda environment to whatever you set up during the installation using 
 The following terminal command determines whether each raw file contains GPS data, and merges the files so that every output file has gps data at the beginning (and the end, if possible).
 
 ```
-gem_cat -i raw_missing_gps/ -o raw_merged
+gem_cat -i raw_missing_gps/ -o raw_merged -e 077
 ```
+
+Input unmerged data files are in raw_missing_gps/, output merged files go in raw_merged/, and the serial number that it looks for to convert is 077.
 
 ### Converting raw gem data
 Now, convert the merged raw data files (all of which contain GPS info) to a standard format (in this case, miniSEED) using the following terminal command. This may take a while to run if you have a lot of data!

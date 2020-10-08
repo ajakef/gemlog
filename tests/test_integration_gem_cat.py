@@ -24,7 +24,7 @@ def teardown_module():
 
 def test_demo_missing_gps():
     ## following is drawn as directly as possible from demo/README.md
-    gem_cat('../demo_missing_gps/raw_missing_gps/', './raw_merged')
+    gem_cat('../demo_missing_gps/raw_missing_gps/', './raw_merged', '077')
     convert(rawpath = './raw_merged', convertedpath = './converted', SN = '077')
     st = obspy.read('./converted/*')
     st_ref = obspy.read('../demo_missing_gps/converted_with_gps/*')
