@@ -1,0 +1,2 @@
+## sed command to remove GPS-related lines (P, R, and G) from file and write to output:
+sed '/^[GPR]/d' FILE0001.077 > output
