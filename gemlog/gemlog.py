@@ -145,6 +145,10 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         else:
             fn = glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')
         nums = np.array([int(x[-8:-4]) for x in fn]) # "list comprehension"
+
+    ## Catch if rawpath doesn't contain any files from SN. This won't catch files ending in TXT.
+    if len(nums) == 0:
+        raise Exception('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
     nums.sort()
 
     ## start at the first file in 'nums'
@@ -208,7 +212,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         try:
             os.makedirs(convertedpath)
         except:
-            print('Failed to make directory ' + metadatapath)
+            print('Failed to make directory ' + convertedpath)
             sys.exit(2)
   
     ## start metadata and gps files
@@ -1126,135 +1130,3 @@ def _piecewise_regression(x, y, breaks):
     return output
         
 #Concatenate Gem files with no GPS data
-import shutil
-def gem_cat(input_dir, output_dir):
-    """
-    gem_cat
-    Search through Gem files, look for ones with no GPS lines, concatenate 
-    them, and then renumber everything.
-    
-    Translated from R code originally by Danny Bowman
-    
-    Parameters:
-    -----------
-    input_dir: raw gem directory
-    output_dir: path for renumbered and concatenated files
-    
-    Returns:
-    --------
-    None; file output only
-    """
-    gem_files = sorted(glob.glob(input_dir + '/' + 'FILE[0-9][0-9][0-9][0-9].*'))
-    
-    has_gps = np.zeros(len(gem_files))
-    counter = 0
-    out_file = [] ## note that out_file being empty acts as a flag saying that no files have been processed yet
-    SN = pd.read_csv(gem_files[0], delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN']).SN[0]
-
-    for k in range(len(gem_files)):
-        #for k in range(2):        
-        print(str(k) + ' of ' + str(len(gem_files)) + ': ' + gem_files[k])
-        lines = pd.read_csv(gem_files[k], delimiter = '\n', dtype = 'str', names = ['line'])
-        #gps_grep = grepl("^G.*-?\\d+\\.\\d+,-?\\d+\\.\\d+$", lines)
-        gps_grep = lines.line.str.contains('^G')
-        ## if no files have been processed yet and the current file has no GPS data, skip it
-   
-        if (sum(gps_grep) == 0) & (len(out_file) == 0):
-            continue
-
-        ## if this is the first file being processed, simply copy it and advance
-        if len(out_file) == 0:
-            #out_file = output_dir + "/FILE", sprintf("%04d", counter) + "." + SN
-            out_file = output_dir + '/FILE%04d.%s' % (counter, SN)
-            shutil.copy(gem_files[k], out_file)
-            counter += 1
-            has_gps[k] = 1
-            continue
-
-        if sum(gps_grep) > 0:
-            has_gps[k] = 1
-            if has_gps[k - 1] == 0:
-                ## if this isn't the first file being processed and it does have GPS data but the previous file didn't, append it to the current outfile
-                AppendFile(gem_files[k], out_file, gem_files[k-1])
-            else:
-                ## if this isn't the first file being processed and it has gps data and the previous file did too, start a new outfile
-                #out_file = output_dir + "/FILE" + sprintf("%04d", counter) + "." + SN
-                #file_copy(gem_files[k], out_file, overwrite = TRUE)
-                out_file = output_dir + '/FILE%04d.%s' % (counter, SN)
-                shutil.copy(gem_files[k], out_file)
-                counter += 1
-        else:
-            ## if this isn't the first file being processed and there's no GPS data, append it to the current outfile
-            #if k == 1:
-            #    next
-            #else:
-                ##system(paste0("cat ", gem_files[k], " >> ",    out_file))
-            AppendFile(gem_files[k], out_file, gem_files[k-1])
-    return 
-
-#%%
-#infile = gem_files[1]
-#outfile = out_file
-#prev_infile = gem_files[0]
-#if True:
-def AppendFile(infile, outfile, prev_infile):
-    # ensure that the output path exists
-    outpath = os.path.dirname(outfile)
-    if not os.path.exists(outpath):
-        os.makedirs(outpath)
-        
-    header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
-    format = header[7:]
-    if format in ['0.85C', '0.9']:
-        #SN = scan(infile, skip = 4, sep = ',', what = list(character(), character()), nlines = 1, flush = TRUE)[[1]][2]
-        ## determine what the last ADC reading is before the start of this file
-        #if len(prev_infile) == 12:
-        #    path = '.'
-        #else:
-        #    path = prev_infile[0:-12]
-        ###########################################
-        #L = suppressWarnings(ReadGem(nums = num, path = path, units = 'counts')) # suppressWarnings because it'll warn that there's no GPS issue (which is kind of the point) or SN (which doesn't matter)
-        #p_start = L$p[length(L$p)]
-        p_start = int(_read_single_v0_9(prev_infile)['data'][-1,1])
-        ########################################
-
-        ## read the first data line of the infile and convert it to an ADC reading difference
-        j=0
-        while True:
-            ###################
-            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\n', nrows=1, dtype = 'str', names=['s']).s[0][0]
-            ###############
-            if linetype == 'D':
-                break
-            j += 1
-
-        ## adjust the data line and append it to the outfile
-        s = pd.read_csv(infile, delimiter = ',', nrows=1, skiprows=j, dtype = 'str', names=['c1','c2'])
-        with open(outfile, 'a') as OF, open(infile, 'r') as IF:
-            OF.write(s['c1'].iloc[0] + ',' + str(int(s['c2'].iloc[0])-p_start) + '\n')
-            ## append the rest of the file
-            #system(paste0('tail -n +', j+2, ' ', infile, ' >> ', outfile))
-            for k, line in enumerate(IF):
-                if k >= (j+1):
-                    OF.write(line)
-                #if k > 10: # testing only
-                #    break
-    else:
-        ## earlier format version
-        ## Find the end of the header and append the infile to the outfile past that point
-        j=0
-        while True:
-            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\n', nrows=1, dtype = 'str', names=['s']).s[0][0]
-            if linetype == 'D':
-                break
-            j += 1
-        
-        ## append the rest of the file
-        #system(paste0('tail -n +', j+1, ' ', infile, ' >> ', outfile))
-        with open(outfile, 'a') as OF, open(infile, 'r') as IF:
-            #system(paste0('tail -n +', j+2, ' ', infile, ' >> ', outfile))
-            for k, line in enumerate(IF):
-                if k >= j:
-                    OF.write(line)
-
-    return

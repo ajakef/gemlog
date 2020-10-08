@@ -24,6 +24,42 @@ def CheckDiscontinuity(files):
         for tr in st:
             print(tr.id + ' ' + tr.stats.starttime.isoformat() + '--' + tr.stats.endtime.isoformat())
 
+import gemlog, obspy
+import numpy as np
+def check_lags2(DB, winlength = 1000, fl = 0.5, fh = 20, maxshift = 5):
+    stations = DB.station.unique()
+    from obspy.signal.cross_correlation import xcorr
+    st = obspy.Stream()
+    st.filter('bandpass', freqmin=fl, freqmax = fh)
+    for fn in DB.filename:
+        st += obspy.read(fn)
+    t0 = min(DB.t1).replace(minute=0, second=0, microsecond=0)
+    t = []
+    lag = np.zeros([len(stations)-1, 1])
+    xc_coef = np.zeros([len(stations)-1, 1])
+    N = int((max(DB.t2) - t0)/winlength)
+    count = 0
+    t1 = t0 + 1e-6
+    #while t1 < (t0 + 10*winlength):#max(DB.t2):
+    while t1 < max(DB.t2):
+        count += 1
+        t1 += winlength
+        print(str(count) + ' of ' + str(N))
+        try:
+            test_lags = []
+            test_xc_coefs = []
+            st_test = st.slice(t1, t1 + winlength)
+            for i in range(len(stations) - 1):
+                xc_output = xcorr(st_test.traces[0], st_test.traces[i+1], maxshift, full_xcorr=True)
+                test_lags.append(xc_output[0])
+                test_xc_coefs.append(xc_output[1])
+            t.append(t1)
+            lag = np.hstack([lag, np.array(test_lags).reshape(len(stations)-1, 1)])
+            xc_coef = np.hstack([xc_coef, np.array(test_xc_coefs).reshape(len(stations)-1, 1)])
+        except:
+            pass
+    return([t, lag, xc_coef])
+
 def check_lags(DB, winlength = 1000, fl = 0.5, fh = 20, maxshift = 5):
     stations = DB.station.unique()
     from obspy.signal.cross_correlation import xcorr

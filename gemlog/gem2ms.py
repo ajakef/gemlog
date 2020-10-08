@@ -61,7 +61,7 @@ def main(argv = None):
     exclude = []
     outputdir = None
     test = False
-    fmt = 'MSEED'
+    output_format = 'MSEED'
     gemlog._debug = False
     try:
         opts, args = getopt.getopt(argv,"hdti:s:x:o:f:",["inputdir=","serialnumber="])
@@ -92,10 +92,10 @@ def main(argv = None):
         elif opt in ("-o", "--outputdir"):
             outputdir = arg
         elif opt in ("-f", "--format"):
-            fmt = arg
+            output_format = arg
 
     if outputdir is None:
-        outputdir = fmt.lower()
+        outputdir = output_format.lower()
     if gemlog._debug:
         logging.basicConfig(level=logging.DEBUG, filename="gemconvert_logfile.txt", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
@@ -132,7 +132,7 @@ def main(argv = None):
         for SN in SN_list:
             logging.info('Beginning ' + SN)
             try:
-                gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, fmt = fmt)
+                gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format)
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
                 logging.exception(parse_error(e), exc_info = gemlog._debug)

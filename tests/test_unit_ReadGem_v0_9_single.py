@@ -15,7 +15,7 @@ def inputs():
     # this is a reasonable offset to use for this file;
     # can't use 0 because bugs might slip through
     offset = 72000000.0 + 5263
-    return 'data/FILE0001.077', offset
+    return 'demo_missing_gps/raw_with_gps/FILE0001.077', offset
 
 
 # use scope='session' to only evaluate this fixture once:
