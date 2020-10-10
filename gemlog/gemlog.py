@@ -731,7 +731,8 @@ def _slow__read_single_v0_9(fn, startMillis):
     #pdb.set_trace()
     ## remove unused space in pre-allocated arrays
     D = D[:d_index,:]
-    G = pd.DataFrame(G[:g_index,:], columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon', 't'])
+    G = pd.DataFrame(G[:g_index,:], columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', \
+                                               'minute', 'second', 'lat', 'lon', 't'])
     M = pd.DataFrame(M[:m_index,:], columns = ['millis', 'batt', 'temp', 'A2', 'A3', \
                                                'maxWriteTime', 'minFifoFree', 'maxFifoUsed', \
                                                'maxOverruns', 'gpsOnFlag', 'unusedStack1',\
@@ -753,8 +754,14 @@ def _read_several_v0_9(fnList):
                                      'SN':['' for fn in fnList],
                                      'lat': num_filler,
                                      'lon': num_filler,
-                                     't1': num_filler,
-                                     't2': num_filler
+                                     'start_ms': num_filler,
+                                     'end_ms': num_filler,
+                                     'drift_slope': num_filler,
+                                     'drift_intercept': num_filler,
+                                     'drift_slope_stderr': num_filler,
+                                     'drift_resid_std': num_filler,
+                                     'drift_resid_MAD': num_filler,
+                                     'num_gps_pts': num_filler
                                      })
     ## loop through the files
     startMillis = 0
@@ -773,16 +780,71 @@ def _read_several_v0_9(fnList):
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
+            linreg = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
             startMillis = D[-1,0]
-            header.loc[i,'lat'] = np.median(L['gps']['lat'])
-            header.loc[i,'lon'] = np.median(L['gps']['lon'])
-            header.loc[i, 't1'] = L['data'][0,0] # save this as a millis first, then convert
-            header.loc[i,'t2'] = L['data'][-1,0]
+            header.loc[i, 'lat'] = np.median(L['gps']['lat'])
+            header.loc[i, 'lon'] = np.median(L['gps']['lon'])
+            header.loc[i, 'start_ms'] = L['data'][0,0] # save this as a millis first, then convert
+            header.loc[i, 'end_ms'] = L['data'][-1,0]
+            header.loc[i, 'SN'] = _read_SN(fn)
+            header.loc[i, 'drift_slope'] = linreg.slope
+            header.loc[i, 'drift_intercept'] = linreg.intercept
+            header.loc[i, 'drift_slope_stderr'] = linreg.stderr
+            header.loc[i, 'drift_resid_std'] = np.std(resid)
+            header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
+            header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
         ## end of fn loop
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
+def _robust_regress(x, y, z=3):
+    # goal: a linear regression that is robust to RARE outliers, especially for GPS data
+    # scipy.stats.theilslopes (median-based) looks problematic because the median is only affected
+    # by the central data point and doesn't benefit from the other samples' information. Also, GPS
+    # data slopes are weirdly distributed.
+    # In this function, z is the z-score (number of standard deviations) for defining outliers.
 
-def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = ''):
+    ## Calculate regression line and residuals.
+    linreg = scipy.stats.linregress(x, y)
+    resid = y - (linreg.intercept + x * linreg.slope)
+
+    ## If any are found to be outliers, remove them and recalculate recursively.
+    outliers = np.abs(resid) > (z*np.std(resid))
+    if any(outliers):
+        return _robust_regress(x[~outliers], y[~outliers], z)
+    else:
+        return linreg
+    
+def _assign_times(L):
+    fnList = L['header'].file
+    if L['gps'].shape[0] == 0:
+        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    
+    G = _reformat_GPS(L['gps'])
+    #breakpoint()
+    try:
+        breaks = _find_breaks_(L)
+    except:
+        raise CorruptRawFile('Problem between ' + fnList[0] + '-' + fnList[-1] + '; stopping before this interval. Break between recording periods? Corrupt files?')
+    #piecewiseTimeFit = _piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
+    piecewiseTimeFit = L['header']
+    L['metadata']['t'] = _apply_segments(L['metadata']['millis'], piecewiseTimeFit)
+    header = L['header']
+    #header.SN = SN
+    header['t1'] = _apply_segments(header.start_ms, piecewiseTimeFit)
+    header['t2'] = _apply_segments(header.end_ms, piecewiseTimeFit)
+    L['header'] = header
+    
+    ## interpolate data to equal spacing to make obspy trace
+    D = L['data']
+    D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
+    timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
+    L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
+    L['gps'] = G
+    return (L, timing_info)
+
+    
+def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False):
     """
     Read raw Gem files.
 
@@ -876,41 +938,26 @@ def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitwei
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
-    if L['gps'].shape[0] == 0:
-        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    L, timing_info = _assign_times(L)
     
-    M = L['metadata']
-    D = L['data']
-    G = _reformat_GPS(L['gps'])
-    #breakpoint()
-    try:
-        breaks = _find_breaks_(L)
-    except:
-        raise CorruptRawFile('Problem between ' + fnList[0] + '-' + fnList[-1] + '; stopping before this interval. Break between recording periods? Corrupt files?')
-    piecewiseTimeFit = _piecewise_regression(np.array(L['gps'].msPPS), np.array(L['gps'].t), breaks)
-    M['t'] = _apply_segments(M['millis'], piecewiseTimeFit)
-    header = L['header']
-    header.SN = SN
-    header.t1 = _apply_segments(header.t1, piecewiseTimeFit)
-    header.t2 = _apply_segments(header.t2, piecewiseTimeFit)
-    D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
-    
-    ## interpolate data to equal spacing to make obspy trace
-    #_breakpoint()
-    st = _interp_time(D) # populates known fields: channel, delta, and starttime
-    for tr in st:
+    for tr in L['data']:
         ## populate the rest of the trace stats
         tr.stats.station = station
         tr.stats.location = location # this may well be ''
         tr.stats.network = network # can be '' for now and set later
     ## add bitweight and config info to header
     bitweight_info = get_bitweight_info(SN, config)
+    header = L['header']
     for key in bitweight_info.keys():
-        header[key] = bitweight_info[key]
+        L['header'][key] = bitweight_info[key]
     for key in config.keys():
-        header[key] = config[key]
-    header['file_format_version'] = version
-    return {'data': st, 'metadata': M, 'gps': G, 'header' : header}
+        L['header'][key] = config[key]
+    L['header']['file_format_version'] = version
+
+    ## done processing
+    if return_debug_output:
+        L['debug_output'] = timing_info
+    return L
 
 ReadGem = read_gem ## alias, v1.0.0
 
@@ -947,6 +994,9 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
             _breakpoint()
+            if not _debug:
+                raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
+                                ' and ' + str(obspy.UTCDateTime(ends[i]))))
         t_interp = np.arange(starts[i], ends[i] + eps, 0.01)
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
@@ -1108,13 +1158,13 @@ def _find_breaks_(L):
 def _apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
-    for i in range(len(model['start'])):
-        w = (x >= model['start'][i]) & (x <= model['end'][i])
-        y[w] = model['intercept'][i] + model['slope'][i] * x[w]
+    for i in range(len(model['start_ms'])):
+        w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
+        y[w] = model['drift_intercept'][i] + model['drift_slope'][i] * x[w]
     return y
 
 def _piecewise_regression(x, y, breaks):
-    output = {'slope': [], 'intercept':[], 'r':[], 'p':[], 'stderr':[], 'start': [], 'end':[]}
+    output = {'slope': [], 'intercept':[], 'r':[], 'p':[], 'stderr':[], 'start_ms': [], 'end_ms':[]}
     for i in range(len(breaks['starts'])):
         w = np.where((x >= breaks['starts'][i]) & (x <= breaks['ends'][i]))[0]
         if len(w) == 0: # skip this interval if it doesn't contain data
@@ -1125,8 +1175,8 @@ def _piecewise_regression(x, y, breaks):
         output['r'].append(l.rvalue)
         output['p'].append(l.pvalue)
         output['stderr'].append(l.stderr)
-        output['start'].append(breaks['starts'][i])
-        output['end'].append(breaks['ends'][i])
+        output['start_ms'].append(breaks['starts'][i])
+        output['end_ms'].append(breaks['ends'][i])
     return output
         
 #Concatenate Gem files with no GPS data
