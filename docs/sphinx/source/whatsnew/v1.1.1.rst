@@ -1,0 +1,35 @@
+.. _whatsnew_v111:
+
+v1.1.1 (MONTH DAY YEAR)
+-----------------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+Deprecations
+~~~~~~~~~~~~
+
+
+Enhancements
+~~~~~~~~~~~~
+
+
+Bug fixes
+~~~~~~~~~
+
+
+Testing
+~~~~~~~
+
+
+Documentation
+~~~~~~~~~~~~~
+- This sphinx documentation (:pull:`12`)
+
+Requirements
+~~~~~~~~~~~~
+
+
+Contributors
+~~~~~~~~~~~~
