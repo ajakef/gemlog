@@ -780,7 +780,7 @@ def _read_several_v0_9(fnList):
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
-            linreg = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            linreg, num_fixes_used, MAD_used = _robust_regress(L['gps'].msPPS, L['gps'].t)
             resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
             startMillis = D[-1,0]
             header.loc[i, 'lat'] = np.median(L['gps']['lat'])
@@ -794,10 +794,12 @@ def _read_several_v0_9(fnList):
             header.loc[i, 'drift_resid_std'] = np.std(resid)
             header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
             header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
+            header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_used
+            header.loc[i, 'num_gps_nonoutliers'] = num_gps_used
         ## end of fn loop
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
-def _robust_regress(x, y, z=3):
+def _robust_regress(x, y, z=2):
     # goal: a linear regression that is robust to RARE outliers, especially for GPS data
     # scipy.stats.theilslopes (median-based) looks problematic because the median is only affected
     # by the central data point and doesn't benefit from the other samples' information. Also, GPS
@@ -813,7 +815,7 @@ def _robust_regress(x, y, z=3):
     if any(outliers):
         return _robust_regress(x[~outliers], y[~outliers], z)
     else:
-        return linreg
+        return (linreg, len(x), np.max(np.abs(resid)))
     
 def _assign_times(L):
     fnList = L['header'].file

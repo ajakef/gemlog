@@ -96,11 +96,18 @@ testdata.plot()
 
 Finally, we can look at the ordinary data without the GPS info removed as a comparison:
 ```
-reference = obspy.read('converted_with_gps/*')
-reference.filter("highpass", freq=1.0)
-reference.merge()
-reference.trim(t1,t2)
+testdata = obspy.read('converted_missing_gps/*')
+testdata.trim(t1, t2)
+testdata.plot()
 
+reference = obspy.read('converted_with_gps/*')
+reference.trim(t1, t2)
 reference.plot()
 ```
 The two datasets are expected to be very similar but not identical, because precise timing was available for the reference dataset but not for the test dataset.
+
+### Subsequent analysis
+The `obspy` package is a convenient and powerful environment for manipulating time-series data. However, if you want direct access to the waveform data to plug in to your own analysis, you can obtain it as follows:
+```
+reference[0].data # a numpy array (or masked array, if any samples are missing)
+```
