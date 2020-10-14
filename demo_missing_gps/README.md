@@ -1,7 +1,7 @@
 # Missing-GPS Gem Data Pre-Processing Workflow
 October 8, 2020
 ###
-This demo is intended only for datasets with GPS data at the beginning and end, but not in the middle. This could happen in mobile data recording projects including places where the GPS fix is typically lost, e.g. high-altitude balloons or indoor recording. If you have continuous GPS signal in your project, don't follow this workflow--follow the one in the demo/ folder instead.
+This demo is intended only for datasets with GPS data at the beginning and end, but not in the middle. This could happen in mobile data recording projects including places where the GPS fix is typically lost, e.g. high-altitude balloons or indoor recording. If you have continuous GPS signal in your project, don't follow this workflow--follow the one in the `demo/` folder instead.
 
 Warning: Frequent GPS fixes are essential for precise timekeeping, so sample times in the data converted with this method should NOT be considered precise. Typical clock drifts can be around 10-30 ppm.
 
@@ -13,7 +13,7 @@ Then, follow the gemlog installation procedure [here](https://github.com/ajakef/
 ### Getting Started
 First, download the zip file in the list of files above; this contains all the inputs needed for this demonstration. Move the file to some convenient folder, unzip it, and cd into the project folder.
 
-This demo converts raw data where some files lack GPS fixes (contained in raw_missing_gps) and compares it to otherwise identical raw and converted data that do contain gps fixes. 
+This demo converts raw data where some files lack GPS fixes (contained in `raw_missing_gps`) and compares it to otherwise identical raw and converted data that do contain gps fixes. 
 ```
 Project_Folder/
 |__raw_with_gps/ (ordinary raw data)
@@ -29,7 +29,7 @@ FILE0001.077
 FILE0002.077
 FILE0003.077
 
-$ grep -l '^G,' raw_missing_gps/* # find files with GPS data lines (starting with 'G')
+$ grep -l '^G,' raw_missing_gps/* # find files containing GPS data lines (starting with 'G')
 raw_missing_gps/FILE0000.077
 raw_missing_gps/FILE0003.077
 ```
@@ -44,7 +44,7 @@ The following terminal command determines whether each raw file contains GPS dat
 gem_cat -i raw_missing_gps/ -o raw_merged -e 077
 ```
 
-Input unmerged data files are in raw_missing_gps/, output merged files go in raw_merged/, and the serial number that it looks for to convert is 077.
+Input unmerged data files are in `raw_missing_gps/`, output merged files go in `raw_merged/`, and the serial number that it looks for to convert is 077.
 
 ### Converting raw gem data
 Now, convert the merged raw data files (all of which contain GPS info) to a standard format (in this case, miniSEED) using the following terminal command. This may take a while to run if you have a lot of data!
@@ -66,7 +66,7 @@ Project_Folder/
 By now, all the useful information has been extracted from the raw files; there is no reason to work with them further except for possible debugging. For more info on the gemconvert options and capabilities (e.g., the ability to write SAC files and the text format TSPAIR), run `gemconvert -h`.
 
 ##### Multiple conversion attempts
-If the conversion is run multiple times, `gemconvert` will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. `gemconvert_logfile.txt `is appended to on each conversion attempt, so it is also not overwritten.
+If the conversion is run multiple times, `gemconvert` will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. `gemconvert_logfile.txt` is appended to on each conversion attempt, so it is also not overwritten.
 
 ### Inspect the Data
 The following workflow can be used to read the renamed mseed data and deconvolve the instrument response.
@@ -98,7 +98,7 @@ Finally, we can look at the ordinary data without the GPS info removed as a comp
 ```
 reference = obspy.read('converted_with_gps/*')
 reference.merge()
-testdata.filter("highpass", freq=1.0)
+reference.filter("highpass", freq=1.0)
 reference.trim(t1,t2)
 
 reference.plot()
