@@ -97,8 +97,8 @@ testdata.plot()
 Finally, we can look at the ordinary data without the GPS info removed as a comparison:
 ```
 reference = obspy.read('converted_with_gps/*')
-reference.merge()
 reference.filter("highpass", freq=1.0)
+reference.merge()
 reference.trim(t1,t2)
 
 reference.plot()
