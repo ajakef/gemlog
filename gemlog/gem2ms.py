@@ -32,12 +32,13 @@ def unique(list1): # thanks Kevin!
     return sorted(unique)
 
 def print_call():
-    print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format>')
+    print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format> -l <filelength_hours>')
     print('-i --inputdir: default ./raw/')
     print('-s --serialnumbers: separate by commas (no spaces); default all')
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
     print('-o --outputdir: default ./mseed')
     print('-f --format: mseed, sac, or tspair (text) currently supported; default mseed')
+    print('-l --length: length of output converted files in hours; default 1')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-h --help: print this message')
     print('alias: gem2ms. gemlog version: ' + gemlog.__version__)
@@ -62,9 +63,10 @@ def main(argv = None):
     outputdir = None
     test = False
     output_format = 'MSEED'
+    output_length = 1 # hours
     gemlog._debug = False
     try:
-        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:",["inputdir=","serialnumber="])
+        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
         print_call()
         sys.exit(2)
@@ -93,6 +95,8 @@ def main(argv = None):
             outputdir = arg
         elif opt in ("-f", "--format"):
             output_format = arg
+        elif opt in ("-l", "--length"):
+            output_length = arg
 
     if outputdir is None:
         outputdir = output_format.lower()
@@ -132,7 +136,7 @@ def main(argv = None):
         for SN in SN_list:
             logging.info('Beginning ' + SN)
             try:
-                gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format)
+                gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
                 logging.exception(parse_error(e), exc_info = gemlog._debug)

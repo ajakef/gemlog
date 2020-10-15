@@ -31,7 +31,7 @@ def _breakpoint():
 def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
             metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
             SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
-            fileLength = 3600, station = '', network = '', location = '', output_format = 'MSEED'):
+            file_length_hour = 1, station = '', network = '', location = '', output_format = 'MSEED'):
     """
     Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
 
@@ -96,8 +96,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         If you have memory issues when converting data, try setting this
         to a smaller value.
 
-    fileLength : float, default 3600 (one hour)
-        Length of the output files in seconds.
+    file_length_hour : float, default 1
+        Length of the output files in hours.
             
     station : str
         Name of the station (up to five characters) to assign to the 
@@ -123,6 +123,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     Note: All sample times involving the Gem (and most other passive 
     seismic/acoustic data) are in UTC; time zones are not supported.
     """
+    file_length_sec = 3600 * file_length_hour
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     
     ## make sure the raw directory exists and has real data
@@ -225,7 +226,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, output_format=output_format)
+    hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -263,15 +264,15 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 gps.to_csv(gpsfile, index=False, mode='a', header=False)
                 
         ## run the conversion and write new converted files
-        while((hour_to_write + fileLength) <= p[-1].stats.endtime):
-            hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, output_format=output_format)
+        while((hour_to_write + file_length_sec) <= p[-1].stats.endtime):
+            hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
             
         ## update start time to convert
         p.trim(hour_to_write, t2)
         t1 = _trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
     while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
-        hour_to_write = _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, output_format=output_format)
+        hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
         p.trim(hour_to_write, t2)
         p = p.split()
         if(len(p) > 0):
@@ -281,10 +282,10 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
 Convert = convert # alias; v1.0.0
 
-def _write_hourlong_mseed(p, hour_to_write, fileLength, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
+def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
     #pdb.set_trace()
     if(np.isnan(hour_end)):
-        hour_end = _trunc_UTCDateTime(hour_to_write, fileLength) + fileLength
+        hour_end = _trunc_UTCDateTime(hour_to_write, file_length_sec) + file_length_sec
     pp = p.copy()
     pp.trim(hour_to_write, hour_end)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
