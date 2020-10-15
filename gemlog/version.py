@@ -1,4 +1,5 @@
-__version__ = '1.1.1' # moved drift correction from block-level to file-level
+__version__ = '1.1.2' # added output file length option to gemconvert, and fixed some missing_gps issues
+#__version__ = '1.1.1' # moved drift correction from block-level to file-level
 #__version__ = '1.1.0' # added new gem_cat feature for combining no-GPS files
 #__version__ = '1.0.2' # changed make_gem_inventory so that output stationXML passes the stationXML validator: https://github.com/iris-edu/StationXML-Validator/
 #__version__ = '1.0.1' # changed 'master' branch to 'main'
