@@ -8,6 +8,8 @@ except ImportError:
 import os
 use_cython = os.environ.get("USE_CYTHON", 'True').lower() != 'false'
 
+print(os.environ)
+
 if use_cython:
     try:
         from Cython.Build import cythonize
