@@ -13,7 +13,6 @@ in field campaigns.
 
 The source code for gemlog is maintained on `github <https://github.com/ajakef/gemlog>`_.
 
-
 Contents
 ========
 
