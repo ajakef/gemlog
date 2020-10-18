@@ -1,0 +1,2 @@
+# requirements for automatically building the documentation on ReadTheDocs
+cython

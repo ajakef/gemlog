@@ -1,0 +1,15 @@
+
+# sphinx
+build
+generated
+
+# cython files
+*.c
+*.so
+build
+
+# jupyter
+.ipynb_checkpoints
+
+# general python
+__pycache__
