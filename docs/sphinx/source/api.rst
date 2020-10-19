@@ -18,7 +18,11 @@ Functions for reading, writing, and converting gem log files.
    make_db
    calc_channel_stats
    get_gem_specs
-
+   read_gps
+   summarize_gps
+   make_gem_inventory
+   rename_files
+   gem_cat
 
 gemNetwork
 ==========
@@ -28,10 +32,6 @@ Some other functions, or something.
 .. autosummary::
    :toctree: generated/
 
-   gemlog.read_gps
-   gemlog.summarize_gps
-   gemlog.make_gem_inventory
-   gemlog.rename_files
 
 
 gemCat
@@ -42,4 +42,4 @@ Some sort of feline, presumably.
 .. autosummary::
    :toctree: generated/
 
-    gemlog.gem_cat
+

@@ -15,8 +15,7 @@ from gemlog.gemlog import _read_single_v0_9, EmptyRawFile, CorruptRawFile
 def gem_cat(input_dir, output_dir, ext = ''):
     """
     gem_cat
-    Search through Gem files, look for ones with no GPS lines, concatenate 
-    them, and then renumber everything.
+    Merge raw data files so that all contain GPS data.
     
     Translated from R code originally by Danny Bowman.
     

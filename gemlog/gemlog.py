@@ -123,7 +123,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     Note: All sample times involving the Gem (and most other passive 
     seismic/acoustic data) are in UTC; time zones are not supported.
     """
-    file_length_sec = 3600 * file_length_hour
+    file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     
     ## make sure the raw directory exists and has real data
