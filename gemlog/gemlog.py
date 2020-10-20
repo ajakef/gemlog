@@ -342,6 +342,23 @@ def _new_gem_var():
 
 
 def make_db(path, pattern = '*', savefile = './DB.csv'):
+    """Create a database summarizing a set of converted data files.
+
+    Parameters:
+    -----------
+    path : str
+        Path to folder containing converted data files to summarize.
+    
+    pattern : str, default '*'
+        Glob-type pattern for selecting converted data files to summarize
+
+    savefile : str, default './DB.csv'
+        File name where database should be written.
+
+    Returns:
+    --------
+    pandas.DataFrame containing converted file database.
+    """
     #path = 'mseed'
     #pattern = '*'
     files = glob.glob(path + '/' + pattern)
@@ -365,6 +382,29 @@ def make_db(path, pattern = '*', savefile = './DB.csv'):
     return(DB)
 
 def calc_channel_stats(DB, t1, t2):
+    """
+    Calculate uptime and other statistics for all channels in a database.
+
+    Parameters:
+    -----------
+    DB : pandas.DataFrame
+        Output of make_db().
+    
+    t1 : time-like 
+        Start time for which statistics should be calculated.
+
+    t2 : time-like 
+        End time for which statistics should be calculated.
+
+    Returns:
+    --------
+    pandas.DataFrame containing the following columns:
+    --station : station name
+    goodData : proportion of time window (t1-t2) that is not obviously bad (e.g., clipped)
+    anyData : proportion of time window (t1-t2) for which data are available
+    q1 : first quartile amplitude 
+    q3 : third quartile amplitude
+    """
     import obspy, glob
     import pandas as pd
     from obspy import UTCDateTime as T
@@ -1052,6 +1092,20 @@ def __gain__(version):
         return 1 + 49.4/0.470
 
 def get_gem_specs(SN):
+    """
+    Retrieve specs for a given Gem serial number. 
+    
+    Parameters:
+    -----------
+    SN : str or int
+    
+    Returns:
+    --------
+    dict with the following elements:
+    --version : Gem version number
+    --bitweight_V : voltage resolution for this Gem version [Volts per count]
+    --bitweight_Pa : pressure resolution for this Gem version [Pascals per count]
+    """
     versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
                     'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
                     'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.Inf])

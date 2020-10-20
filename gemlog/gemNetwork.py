@@ -13,6 +13,26 @@ def _get_station_info(station_info):
     return station_info
 
 def make_gem_inventory(station_info, coords, response = 'default'):
+    """
+    Create a station inventory for a Gem dataset.
+
+    Parameters:
+    -----------
+    station_info: str or pandas.DataFrame
+        file that contains a table with station definitions (columns for serial number, network,
+        station, location, and channel)
+    
+    coords : pandas.DataFrame
+        output of summarize_gps()
+
+    response: str
+        instrument response information (currently only 'default' is supported)
+
+    Returns:
+    --------
+    obspy.Inventory containing station metadata for the dataset
+        
+    """
     ## ensure that the provided station_info has all the necessary info, and fail if it doesn't
     station_info = _get_station_info(station_info)
     ## ensure that the coords info has all the necessary info, and fail if it doesn't
@@ -68,6 +88,29 @@ def make_gem_inventory(station_info, coords, response = 'default'):
     return inventory
     
 def rename_files(infile_pattern, station_info, output_dir, output_format = 'mseed'):
+    """
+    Rename a set of converted data files, assigning the correct network, station, and location 
+    codes (instead of the original code with empty location/network and the station code being the
+    serial number).
+
+    Parameters:
+    -----------
+    infile_pattern : str
+        glob-type pattern defining the input files
+
+    station_info : str or pandas.DataFrame
+        file name for table assigning serial numbers to network, station, and location codes
+
+    output_dir : str
+        folder where output files should be written
+
+    output_format : str
+        default 'mseed'; 'sac' also works, as do other obspy-supported formats
+
+    Returns:
+    --------
+    pandas.DataFrame containing the station_info table.
+    """
     station_info = _get_station_info(station_info)
     
     if not os.path.isdir(output_dir):

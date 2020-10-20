@@ -8,13 +8,14 @@ API Reference
 gemlog
 ======
 
-Functions for reading, writing, and converting gem log files.
+Functions for reading and processing data files from the Gem Infrasound Logger.
 
 .. autosummary::
    :toctree: generated/
 
    read_gem
    convert
+   gem_cat
    make_db
    calc_channel_stats
    get_gem_specs
@@ -22,24 +23,3 @@ Functions for reading, writing, and converting gem log files.
    summarize_gps
    make_gem_inventory
    rename_files
-   gem_cat
-
-gemNetwork
-==========
-
-Some other functions, or something.
-
-.. autosummary::
-   :toctree: generated/
-
-
-
-gemCat
-======
-
-Some sort of feline, presumably.
-
-.. autosummary::
-   :toctree: generated/
-
-

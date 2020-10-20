@@ -1,6 +1,6 @@
 .. _whatsnew_v111:
 
-v1.1.1 (MONTH DAY YEAR)
+v1.1.1 (October 10, 2020)
 -----------------------
 
 Breaking changes
@@ -13,7 +13,7 @@ Deprecations
 
 Enhancements
 ~~~~~~~~~~~~
-
+Changed sample time interpolation from block-of-files level to single-file level, which prevents possible problems that can cause imprecise sample times.
 
 Bug fixes
 ~~~~~~~~~
