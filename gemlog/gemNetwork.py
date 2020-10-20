@@ -156,6 +156,22 @@ def _remove_outliers(x, N = 5):
         return(x)
 
 def read_gps(gps_dir_pattern, SN):
+    """
+    Read the most up-to-date GPS file for a given serial number.
+
+    Parameters:
+    -----------
+    gps_dir_pattern : str
+        Path to the folder containing GPS data, or a glob-style pattern describing multiple folders.
+
+    SN : str
+        Serial number of the Gem being examined.
+
+    Returns:
+    --------
+    pandas.DataFrame containing columns year, date (day of year), lat, lon (all floats), and column
+    t (obspy.UTCDateTime).
+    """
     gpsDirList = sorted(glob.glob(gps_dir_pattern))
     gpsTable = pd.DataFrame(columns=['year', 'date', 'lat', 'lon', 't'])
     for gpsDir in gpsDirList:
@@ -166,6 +182,39 @@ def read_gps(gps_dir_pattern, SN):
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
 def summarize_gps(gps_dir_pattern, output_file = '', station_info = None):
+    """
+    Read up-to-date GPS data from all Gems in a project, calculate their locations using a robustn
+    trimmed-mean method.
+
+    Parameters:
+    -----------
+    gps_dir_pattern : str
+        Path to folder or glob-style pattern describing folders containing GPS data to review.
+
+    output_file : str
+        Path to file where output should be written (optional)
+
+    station_info : str
+        Path to text file containing table assigning serial numbers to network, station, and 
+        location codes.
+
+    Returns:
+    --------
+    pandas.DataFrame containing the following columns:
+    SN: serial number (str)
+    lat: calculated average latitude (float)
+    lon: calculated average longitude (float)
+    lat_SE: standard error of average latitude (float)
+    lon_SE: standard error of average longitude (float)
+    starttime: time of first GPS data (obspy.UTCDateTime)
+    endtime: time of last GPS data (obspy.UTCDateTime)
+    num_samples: number of GPS strings recorded 
+
+    If station_info is provided, then the following columns are also included:
+    network: network code (str)
+    station: station code (str)
+    location: location code (str)
+    """
     gpsDirList = sorted(glob.glob(gps_dir_pattern))
     gpsFileList = []
     for gpsDir in gpsDirList:
