@@ -1,0 +1,35 @@
+.. _whatsnew_v111:
+
+v1.1.2 (October 14, 2020)
+-----------------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+Deprecations
+~~~~~~~~~~~~
+
+
+Enhancements
+~~~~~~~~~~~~
+Added an option to gemconvert to allow output files of length other than 1 hour. Day-long miniSEED files are often more convenient than hour-long files.
+
+Bug fixes
+~~~~~~~~~
+Fixed some issues with the Missing GPS Demo.
+
+Testing
+~~~~~~~
+
+
+Documentation
+~~~~~~~~~~~~~
+- This sphinx documentation (:pull:`12`)
+
+Requirements
+~~~~~~~~~~~~
+
+
+Contributors
+~~~~~~~~~~~~
