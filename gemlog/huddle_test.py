@@ -1,15 +1,43 @@
+import pandas as pd
+metadata = pd.read_csv('metadata/077metadata_000.txt', sep = ',')
 ## Huddle test performance requirements:
 #### >=3 loggers must have barbs facing each other and all within 15 cm, in a turbulence-suppressed semi-enclosed space, sitting on a shared hard surface on top of padding, with good GPS signal, in a site that is not next to a continuous noise source (duty cycle < 80%). Loggers should all start and stop acquisition within 1 minute of each other, and run for at least one week.
 
 ## Metadata:
 #### battery voltage must be in reasonable range (1.7 to 15 V)
+if any(metadata.batt > 15) or any(metadata.batt < 1.7):
+    raise(Exception('Impossible Battery Voltage'))
+else:
+    print('Sufficient Battery Voltage')
+#%%
 #### temperature must be in reasonable range (-20 to 60 C)
+if any(metadata.temp > 60) or any(metadata.temp <-20): #celcius
+    raise(Exception('Impossible Temperature'))
+else:
+    print('Sufficient Temperature Range')
+#%%
 #### at every given time, temperature must agree within 2C for all loggers
 #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
+#%%
 #### minFifoFree and maxFifoUsed should always add to 75
+if any(metadata.minFifoFree + metadata.maxFifoUsed) != 75:
+    raise(Exception('Inadequate Space'))
+else:
+    print('Sufficient Space')
 #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
+#%%
 #### maxOverruns should always be zero
+if any(metadata.maxOverruns) !=0:
+    raise(Exception('Too many overruns!'))
+else:
+    print('Sufficient overruns')    
+#%%
 #### unusedStack1 and unusedStackIdle should always be >50 (this could change)
+if any(metadata.unusedStack1) or any(metadata.unusedStackIdle) >50:
+    raise(Exception('Inadequate unused Stack'))
+else:
+    print('Sufficient Stack')
+#%%
 #### gpsOnFlag should never be on for more than 3 minutes at a time
 #### all loggers' first and last times should agree within 20 minutes
 
