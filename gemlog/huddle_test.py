@@ -1,16 +1,39 @@
+import pandas as pd
+SN = '077'
+metadata = pd.read_csv('metadata/' + SN + 'metadata_000.txt', sep = ',')
+
 ## Huddle test performance requirements:
 #### >=3 loggers must have barbs facing each other and all within 15 cm, in a turbulence-suppressed semi-enclosed space, sitting on a shared hard surface on top of padding, with good GPS signal, in a site that is not next to a continuous noise source (duty cycle < 80%). Loggers should all start and stop acquisition within 1 minute of each other, and run for at least one week.
 
 ## Metadata:
 #### battery voltage must be in reasonable range (1.7 to 15 V)
+if any(metadata.batt > 15) or any(metadata.batt < 1.7):
+    raise(Exception('Impossible battery voltage'))
+
+#%%
 #### temperature must be in reasonable range (-20 to 60 C)
+if any(metadata.temp > 60) or any(metadata.temp < -20):
+    raise(Exception('Unlikely temperature'))
+#%%
 #### at every given time, temperature must agree within 2C for all loggers
 #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
+#%%
 #### minFifoFree and maxFifoUsed should always add to 75
+if any((metadata.minFifoFree + metadata.maxFifoUsed) != 75):
+    raise(Exception('Impossible FIFO sum'))
+
+
 #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
+
 #### maxOverruns should always be zero
 #### unusedStack1 and unusedStackIdle should always be >50 (this could change)
+#%%
 #### gpsOnFlag should never be on for more than 3 minutes at a time
+#### find time differences among samples with gps off that are > 180 sec
+if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180):
+    raise(Exception('GPS ran for too long'))
+else:
+    print('GPS runtime ok')
 #### all loggers' first and last times should agree within 20 minutes
 
 ## GPS:
