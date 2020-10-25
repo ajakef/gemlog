@@ -16,8 +16,8 @@ def make_gem_inventory(station_info, coords, response = 'default'):
     """
     Create a station inventory for a Gem dataset.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     station_info: str or pandas.DataFrame
         file that contains a table with station definitions (columns for serial number, network,
         station, location, and channel)
@@ -28,8 +28,8 @@ def make_gem_inventory(station_info, coords, response = 'default'):
     response: str
         instrument response information (currently only 'default' is supported)
 
-    Returns:
-    --------
+    Returns
+    -------
     obspy.Inventory containing station metadata for the dataset
         
     """
@@ -93,8 +93,8 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     codes (instead of the original code with empty location/network and the station code being the
     serial number).
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     infile_pattern : str
         glob-type pattern defining the input files
 
@@ -107,8 +107,8 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     output_format : str
         default 'mseed'; 'sac' also works, as do other obspy-supported formats
 
-    Returns:
-    --------
+    Returns
+    -------
     pandas.DataFrame containing the station_info table.
     """
     station_info = _get_station_info(station_info)
@@ -159,16 +159,16 @@ def read_gps(gps_dir_pattern, SN):
     """
     Read the most up-to-date GPS file for a given serial number.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     gps_dir_pattern : str
         Path to the folder containing GPS data, or a glob-style pattern describing multiple folders.
 
     SN : str
         Serial number of the Gem being examined.
 
-    Returns:
-    --------
+    Returns
+    -------
     pandas.DataFrame containing columns year, date (day of year), lat, lon (all floats), and column
     t (obspy.UTCDateTime).
     """
@@ -186,8 +186,8 @@ def summarize_gps(gps_dir_pattern, output_file = '', station_info = None):
     Read up-to-date GPS data from all Gems in a project, calculate their locations using a robustn
     trimmed-mean method.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     gps_dir_pattern : str
         Path to folder or glob-style pattern describing folders containing GPS data to review.
 
@@ -198,22 +198,24 @@ def summarize_gps(gps_dir_pattern, output_file = '', station_info = None):
         Path to text file containing table assigning serial numbers to network, station, and 
         location codes.
 
-    Returns:
-    --------
+    Returns
+    -------
     pandas.DataFrame containing the following columns:
-    SN: serial number (str)
-    lat: calculated average latitude (float)
-    lon: calculated average longitude (float)
-    lat_SE: standard error of average latitude (float)
-    lon_SE: standard error of average longitude (float)
-    starttime: time of first GPS data (obspy.UTCDateTime)
-    endtime: time of last GPS data (obspy.UTCDateTime)
-    num_samples: number of GPS strings recorded 
+
+        - SN: serial number (str)
+        - lat: calculated average latitude (float)
+        - lon: calculated average longitude (float)
+        - lat_SE: standard error of average latitude (float)
+        - lon_SE: standard error of average longitude (float)
+        - starttime: time of first GPS data (obspy.UTCDateTime)
+        - endtime: time of last GPS data (obspy.UTCDateTime)
+        - num_samples: number of GPS strings recorded 
 
     If station_info is provided, then the following columns are also included:
-    network: network code (str)
-    station: station code (str)
-    location: location code (str)
+
+        - network: network code (str)
+        - station: station code (str)
+        - location: location code (str)
     """
     gpsDirList = sorted(glob.glob(gps_dir_pattern))
     gpsFileList = []

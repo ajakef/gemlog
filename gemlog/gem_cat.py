@@ -19,14 +19,14 @@ def gem_cat(input_dir, output_dir, ext = ''):
     
     Translated from R code originally by Danny Bowman.
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     input_dir: raw gem directory
     output_dir: path for renumbered and concatenated files
     ext: extension of raw files to convert (normally the serial number; sometimes TXT for old Gems)
     
-    Returns:
-    --------
+    Returns
+    -------
     None; file output only
     """
     if not os.path.isdir(input_dir):
