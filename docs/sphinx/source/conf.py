@@ -94,4 +94,4 @@ autosummary_generate = True
 
 def setup(app):
     # A workaround for the responsive tables always having annoying scrollbars.
-    app.app.add_css_file("no_scrollbars.css")
+    app.add_css_file("no_scrollbars.css")
