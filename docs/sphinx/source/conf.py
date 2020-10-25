@@ -94,6 +94,4 @@ autosummary_generate = True
 
 def setup(app):
     # A workaround for the responsive tables always having annoying scrollbars.
-    app.add_stylesheet("no_scrollbars.css")
-    # Override footnote callout CSS to be normal text instead of superscript
-    app.add_stylesheet("no_reference_superscript.css")
+    app.app.add_css_file("no_scrollbars.css")
