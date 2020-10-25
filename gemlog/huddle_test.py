@@ -8,12 +8,15 @@ metadata = pd.read_csv('metadata/' + SN + 'metadata_000.txt', sep = ',')
 ## Metadata:
 #### battery voltage must be in reasonable range (1.7 to 15 V)
 if any(metadata.batt > 15) or any(metadata.batt < 1.7):
-    raise(Exception('Impossible battery voltage'))
-
+    raise(Exception('Impossible Battery Voltage'))
+else:
+    print('Sufficient Battery Voltage')
 #%%
 #### temperature must be in reasonable range (-20 to 60 C)
-if any(metadata.temp > 60) or any(metadata.temp < -20):
-    raise(Exception('Unlikely temperature'))
+if any(metadata.temp > 60) or any(metadata.temp <-20): #celcius
+    raise(Exception('Impossible Temperature'))
+else:
+    print('Sufficient Temperature Range')
 #%%
 #### at every given time, temperature must agree within 2C for all loggers
 #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
@@ -21,12 +24,21 @@ if any(metadata.temp > 60) or any(metadata.temp < -20):
 #### minFifoFree and maxFifoUsed should always add to 75
 if any((metadata.minFifoFree + metadata.maxFifoUsed) != 75):
     raise(Exception('Impossible FIFO sum'))
-
-
+else:
+    print('FIFO sum is correct')
 #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
-
+#%%
 #### maxOverruns should always be zero
+if any(metadata.maxOverruns) !=0:
+    raise(Exception('Too many overruns!'))
+else:
+    print('Sufficient overruns')    
+#%%
 #### unusedStack1 and unusedStackIdle should always be >50 (this could change)
+if any(metadata.unusedStack1) or any(metadata.unusedStackIdle) >50:
+    raise(Exception('Inadequate unused Stack'))
+else:
+    print('Sufficient Stack')
 #%%
 #### gpsOnFlag should never be on for more than 3 minutes at a time
 #### find time differences among samples with gps off that are > 180 sec
