@@ -8,6 +8,10 @@ on:
     types:
       - published
 
+# don't build python 2.7 wheels
+env:
+  CIBW_SKIP: cp27-*
+
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
