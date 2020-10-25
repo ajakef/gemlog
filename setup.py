@@ -74,7 +74,7 @@ TESTS_REQUIRE = ['pytest']
 
 EXTRAS_REQUIRE = {
     # 'optional': [...],
-    'doc': ['sphinx==3.2.1', 'sphinx-rtd-theme-0.5.0'],
+    'doc': ['sphinx==3.2.1', 'sphinx-rtd-theme==0.5.0'],
     'test': TESTS_REQUIRE
 }
 EXTRAS_REQUIRE['all'] = sorted(set(sum(EXTRAS_REQUIRE.values(), [])))
