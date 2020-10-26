@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+
 SN = '077'
 metadata = pd.read_csv('metadata/' + SN + 'metadata_000.txt', sep = ',')
 
