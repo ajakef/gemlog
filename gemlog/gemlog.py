@@ -244,8 +244,12 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         ## load new data if necessary
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
-            L = read_gem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
-            n1 = n1 + (12*blockdays) # increment file counter
+            try:
+                L = read_gem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
+            except MissingRawFiles: # this can happen if a block of empty files is encountered
+                continue
+            finally:
+                n1 = n1 + (12*blockdays) # increment file counter
 
             if(len(L['data']) == 0):
                 continue # skip ahead if there aren't any readable data files here
