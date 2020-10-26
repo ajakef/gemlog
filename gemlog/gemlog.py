@@ -755,7 +755,7 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def _slow__read_single_v0_9(fn, startMillis, require_gps = True):
+def _slow__read_single_v0_9(filename, startMillis, require_gps = True):
     ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
@@ -766,7 +766,7 @@ def _slow__read_single_v0_9(fn, startMillis, require_gps = True):
     g_index = 0
     millis = startMillis
     ## open the file for reading
-    with open(fn, 'r', newline = '', encoding='ascii', errors = 'ignore') as csvfile:
+    with open(filename, 'r', newline = '', encoding='ascii', errors = 'ignore') as csvfile:
         lines = csv.reader(csvfile, delimiter = ',', quoting = csv.QUOTE_NONE)
         i = 0
         for line in lines:
