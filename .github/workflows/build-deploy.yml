@@ -29,14 +29,14 @@ jobs:
         with:
           python-version: '3.7'
 
+      - name: Upgrade pip
+        run: |
+          python -m pip install --upgrade pip
+
       - name: Install cibuildwheel
         run: |
           python -m pip install cibuildwheel==1.6.3
 
-      - name: Install Visual C++ for Python 2.7
-        if: runner.os == 'Windows'
-        run: |
-          choco install vcpython27 -f -y
       - name: Build wheels
         run: |
           python -m cibuildwheel --output-dir wheelhouse
@@ -69,8 +69,8 @@ jobs:
   upload_pypi:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    # alternatively, to publish when a GitHub Release is created, use the following rule:
-    if: github.event_name == 'release' && github.event.action == 'published'
+    # only publish on a new release:
+    #if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@v2
         with:
