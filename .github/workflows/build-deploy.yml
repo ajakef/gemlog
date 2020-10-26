@@ -10,7 +10,7 @@ on:
 
 # don't build wheels for unsupported CPython versions, and skip pypy altogether
 env:
-  CIBW_SKIP: cp27-* cp35-* pp* *win*
+  CIBW_SKIP: cp27-* cp35-* pp*
   CIBW_BEFORE_BUILD: pip install cython
 
 jobs:
