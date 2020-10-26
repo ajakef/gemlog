@@ -1,8 +1,9 @@
 """
 Cython-based file parsers.
 """
+
 import numpy as np
-from libc.stdio cimport fopen, fclose, getline, FILE, sscanf
+from libc.stdio cimport fopen, fclose, fgets, FILE, sscanf
 
 
 def parse_gemfile(filename):
@@ -31,9 +32,8 @@ def parse_gemfile(filename):
         msg = "No such file or directory: '{}'".format(filename)
         raise FileNotFoundError(2, msg)
 
-    cdef char * line = NULL
-    cdef size_t line_length = 0
-    cdef ssize_t read
+    cdef char line[256]
+    cdef char* read
     cdef char line_type = 0
 
     cdef int n_matched = 0
@@ -65,8 +65,9 @@ def parse_gemfile(filename):
     cdef Py_ssize_t line_number = 0
     # were this python 3.8 we could maybe use the walrus operator.  alas
     while True:
-        read = getline(&line, &line_length, cfile)
-        if read == -1:
+        read = fgets(line, sizeof(line), cfile);
+        if read == NULL:
+            # EOF
             break
 
         line_type = line[0]
