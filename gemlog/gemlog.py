@@ -19,6 +19,10 @@ class CorruptRawFile(Exception):
     """Raised when the input file cannot be read for some reason"""
     pass
 
+class CorruptRawFileNoGPS(Exception):
+    """Raised when the input file does not contain any GPS data"""
+    pass
+
 class MissingRawFiles(Exception):
     """Raised when no input files are readable"""
     pass
@@ -325,7 +329,8 @@ def _make_filename(dir, SN, dirtype):
 
 def _make_filename_converted(pp, output_format):
     t0 = pp.stats.starttime
-    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + ':' + f'{t0.minute:02}' + ':' + f'{t0.second:02}' + '.' + pp.id + '.' + output_format.lower()
+    ## colons separating H:M:S would be more readable, but are not allowed in Windows filenames
+    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + '-' + f'{t0.minute:02}' + '-' + f'{t0.second:02}' + '.' + pp.id + '.' + output_format.lower()
 #import pdb
 
 def _new_gem_var():
@@ -566,7 +571,8 @@ def _read_with_cython(filename, offset=0):
     values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
-
+    if b'G' not in types:
+        raise CorruptRawFileNoGPS(filename)
     df = pd.DataFrame(values, columns=range(2, 13))
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
@@ -586,6 +592,10 @@ def _read_with_pandas(filename, offset=0):
         raise EmptyRawFile(filename)
 
     df['linetype'] = [value[0] for value in df[0]]
+
+    if 'G' not in df['linetype']:
+        raise CorruptRawFileNoGPS(filename)
+    
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
     #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
     ## most of the runtime is before here
@@ -622,8 +632,11 @@ def _read_single_v0_9(filename, offset=0):
     ]
     for reader in readers:
         try:
-            return reader(filename, offset)
-        except (EmptyRawFile, FileNotFoundError):
+            output = reader(filename, offset)
+            if len(output['gps'].lat) == 0:
+                raise CorruptRawFileNoGPS(filename)
+            return output
+        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem
             raise
@@ -772,6 +785,8 @@ def _slow__read_single_v0_9(fn, startMillis):
                 G[g_index,:10] = line
                 G[g_index,10] = _make_gps_time(line)
                 g_index += 1
+    if g_index == 0:
+        raise CorruptRawFileNoGPS(filename)
     #pdb.set_trace()
     ## remove unused space in pre-allocated arrays
     D = D[:d_index,:]
@@ -813,6 +828,8 @@ def _read_several_v0_9(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
             L = _read_single_v0_9(fn, startMillis)
+        except CorruptRawFileNoGPS:
+            print('No GPS data in ' + fn + ', skipping')
         except:
             print('Failed to read ' + fn + ', skipping')
             _breakpoint()
@@ -980,6 +997,10 @@ def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitwei
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
+    ## stop early if we don't have data to process
+    if len(L['data']) == 0:
+        return L
+    
     L, timing_info = _assign_times(L)
     
     for tr in L['data']:
