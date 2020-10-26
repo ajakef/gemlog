@@ -1,4 +1,4 @@
-from gemlog.gemlog import _read_single_v0_9, EmptyRawFile
+from gemlog.gemlog import _read_single_v0_9, EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
 from gemlog.gemlog import (
     _read_with_cython, _read_with_pandas, _slow__read_single_v0_9
 )
@@ -61,5 +61,12 @@ def test__read_single_v0_9_empty(reader_function):
                                              _read_with_pandas,
                                              _read_single_v0_9])
 def test__read_single_v0_9_corrupt(reader_function):
-    with pytest.raises(Exception):
+    with pytest.raises(CorruptRawFile):
         reader_function('data/FILE0023.096')  # test a malformed file
+
+@pytest.mark.parametrize('reader_function', [_read_with_cython,
+                                             _read_with_pandas,
+                                             _read_single_v0_9])
+def test__read_single_v0_9_no_gps(reader_function):
+    with pytest.raises(CorruptRawFileNoGPS):
+        reader_function('demo_missing_gps/raw_missing_gps/FILE0001.077')  # test a missing-gps file

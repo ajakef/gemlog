@@ -36,6 +36,6 @@ def test_read_gem_good_data():
 ## Convert tests: ensure that it doesn't crash, and that the output mseed file is identical to a reference
 def test_Convert_good_data():
     convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed')
-    output = obspy.read('test_output_mseed/2020-04-24T22:00:00..077..HDF.mseed')
-    reference = obspy.read('../demo_missing_gps/converted_with_gps/2020-04-24T22:00:00..077..HDF.mseed')
+    output = obspy.read('test_output_mseed/2020-04-24T22_00_00..077..HDF.mseed')
+    reference = obspy.read('../demo_missing_gps/converted_with_gps/2020-04-24T22_00_00..077..HDF.mseed')
     assert output.__eq__(reference)

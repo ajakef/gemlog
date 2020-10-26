@@ -19,7 +19,7 @@ class CorruptRawFile(Exception):
     """Raised when the input file cannot be read for some reason"""
     pass
 
-class CorruptRawFileNoGPS(Exception):
+class CorruptRawFileNoGPS(CorruptRawFile):
     """Raised when the input file does not contain any GPS data"""
     pass
 
@@ -245,21 +245,25 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             L = read_gem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
+            n1 = n1 + (12*blockdays) # increment file counter
+
+            if(len(L['data']) == 0):
+                continue # skip ahead if there aren't any readable data files here
+
+            ## process newly-read data
+            if(any(L['header'].SN != SN) | any(L['header'].SN.apply(len) == 0)):
+                #_breakpoint()
+                w = (L['header'].SN != SN) | (L['header'].SN.apply(len) == 0)
+                #print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
+                for i in w:
+                    print('Wrong or missing serial number: ' + L['header'].file[i])
+
             #pdb.set_trace()
             if(len(L['data']) > 0):
                 p = p + L['data']
                 p.merge()
             #print(p)
-            n1 = n1 + (12*blockdays) # increment file counter
-            if(len(L['data']) == 0):
-                next # skip ahead if there aren't any readable data files here
                 
-            ## process newly-read data
-            if(any(L['header'].SN != SN) | any(L['header'].SN.apply(len) == 0)):
-                #_breakpoint()
-                w = (L['header'].SN != SN) | (L['header'].SN.apply(len) == 0)
-                print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
-            
             ## start metadata and gps files
             metadata = L['metadata']   
             gps = L['gps']
@@ -330,7 +334,7 @@ def _make_filename(dir, SN, dirtype):
 def _make_filename_converted(pp, output_format):
     t0 = pp.stats.starttime
     ## colons separating H:M:S would be more readable, but are not allowed in Windows filenames
-    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + '-' + f'{t0.minute:02}' + '-' + f'{t0.second:02}' + '.' + pp.id + '.' + output_format.lower()
+    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + '_' + f'{t0.minute:02}' + '_' + f'{t0.second:02}' + '.' + pp.id + '.' + output_format.lower()
 #import pdb
 
 def _new_gem_var():
@@ -541,7 +545,7 @@ def _millis_to_time(L):
     return pf
 
 
-def _read_with_cython(filename, offset=0):
+def _read_with_cython(filename, offset=0, require_gps = True):
     """
     Read a Gem logfile.
 
@@ -571,7 +575,7 @@ def _read_with_cython(filename, offset=0):
     values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
-    if b'G' not in types:
+    if (b'G' not in types) and require_gps:
         raise CorruptRawFileNoGPS(filename)
     df = pd.DataFrame(values, columns=range(2, 13))
     # note that linetype has type bytes here, not str like in the pandas func
@@ -580,20 +584,25 @@ def _read_with_cython(filename, offset=0):
     return _process_gemlog_data(df, offset)
 
 
-def _read_with_pandas(filename, offset=0):
+def _read_with_pandas(filename, offset=0, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
         df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
     except Exception:
-        df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6, error_bad_lines = False, warn_bad_lines = False)
-
+        try:
+            df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
+                             error_bad_lines = False, warn_bad_lines = False)
+        except:
+            raise CorruptRawFile(filename)
     if df.shape[0] == 0:
         raise EmptyRawFile(filename)
 
-    df['linetype'] = [value[0] for value in df[0]]
-
-    if 'G' not in df['linetype']:
+    try:
+        df['linetype'] = [value[0] for value in df[0]] # exception if any 'value' is not a string
+    except:
+        raise CorruptRawFile(filename)
+    if ('G' not in set(df.loc[:,'linetype'])) and require_gps:
         raise CorruptRawFileNoGPS(filename)
     
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
@@ -604,7 +613,7 @@ def _read_with_pandas(filename, offset=0):
     return _process_gemlog_data(df, offset)
 
 
-def _read_single_v0_9(filename, offset=0):
+def _read_single_v0_9(filename, offset=0, require_gps = True):
     """
     Read a Gem logfile.
 
@@ -632,8 +641,8 @@ def _read_single_v0_9(filename, offset=0):
     ]
     for reader in readers:
         try:
-            output = reader(filename, offset)
-            if len(output['gps'].lat) == 0:
+            output = reader(filename, offset, require_gps)
+            if (len(output['gps'].lat) == 0) and require_gps:
                 raise CorruptRawFileNoGPS(filename)
             return output
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS):
@@ -746,7 +755,7 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def _slow__read_single_v0_9(fn, startMillis):
+def _slow__read_single_v0_9(fn, startMillis, require_gps = True):
     ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
@@ -785,7 +794,7 @@ def _slow__read_single_v0_9(fn, startMillis):
                 G[g_index,:10] = line
                 G[g_index,10] = _make_gps_time(line)
                 g_index += 1
-    if g_index == 0:
+    if (g_index == 0) and require_gps:
         raise CorruptRawFileNoGPS(filename)
     #pdb.set_trace()
     ## remove unused space in pre-allocated arrays
