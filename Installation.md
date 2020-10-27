@@ -28,3 +28,7 @@ git clone https://github.com/ajakef/gemlog/
 pip install --upgrade ./gemlog
 ```
 
+## Supported Python versions:
+Minimum 3.6. Python 2.7 (obsolete) is not supported and will not be supported in the future.
+
+Expect a lag of at least several weeks between when a new Python version is released and when gemlog becomes available for it. This is because we need to wait for dependencies to start supporting the new Python version. 
