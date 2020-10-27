@@ -137,6 +137,10 @@ def main(argv = None):
             logging.info('Beginning ' + SN)
             try:
                 gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
+            except KeyboardInterrupt:
+                logging.info('Interrupted by user')
+                print('Interrupted')
+                sys.exit()
             except Exception as e:
                 #logging.info(traceback.format_exc(e.__traceback__))
                 logging.exception(parse_error(e), exc_info = gemlog._debug)

@@ -248,6 +248,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 L = read_gem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
             except MissingRawFiles: # this can happen if a block of empty files is encountered
                 continue
+            except: # especially for KeyboardInterrupt!
+                raise
             finally:
                 n1 = n1 + (12*blockdays) # increment file counter
 
@@ -649,7 +651,7 @@ def _read_single_v0_9(filename, offset=0, require_gps = True):
             if (len(output['gps'].lat) == 0) and require_gps:
                 raise CorruptRawFileNoGPS(filename)
             return output
-        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS):
+        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem
             raise
@@ -841,6 +843,8 @@ def _read_several_v0_9(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
             L = _read_single_v0_9(fn, startMillis)
+        except KeyboardInterrupt:
+            raise
         except CorruptRawFileNoGPS:
             print('No GPS data in ' + fn + ', skipping')
         except:
