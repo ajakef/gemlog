@@ -133,7 +133,7 @@ def main(argv = None):
     print('serial numbers ', SN_list)
     print('outputdir ', outputdir)
     if not test:
-        logging.info('***Starting conversion: gemlog version ' + gemlog.__version__ + '***')
+        logging.info('***Starting conversion (gemlog version ' + gemlog.__version__ + ')***')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
         for SN in SN_list:
             logging.info('Beginning ' + SN)

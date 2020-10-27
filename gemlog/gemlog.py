@@ -259,7 +259,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             ## process newly-read data
             if(any(L['header'].SN != SN) | any(L['header'].SN.apply(len) == 0)):
                 #_breakpoint()
-                w = (L['header'].SN != SN) | (L['header'].SN.apply(len) == 0)
+                w = np.where((L['header'].SN != SN) | (L['header'].SN.apply(len) == 0))[0]
                 #print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
                 for i in w:
                     print('Wrong or missing serial number: ' + L['header'].file[i])
