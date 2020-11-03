@@ -590,7 +590,7 @@ def _read_with_cython(filename, offset=0, require_gps = True):
     return _process_gemlog_data(df, offset)
 
 
-def _read_with_pandas(filename, offset=0, require_gps = True):
+def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
@@ -616,7 +616,7 @@ def _read_with_pandas(filename, offset=0, require_gps = True):
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
     df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
-    return _process_gemlog_data(df, offset)
+    return _process_gemlog_data(df, offset, rollover = 2**16)
 
 
 def _read_single_v0_9(filename, offset=0, require_gps = True):
@@ -660,19 +660,59 @@ def _read_single_v0_9(filename, offset=0, require_gps = True):
 
     raise CorruptRawFile(filename)
 
+def _read_single_v0_8(filename, offset=0, require_gps = True):
+    """
+    Read a Gem logfile.
 
-def _process_gemlog_data(df, offset):
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Filepath of a file containing data to read.
+
+    offset : int, default 0
+        A timing offset to include in the millisecond timestamp values.
+
+    Returns
+    -------
+    dict of dataframes
+
+        - data: the analog readings and associated timings
+        - metadata: datalogger metadata
+        - gps: GPS timing and location values
+    """
+    # Try each of the three file readers in order of decreasing speed but
+    # probably increasing likelihood of success.
+
+    readers = [
+        _read_0_8_with_pandas
+    ]
+    for reader in readers:
+        try:
+            output = reader(filename, offset, require_gps)
+            if (len(output['gps'].lat) == 0) and require_gps:
+                raise CorruptRawFileNoGPS(filename)
+            return output
+        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
+            # If the file is definitely not going to work, exit early and
+            # re-raise the exception that caused the problem
+            raise
+        except Exception:
+            pass
+
+    raise CorruptRawFile(filename)
+
+def _process_gemlog_data(df, offset, rollover = 2**13):
 
     # unroll the ms rollover sawtooth
-    df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -2**12).cumsum()
-    df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > 2**12).cumsum()
-    df['millis-stairstep'] *= 2**13
+    df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
+    df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > (rollover/2)).cumsum()
+    df['millis-stairstep'] *= rollover
     df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
     first_millis = df['millis-corrected'].iloc[0]
     df['millis-corrected'] += (
         (offset-first_millis)
-        + ((first_millis-(offset % 2**13)+2**12) % 2**13)
-        - 2**12
+        + ((first_millis-(offset % rollover)+rollover/2) % rollover)
+        - rollover/2
     )
     # groupby is somewhat faster than repeated subsetting like
     # df.loc[df['linetype'] == 'D', :], ...
