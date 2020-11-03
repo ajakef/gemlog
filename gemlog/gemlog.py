@@ -618,6 +618,33 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
     return _process_gemlog_data(df, offset, rollover = 2**16)
 
+def _read_with_pandas(filename, offset=0, require_gps = True):
+    # skiprows is important so that the header doesn't force dtype=='object'
+    # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
+    try:
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+    except Exception:
+        try:
+            df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
+                             error_bad_lines = False, warn_bad_lines = False)
+        except:
+            raise CorruptRawFile(filename)
+    if df.shape[0] == 0:
+        raise EmptyRawFile(filename)
+
+    try:
+        df['linetype'] = [value[0] for value in df[0]] # exception if any 'value' is not a string
+    except:
+        raise CorruptRawFile(filename)
+    if ('G' not in set(df.loc[:,'linetype'])) and require_gps:
+        raise CorruptRawFileNoGPS(filename)
+    
+    df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
+    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+    ## most of the runtime is before here
+    # unroll the ms rollover sawtooth
+    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
+    return _process_gemlog_data(df, offset)
 
 def _read_single_v0_9(filename, offset=0, require_gps = True):
     """
