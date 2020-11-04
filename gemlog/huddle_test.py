@@ -33,7 +33,9 @@ def verify_huddle_test(path):
 
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
-            print('Impossible Battery Voltage')
+            failure_message = SN + ': Impossible Battery Voltage'
+            print(failure_message)
+            failures.append(failure_message)
         else:
             print('Sufficient Battery Voltage')
 
@@ -45,6 +47,14 @@ def verify_huddle_test(path):
 
         ############################################
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
+
+        if not (all(metadata.A2 >= 0) & all(metadata.A2 <= 3.1)):
+            ##
+
+        if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01:
+            ## fail the check
+        else:
+            ## pass the check
         ############################################
 
         #### minFifoFree and maxFifoUsed should always add to 75

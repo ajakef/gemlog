@@ -153,6 +153,13 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             fn = glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')
         nums = np.array([int(x[-8:-4]) for x in fn]) # "list comprehension"
 
+    ## check serial numbers for all files including those ending in TXT, and exclude misfits
+    fn_new = []
+    for file in fn:
+        if _read_SN(file) == SN:
+            fn_new.append(file)
+    fn = fn_new
+
     ## Catch if rawpath doesn't contain any files from SN. This won't catch files ending in TXT.
     if len(nums) == 0:
         raise Exception('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
@@ -483,7 +490,8 @@ def _fn2nums(fn_list):
 
 def _find_nonmissing_files(path, SN, nums):
     ## list all Gem files in the path
-    fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
+    #fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
+    fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].???')
     fnList.sort()
     fnList = np.array(fnList)
     
@@ -604,10 +612,13 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     if df.shape[0] == 0:
         raise EmptyRawFile(filename)
 
-    try:
-        df['linetype'] = [value[0] for value in df[0]] # exception if any 'value' is not a string
-    except:
-        raise CorruptRawFile(filename)
+    #try:
+    #    df['linetype'] = [value[0] for value in df[0]] # exception if any 'value' is not a string
+    #except:
+    #    raise CorruptRawFile(filename)
+    df['linetype'] = df.iloc[:,0].copy()
+    df = df.iloc[:,1:]
+    
     if ('G' not in set(df.loc[:,'linetype'])) and require_gps:
         raise CorruptRawFileNoGPS(filename)
     
@@ -615,8 +626,8 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
-    df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
-    return _process_gemlog_data(df, offset, rollover = 2**16)
+    df['millis-sawtooth'] = df.iloc[:,0]
+    return _process_gemlog_data(df, offset, rollover = 2**16, version = '0.8')
 
 def _read_with_pandas(filename, offset=0, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
@@ -728,7 +739,7 @@ def _read_single_v0_8(filename, offset=0, require_gps = True):
 
     raise CorruptRawFile(filename)
 
-def _process_gemlog_data(df, offset, rollover = 2**13):
+def _process_gemlog_data(df, offset, rollover = 2**13, version = '0.9'):
 
     # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
@@ -754,10 +765,12 @@ def _process_gemlog_data(df, offset, rollover = 2**13):
     else:
         Dkey, Gkey, Mkey = 'DGM'
         data_col = 1
+    if version in ['0.8', '0.85']:
+        data_col = 2
     D = grouper.get_group(Dkey)
     G = grouper.get_group(Gkey)
     M = grouper.get_group(Mkey)
-
+    _breakpoint()
     # pick out columns of interest and rename
     D_cols = ['msSamp', 'ADC']
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute',
@@ -793,8 +806,9 @@ def _process_gemlog_data(df, offset, rollover = 2**13):
     G['t'] = G.iloc[:, 2:8].astype(int).apply(make_gps_time, axis=1)
 
     # process data (version-dependent)
-    D['ADC'] = D['ADC'].astype(float).cumsum()
-
+    if version in ['0.9', '0.85C']: # don't integrate the data if version is 0.8, 0.85
+        D['ADC'] = D['ADC'].astype(float).cumsum()
+        
     return {'data': np.array(D),
             'metadata': M.reset_index().astype('float'),
             'gps': G.reset_index().astype('float')}
@@ -882,7 +896,7 @@ def _slow__read_single_v0_9(filename, startMillis, require_gps = True):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
-def _read_several_v0_9(fnList):
+def _read_several_v0_9(fnList, version = 0.9):
     ## initialize the output variables
     G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
                                 'second', 'lat', 'lon', 't'])
@@ -909,7 +923,10 @@ def _read_several_v0_9(fnList):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            L = _read_single_v0_9(fn, startMillis)
+            if version in ['0.9', '0.85C']:
+                L = _read_single_v0_9(fn, startMillis)
+            else:
+                L = _read_single_v0_8(fn, startMillis)
         except KeyboardInterrupt:
             raise
         except CorruptRawFileNoGPS:
@@ -925,6 +942,7 @@ def _read_several_v0_9(fnList):
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
+            _breakpoint()
             linreg, num_gps_nonoutliers, MAD_nonoutliers = _robust_regress(L['gps'].msPPS, L['gps'].t)
             resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
             startMillis = D[-1,0]
@@ -942,6 +960,7 @@ def _read_several_v0_9(fnList):
             header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_nonoutliers
             header.loc[i, 'num_gps_nonoutliers'] = num_gps_nonoutliers
         ## end of fn loop
+    _breakpoint()
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
 def _robust_regress(x, y, z=2):
@@ -1077,7 +1096,8 @@ def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitwei
     elif version == '0.85C':
         L = _read_several_v0_9(fnList) # same function works for both
     elif (version == '0.85') | (version == '0.8') :
-        raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
+        L = _read_several_v0_9(fnList, '0.8') # same function works for both
+        #raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
