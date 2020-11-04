@@ -25,7 +25,7 @@ def inputs():
     # this is a reasonable offset to use for this file;
     # can't use 0 because bugs might slip through
     offset = 72000000.0 + 5263
-    return 'data/v0.8/raw/FILE0000.TXT', offset
+    return '../data/v0.8/raw/FILE0000.TXT', offset
 
 
 @pytest.fixture(scope='session')
@@ -37,10 +37,10 @@ def test_read_single_v0_8(inputs):
 
 
 def test_read_gem_integration():
-    data_st = read_gem(path = 'data/v0.8/raw/', SN = '014')['data']
+    data_st = read_gem(path = '../data/v0.8/raw/', SN = '014')['data']
     data_st.merge()
     data = data_st[0]
-    reference_st = obspy.read('data/v0.8/converted_reference/*')
+    reference_st = obspy.read('../data/v0.8/converted_reference/*')
     reference_st.merge()
     reference = reference_st[0]
 

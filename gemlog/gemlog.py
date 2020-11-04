@@ -923,10 +923,12 @@ def _read_several(fnList, version = 0.9):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            if version in ['0.9', '0.85C']:
+            if str(version) in ['0.9', '0.85C']:
                 L = _read_single_v0_9(fn, startMillis)
-            else:
+            elif str(version) in ['0.8', '0.85']:
                 L = _read_single_v0_8(fn, startMillis)
+            else:
+                raise CorruptRawFile('Invalid raw file format version: ' + str(version))
         except KeyboardInterrupt:
             raise
         except CorruptRawFileNoGPS:
