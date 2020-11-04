@@ -29,23 +29,28 @@ def verify_huddle_test(path):
     ## Individual Metadata:
     for SN in SN_list:
         print('Checking metadata for ' + SN)
-        metadata = pd.read_csv('metadata/' + SN + 'metadata_000.txt', sep = ',')
+        metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
 
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
-            print('Impossible Battery Voltage')
+            failure_message = SN + ': Impossible Battery Voltage'
+            print(failure_message)
+            failures.append(failure_message)
         else:
             print('Sufficient Battery Voltage')
 
         #### temperature must be in reasonable range (-20 to 60 C)
-        if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius
-            print('Impossible Temperature')
+        if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius 'Impossible Temperature'
+            failure_message = SN + ': Impossible Temperature'
+            print(failure_message)
+            failures.append(failure_message)
         else:
             print('Sufficient Temperature Range')
 
         ############################################
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
         ############################################
+
         if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
             failure_message = SN + ': Bad A2'
             print(failure_message)
@@ -53,8 +58,11 @@ def verify_huddle_test(path):
         else:
             print('A2 okay')
         #### minFifoFree and maxFifoUsed should always add to 75
+
         if any((metadata.minFifoFree + metadata.maxFifoUsed) != 75):
-            print('Impossible FIFO sum')
+           failure_message = SN + ': Impossible FIFO sum'
+           print(failure_message)
+           failures.append(failure_message)
         else:
             print('FIFO sum is correct')
         
@@ -62,15 +70,19 @@ def verify_huddle_test(path):
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
         ############################################
 
-        #### maxOverruns should always be zero
+        #### maxOverruns should always be zero 
         if any(metadata.maxOverruns) !=0:
-            print('Too many overruns!')
+            failure_message = SN + ': Too many overruns!'
+            print(failure_message)
+            failures.append(failure_message)
         else:
             print('Sufficient overruns')    
         
-        #### unusedStack1 and unusedStackIdle should always be above some threshold
+        #### unusedStack1 and unusedStackIdle should always be above some threshold 
         if any(metadata.unusedStack1 <= 50) or any(metadata.unusedStackIdle <= 30):
-            print('Inadequate unused Stack')
+            failure_message = SN + ': Inadequate unused Stack'
+            print(failure_message)
+            failures.append(failure_message)
         else:
             print('Sufficient Stack')
 
@@ -79,13 +91,15 @@ def verify_huddle_test(path):
         ############################################
 
         #### find time differences among samples with gps off that are > 180 sec
-        if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180):
-            print('GPS ran for too long')
+        if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180): 
+            failure_message = SN + ': GPS ran for too long'
+            print(failure_message)
+            failures.append(failure_message)
         else:
             print('GPS runtime ok')
 
         ## individual GPS:
-        gps = pd.read_csv('gps/' + SN + 'gps_000.txt', sep = ',')
+        gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         lat_deg_to_meters = 40e6 / 360 # conversion factor from degrees latitude to meters
         lon_deg_to_meters = 40e6 / 360 * np.cos(np.median(gps.lat) * np.pi/180) # smaller at the poles
 
@@ -95,7 +109,7 @@ def verify_huddle_test(path):
         ############################################
 
         ## Individual SN waveform data:
-        stream = obspy.read('mseed/*..' + SN + '..HDF.mseed')
+        stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
         stream.merge()
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
