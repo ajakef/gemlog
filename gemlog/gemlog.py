@@ -896,7 +896,7 @@ def _slow__read_single_v0_9(filename, startMillis, require_gps = True):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
-def _read_several_v0_9(fnList, version = 0.9):
+def _read_several(fnList, version = 0.9):
     ## initialize the output variables
     G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
                                 'second', 'lat', 'lon', 't'])
@@ -1092,11 +1092,11 @@ def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitwei
     except:
         raise CorruptRawFile(fnList[0])
     if version == '0.9':
-        L = _read_several_v0_9(fnList)
+        L = _read_several(fnList)
     elif version == '0.85C':
-        L = _read_several_v0_9(fnList) # same function works for both
+        L = _read_several(fnList) # same function works for both
     elif (version == '0.85') | (version == '0.8') :
-        L = _read_several_v0_9(fnList, '0.8') # same function works for both
+        L = _read_several(fnList, '0.8') # same function works for both
         #raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
