@@ -1,4 +1,4 @@
-from gemlog.gemlog import _read_single_v0_9, EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
+from gemlog.gemlog import _read_single_v0_8, EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
 from gemlog.gemlog import (
     _read_0_8_with_pandas, read_gem
 )
