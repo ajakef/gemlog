@@ -46,7 +46,7 @@ def verify_huddle_test(path):
         ############################################
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
         ############################################
-        if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)
+        if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1):
             failure_message = SN + ': Bad A2'
             print(failure_message)
             failures.append(failure_message) 
