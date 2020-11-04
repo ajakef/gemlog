@@ -6,4 +6,5 @@ from gemlog.version import __version__
 try:
     from gemlog import parsers
 except ImportError:
+    print('Cannot find "parsers"; continuing')
     pass

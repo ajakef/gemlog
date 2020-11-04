@@ -3,8 +3,21 @@ from gemlog.gemlog import (
     _read_0_8_with_pandas, read_gem
 )
 import numpy as np
-import pytest
+import pytest, shutil, os
+
 import obspy
+
+def setup_module():
+    try:
+        shutil.rmtree('tmp') # exception if the directory doesn't exist
+    except:
+        pass
+    os.makedirs('tmp')
+    os.chdir('tmp')
+    
+def teardown_module():
+    os.chdir('..')
+    shutil.rmtree('tmp') 
 
 # use scope='session' to only evaluate this fixture once:
 @pytest.fixture(scope='session')
