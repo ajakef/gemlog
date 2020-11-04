@@ -51,11 +51,15 @@ def verify_huddle_test(path):
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
 
         if not (all(metadata.A2 >= 0) & all(metadata.A2 <= 3.1)):
+            pass # the pass keyword just means do nothing. we need something here for indentation purposes
+        
             ##
 
         if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01:
+            pass
             ## fail the check
         else:
+            pass
             ## pass the check
         ############################################
 
