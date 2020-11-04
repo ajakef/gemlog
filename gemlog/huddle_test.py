@@ -51,7 +51,14 @@ def verify_huddle_test(path):
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
         ############################################
 
-        #### minFifoFree and maxFifoUsed should always add to 75 
+        if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
+            failure_message = SN + ': Bad A2'
+            print(failure_message)
+            failures.append(failure_message) 
+        else:
+            print('A2 okay')
+        #### minFifoFree and maxFifoUsed should always add to 75
+
         if any((metadata.minFifoFree + metadata.maxFifoUsed) != 75):
            failure_message = SN + ': Impossible FIFO sum'
            print(failure_message)
