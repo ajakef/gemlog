@@ -272,7 +272,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 w = np.where((L['header'].SN != SN) | (L['header'].SN.apply(len) == 0))[0]
                 #print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
                 for i in w:
-                    print('Wrong or missing serial number: ' + L['header'].file[i])
+                    print('Problem with files, skipping: ' + L['header'].file[i])
 
             #pdb.set_trace()
             if(len(L['data']) > 0):
@@ -696,15 +696,17 @@ def _read_single_v0_9(filename, offset=0, require_gps = True):
     for reader in readers:
         try:
             output = reader(filename, offset, require_gps)
-            if (len(output['gps'].lat) == 0) and require_gps:
-                raise CorruptRawFileNoGPS(filename)
-            return output
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem
             raise
         except Exception:
             pass
+        else: # if we're here, the file read worked. it may be invalid though.
+            if (len(output['gps'].lat) == 0) and require_gps:
+                raise CorruptRawFileNoGPS(filename)
+            return output
+
 
     raise CorruptRawFile(filename)
 
