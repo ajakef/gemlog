@@ -312,8 +312,9 @@ def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, converte
     #pdb.set_trace()
     if(np.isnan(hour_end)):
         hour_end = _trunc_UTCDateTime(hour_to_write, file_length_sec) + file_length_sec
-    pp = p.copy()
-    pp.trim(hour_to_write, hour_end)
+    #pp = p.copy()
+    #pp.trim(hour_to_write, hour_end)
+    pp = p.slice(hour_to_write, hour_end)
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
     #_breakpoint()
     for tr in pp:
