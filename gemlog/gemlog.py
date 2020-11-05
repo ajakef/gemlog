@@ -1340,8 +1340,8 @@ def _find_breaks_(L):
         overlaps = (mG[i] <= starts) & (mG[i+1] >= ends)
         if(np.any(overlaps)):
             w = np.argwhere(overlaps)
-            starts[w] = max([starts[w], mG[(i-1):(i+2)].max()])
-            ends[w] = max([ends[w], mG[(i-1):(i+2)].min()])
+            starts[w] = max(np.append(starts[w], mG[(i-1):(i+2)].max()))
+            ends[w] = max(np.append(ends[w], mG[(i-1):(i+2)].min()))
         else:
             wmin = np.argwhere(tG > tG[i])
             try:
