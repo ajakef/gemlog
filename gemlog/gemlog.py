@@ -1179,9 +1179,9 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
         except:
             _breakpoint()
             continue
-            #if not _debug: # so pdb doesn't end immediately with this exception
-            #    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
-            #                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
+            ##if not _debug: # so pdb doesn't end immediately with this exception
+            ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
+            ##                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
         t_interp = np.arange(starts[i], ends[i] + eps, 0.01)
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
