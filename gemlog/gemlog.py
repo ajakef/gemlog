@@ -737,15 +737,16 @@ def _read_single_v0_8(filename, offset=0, require_gps = True):
     for reader in readers:
         try:
             output = reader(filename, offset, require_gps)
-            if (len(output['gps'].lat) == 0) and require_gps:
-                raise CorruptRawFileNoGPS(filename)
-            return output
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem
             raise
         except Exception:
             pass
+        else:
+            if (len(output['gps'].lat) == 0) and require_gps:
+                raise CorruptRawFileNoGPS(filename)
+            return output
 
     raise CorruptRawFile(filename)
 
