@@ -457,8 +457,11 @@ def calc_channel_stats(DB, t1, t2):
 
 ################################################
 def _read_SN(fn):
-    SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'])
-    SN = SN_line['SN'][0]
+    try:
+        SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'])
+        SN = SN_line['SN'][0]
+    except:
+        raise CorruptRawFile(fn + ': missing serial number')
     return SN
 
 def _read_format_version(fn):
