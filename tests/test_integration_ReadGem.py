@@ -17,20 +17,20 @@ def teardown_module():
 
 def test_read_gem_missing():
     with pytest.raises(MissingRawFiles):
-        read_gem(np.arange(10, 20), '../data', SN = '000') # test missing files
+        read_gem(nums = np.arange(10, 20), path = '../data', SN = '000') # test missing files
 
 def test_read_gem_missing():
     with pytest.raises(MissingRawFiles):
-        read_gem(np.arange(5), '../data', SN = '000') # test purely empty files
+        read_gem(nums = np.arange(5), path = '../data', SN = '000') # test purely empty files
 
 def test_read_gem_edge_cases():
     print(os.getcwd())
     with pytest.raises(CorruptRawFile):
-        read_gem(np.array([23]), '../data', SN = '096') # test a malformed file
+        read_gem(nums = np.array([23]), path = '../data', SN = '096') # test a malformed file
 
 def test_read_gem_good_data():
     ## read_gem always reads files in one block, so no sense in testing 25 files
-    read_gem(np.arange(3), '../demo_missing_gps/raw_with_gps', SN = '077') # test good data
+    read_gem(nums = np.arange(3), path =  '../demo_missing_gps/raw_with_gps', SN = '077') # test good data
 
 
 ## Convert tests: ensure that it doesn't crash, and that the output mseed file is identical to a reference
