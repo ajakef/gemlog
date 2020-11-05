@@ -1017,7 +1017,7 @@ def _assign_times(L):
     return (L, timing_info)
 
     
-def read_gem(path = 'raw', nums = np.arange(10000), units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False):
+def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False):
     """
     Read raw Gem files.
 
