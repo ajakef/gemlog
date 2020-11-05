@@ -505,8 +505,11 @@ def _find_nonmissing_files(path, SN, nums):
     ext = np.array([x[-3:] for x in fnList])
     for i in range(len(ext)):
         if ext[i] == 'TXT':
-            ext[i] = _read_SN(fnList[i])
-    ## check the files for SN and num
+            try:
+                ext[i] = _read_SN(fnList[i])
+            except: # if we're here, it's a corrupt/empty file
+                pass # do nothing--it won't make it into goodFnList
+            ## check the files for SN and num
     goodFnList = []
     for i, fn in enumerate(fnList):
         fnNum = int(fn[-8:-4])
