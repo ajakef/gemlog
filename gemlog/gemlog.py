@@ -175,9 +175,13 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     L = _new_gem_var()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
         nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
-        L = read_gem(path = rawpath, nums = nums_block, SN = SN, network = network, station = station, location = location)
         n1 = n1 + (12*blockdays) # increment file number counter
-
+        try:
+            L = read_gem(path = rawpath, nums = nums_block, SN = SN, network = network, station = station, location = location)
+        except MissingRawFiles: # if the block has no files, keep searching
+            continue
+        except: # if there's any other problem, raise it
+            raise
     p = L['data']
     
     ## if bitweight isn't set, use the default bitweight for the logger version, config, and units
@@ -669,7 +673,7 @@ def _read_with_pandas(filename, offset=0, require_gps = True):
     df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
     return _process_gemlog_data(df, offset)
 
-def _read_single_v0_9(filename, offset=0, require_gps = True):
+def _read_single_v0_9(filename, offset=0, require_gps = True, version = '0.9'):
     """
     Read a Gem logfile.
 
@@ -681,6 +685,13 @@ def _read_single_v0_9(filename, offset=0, require_gps = True):
     offset : int, default 0
         A timing offset to include in the millisecond timestamp values.
 
+    version: str, default '0.9'
+        What raw format version to read. The raw format is in the first line of the raw file.
+
+    require_gps : bool, default True
+        Indicator of whether gps tags are required for reading the file. If True and gps tags are
+        missing, raise a CorruptRawFileNoGPS exception.
+    
     Returns
     -------
     dict of dataframes
@@ -692,9 +703,11 @@ def _read_single_v0_9(filename, offset=0, require_gps = True):
     # Try each of the three file readers in order of decreasing speed but
     # probably increasing likelihood of success.
 
-    readers = [
-        _read_with_cython, _read_with_pandas, _slow__read_single_v0_9
-    ]
+    if version in ['0.9', '0.85C']:
+        readers = [ _read_with_cython, _read_with_pandas, _slow__read_single_v0_9 ]
+    else:
+        readers = [_read_0_8_with_pandas]
+
     for reader in readers:
         try:
             output = reader(filename, offset, require_gps)
@@ -714,7 +727,7 @@ def _read_single_v0_9(filename, offset=0, require_gps = True):
 
 def _read_single_v0_8(filename, offset=0, require_gps = True):
     """
-    Read a Gem logfile.
+    Read a Gem logfile with format version 0.8.
 
     Parameters
     ----------
@@ -945,7 +958,7 @@ def _read_several(fnList, version = 0.9):
             if str(version) in ['0.9', '0.85C']:
                 L = _read_single_v0_9(fn, startMillis)
             elif str(version) in ['0.8', '0.85']:
-                L = _read_single_v0_8(fn, startMillis)
+                L = _read_single_v0_9(fn, startMillis, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
         except KeyboardInterrupt:
@@ -1037,13 +1050,13 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
 
     Parameters
     ----------
+    path : str, default '.' 
+        Path of folder containing raw Gem data files to read.
+
     nums : list or np.array of integers
         Numbers of raw Gem files to read. By default, it reads all files
         in 'path' for the specified serial number.
     
-    path : str, default '.' 
-        Path of folder containing raw Gem data files to read.
-
     SN : str
         One Gem serial number to read. Use a loop to read multiple Gems.
 
