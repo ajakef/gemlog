@@ -625,6 +625,7 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     #    df['linetype'] = [value[0] for value in df[0]] # exception if any 'value' is not a string
     #except:
     #    raise CorruptRawFile(filename)
+    df = df.iloc[np.where(~np.isnan(df.iloc[:,1]))[0],:]
     df['linetype'] = df.iloc[:,0].copy()
     df = df.iloc[:,1:]
     
