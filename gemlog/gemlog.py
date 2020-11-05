@@ -156,8 +156,11 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## check serial numbers for all files including those ending in TXT, and exclude misfits
     fn_new = []
     for file in fn:
-        if _read_SN(file) == SN:
-            fn_new.append(file)
+        try:
+            if _read_SN(file) == SN:
+                fn_new.append(file)
+        except:
+            pass # if we can't read the file's SN, it's corrupt and should be skipped
     fn = fn_new
 
     ## Catch if rawpath doesn't contain any files from SN. This won't catch files ending in TXT.
