@@ -740,7 +740,7 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
         M_cols = ['millis', 'batt', 'temp', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
                   'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
     else:
-        raise CorruptRawFile('Invalid version in ' + filename)
+        raise CorruptRawFile('Invalid raw format version')
         
     # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
