@@ -573,7 +573,7 @@ def _millis_to_time(L):
     return pf
 
 
-def _read_with_cython(filename, offset=0, require_gps = True):
+def _read_with_cython(filename, require_gps = True):
     """
     Read a Gem logfile.
 
@@ -609,10 +609,12 @@ def _read_with_cython(filename, offset=0, require_gps = True):
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
     df['millis-sawtooth'] = millis
-    return _process_gemlog_data(df, offset)
+    #return _process_gemlog_data(df, offset)
+    return df
 
 
-def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
+def _read_0_8_with_pandas(filename, require_gps = True):
+    ## This procedure is different enough from read_with_pandas that they are not interchangeable.
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
@@ -626,10 +628,6 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     if df.shape[0] == 0:
         raise EmptyRawFile(filename)
 
-    #try:
-    #    df['linetype'] = [value[0] for value in df[0]] # exception if any 'value' is not a string
-    #except:
-    #    raise CorruptRawFile(filename)
     df = df.iloc[np.where(~np.isnan(df.iloc[:,1]))[0],:]
     df['linetype'] = df.iloc[:,0].copy()
     df = df.iloc[:,1:]
@@ -638,14 +636,14 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
         raise CorruptRawFileNoGPS(filename)
     
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
-    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
+
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
     df['millis-sawtooth'] = df.iloc[:,0]
     df['millis-sawtooth'] = df['millis-sawtooth'].astype(int)
-    return _process_gemlog_data(df, offset, rollover = 2**16, version = '0.8')
+    return df
 
-def _read_with_pandas(filename, offset=0, require_gps = True):
+def _read_with_pandas(filename, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
@@ -667,13 +665,12 @@ def _read_with_pandas(filename, offset=0, require_gps = True):
         raise CorruptRawFileNoGPS(filename)
     
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
-    #df = df.loc[df['linetype'].isin(['D', 'M', 'G']), :]
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
     df['millis-sawtooth'] = np.where(df['linetype'] == 'D',df[0].str[1:],df[1]).astype(int)
-    return _process_gemlog_data(df, offset)
+    return df
 
-def _read_single_v0_9(filename, offset=0, require_gps = True, version = '0.9'):
+def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     """
     Read a Gem logfile.
 
@@ -704,13 +701,14 @@ def _read_single_v0_9(filename, offset=0, require_gps = True, version = '0.9'):
     # probably increasing likelihood of success.
 
     if version in ['0.9', '0.85C']:
-        readers = [ _read_with_cython, _read_with_pandas, _slow__read_single_v0_9 ]
+        readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
     else:
         readers = [_read_0_8_with_pandas]
 
     for reader in readers:
         try:
-            output = reader(filename, offset, require_gps)
+            df = reader(filename, require_gps)
+            output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem
@@ -725,49 +723,25 @@ def _read_single_v0_9(filename, offset=0, require_gps = True, version = '0.9'):
 
     raise CorruptRawFile(filename)
 
-def _read_single_v0_8(filename, offset=0, require_gps = True):
-    """
-    Read a Gem logfile with format version 0.8.
-
-    Parameters
-    ----------
-    filename : str or pathlib.Path
-        Filepath of a file containing data to read.
-
-    offset : int, default 0
-        A timing offset to include in the millisecond timestamp values.
-
-    Returns
-    -------
-    dict of dataframes
-
-        - data: the analog readings and associated timings
-        - metadata: datalogger metadata
-        - gps: GPS timing and location values
-    """
-
-    readers = [
-        _read_0_8_with_pandas
-    ]
-    for reader in readers:
-        try:
-            output = reader(filename, offset, require_gps)
-        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
-            # If the file is definitely not going to work, exit early and
-            # re-raise the exception that caused the problem
-            raise
-        except Exception:
-            pass
-        else:
-            if (len(output['gps'].lat) == 0) and require_gps:
-                raise CorruptRawFileNoGPS(filename)
-            return output
-
-    raise CorruptRawFile(filename)
-
-def _process_gemlog_data(df, offset, rollover = 2**13, version = '0.9'):
-
-
+def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
+    ## figure out what settings to used according to the raw file format version
+    if version in ['0.9', '0.85C']:
+        rollover = 2**13
+        M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
+                  'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
+                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+    elif version == '0.85':
+        rollover = 2**16
+        M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
+                  'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
+                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+    elif version == '0.8':
+        rollover = 2**16
+        M_cols = ['millis', 'batt', 'temp', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
+                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+    else:
+        raise CorruptRawFile('Invalid version in ' + filename)
+        
     # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
     df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > (rollover/2)).cumsum()
@@ -783,7 +757,8 @@ def _process_gemlog_data(df, offset, rollover = 2**13, version = '0.9'):
     # df.loc[df['linetype'] == 'D', :], ...
     grouper = df.groupby('linetype')
     # the python-based reader uses strings for linetype but the cython version
-    # uses bytes.  figure out which one we need:
+    # uses bytes.  figure out which one we need.
+    # Wonder if this could be cleaned up by coercing it to str.
     if isinstance(df['linetype'].iloc[0], bytes):
         Dkey = b'D'
         Gkey = b'G'
@@ -795,55 +770,53 @@ def _process_gemlog_data(df, offset, rollover = 2**13, version = '0.9'):
     if version in ['0.8', '0.85']:
         data_col = 2
     D = grouper.get_group(Dkey)
-    G = grouper.get_group(Gkey)
     M = grouper.get_group(Mkey)
     _breakpoint()
     # pick out columns of interest and rename
     D_cols = ['msSamp', 'ADC']
-    G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute',
-              'second', 'lat', 'lon']
-    if version in ['0.85', '0.85C', '0.9']:
-        M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
-                  'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
-                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
-    elif version in ['0.8']:
-        M_cols = ['millis', 'batt', 'temp', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
-                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
-        
 
     # column names are currently integers (except for the calculated cols)
     D = D[['millis-corrected', data_col]]
     D.columns = D_cols
-    G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
-    G.columns = G_cols
     M = M[['millis-corrected'] + list(range(2, len(M_cols)+1))]
     M.columns = M_cols
 
     # now that columns aren't mixed dtype anymore,
     # convert to numeric where possible
     D = D.apply(pd.to_numeric)
-    G = G.apply(pd.to_numeric)
     M = M.apply(pd.to_numeric)
 
-    # filter bad GPS data and combine into datetimes
-    valid_gps = _valid_gps(G)
-    G = G.loc[valid_gps, :]
 
+    # process data (version-dependent)
+    if version in ['0.9', '0.85C']: # don't integrate the data if version is 0.8, 0.85
+        D['ADC'] = D['ADC'].astype(float).cumsum()
+
+    ## gps stuff
+    G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
     def make_gps_time(row):
         try:
             return obspy.UTCDateTime(*row)
         except Exception:
             return np.NaN
-
-    G['t'] = G.iloc[:, 2:8].astype(int).apply(make_gps_time, axis=1)
-
-    # process data (version-dependent)
-    if version in ['0.9', '0.85C']: # don't integrate the data if version is 0.8, 0.85
-        D['ADC'] = D['ADC'].astype(float).cumsum()
+    try:
+        G = grouper.get_group(Gkey)
+        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
+        G.columns = G_cols
+        G = G.apply(pd.to_numeric)
+        # filter bad GPS data and combine into datetimes
+        valid_gps = _valid_gps(G)
+        G = G.loc[valid_gps, :]
+        G['t'] = G.iloc[:, 2:8].astype(int).apply(make_gps_time, axis=1)
+        G = G.reset_index().astype('float')
+    except:
+        if require_gps:
+            raise CorruptRawFileNoGPS()
+        else:
+            G = pd.DataFrame(columns = G_cols)
         
     return {'data': np.array(D),
             'metadata': M.reset_index().astype('float'),
-            'gps': G.reset_index().astype('float')}
+            'gps': G}
 
 
 def _valid_gps(G):
@@ -874,7 +847,7 @@ def _valid_gps(G):
     return ~bad_gps
 
 
-def _slow__read_single_v0_9(filename, startMillis, require_gps = True):
+def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
     ## this should only be used as a reference
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
@@ -883,14 +856,17 @@ def _slow__read_single_v0_9(filename, startMillis, require_gps = True):
     d_index = 0
     m_index = 0
     g_index = 0
-    millis = startMillis
+    millis = offset % 2**13 # 2020-11-05
     ## open the file for reading
     with open(filename, 'r', newline = '', encoding='ascii', errors = 'ignore') as csvfile:
         lines = csv.reader(csvfile, delimiter = ',', quoting = csv.QUOTE_NONE)
         i = 0
         for line in lines:
             ## determine the line type, and skip if it's not necessary data (e.g. debugging info)
-            lineType = line[0][0]
+            try:
+                lineType = line[0][0] # if this fails, it means the line is empty or at least invalid
+            except:
+                continue
             if not (lineType in ['D', 'G', 'M']):
                 continue
             ## remove the line type ID and make into a nice array
@@ -913,6 +889,8 @@ def _slow__read_single_v0_9(filename, startMillis, require_gps = True):
                 G[g_index,:10] = line
                 G[g_index,10] = _make_gps_time(line)
                 g_index += 1
+    if d_index == 0:
+        raise EmptyRawFile(filename)
     if (g_index == 0) and require_gps:
         raise CorruptRawFileNoGPS(filename)
     #pdb.set_trace()
@@ -956,9 +934,9 @@ def _read_several(fnList, version = 0.9):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
             if str(version) in ['0.9', '0.85C']:
-                L = _read_single_v0_9(fn, startMillis)
+                L = _read_single(fn, startMillis)
             elif str(version) in ['0.8', '0.85']:
-                L = _read_single_v0_9(fn, startMillis, version = version)
+                L = _read_single(fn, startMillis, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
         except KeyboardInterrupt:
@@ -1120,7 +1098,7 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         station = SN
     fnList = _find_nonmissing_files(path, SN, nums)
     if len(fnList) == 0:
-        raise MissingRawFiles
+        raise MissingRawFiles(str(path) + ': ' + str(nums))
     try:
         version = _read_format_version(fnList[0])
         config = _read_config(fnList[0])
@@ -1131,7 +1109,7 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
     elif version == '0.85C':
         L = _read_several(fnList) # same function works for both
     elif (version == '0.85') | (version == '0.8') :
-        L = _read_several(fnList, '0.8') # same function works for both
+        L = _read_several(fnList, version = version) # same function works for both
         #raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')

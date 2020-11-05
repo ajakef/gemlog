@@ -10,7 +10,7 @@ with warnings.catch_warnings():
 import obspy
 import sys
 import shutil
-from gemlog.gemlog import _read_single_v0_9, EmptyRawFile, CorruptRawFile
+from gemlog.gemlog import _read_single, EmptyRawFile, CorruptRawFile
 
 def gem_cat(input_dir, output_dir, ext = ''):
     """
@@ -116,7 +116,7 @@ def AppendFile(infile, outfile, prev_infile):
         ###########################################
         #L = suppressWarnings(ReadGem(nums = num, path = path, units = 'counts')) # suppressWarnings because it'll warn that there's no GPS issue (which is kind of the point) or SN (which doesn't matter)
         #p_start = L$p[length(L$p)]
-        p_start = int(_read_single_v0_9(prev_infile, require_gps = False)['data'][-1,1])
+        p_start = int(_read_single(prev_infile, require_gps = False, version = format)['data'][-1,1])
         ########################################
 
         ## read the first data line of the infile and convert it to an ADC reading difference
