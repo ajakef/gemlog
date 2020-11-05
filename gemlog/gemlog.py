@@ -172,7 +172,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     L = _new_gem_var()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
         nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
-        L = read_gem(nums_block, rawpath, SN = SN, network = network, station = station, location = location)
+        L = read_gem(path = rawpath, nums = nums_block, SN = SN, network = network, station = station, location = location)
         n1 = n1 + (12*blockdays) # increment file number counter
 
     p = L['data']
@@ -252,7 +252,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             try:
-                L = read_gem(nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], rawpath, SN = SN)
+                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], SN = SN)
             except MissingRawFiles: # this can happen if a block of empty files is encountered
                 continue
             except: # especially for KeyboardInterrupt!
@@ -627,6 +627,7 @@ def _read_0_8_with_pandas(filename, offset=0, require_gps = True):
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
     df['millis-sawtooth'] = df.iloc[:,0]
+    df['millis-sawtooth'] = df['millis-sawtooth'].astype(int)
     return _process_gemlog_data(df, offset, rollover = 2**16, version = '0.8')
 
 def _read_with_pandas(filename, offset=0, require_gps = True):
@@ -718,8 +719,6 @@ def _read_single_v0_8(filename, offset=0, require_gps = True):
         - metadata: datalogger metadata
         - gps: GPS timing and location values
     """
-    # Try each of the three file readers in order of decreasing speed but
-    # probably increasing likelihood of success.
 
     readers = [
         _read_0_8_with_pandas
@@ -740,6 +739,7 @@ def _read_single_v0_8(filename, offset=0, require_gps = True):
     raise CorruptRawFile(filename)
 
 def _process_gemlog_data(df, offset, rollover = 2**13, version = '0.9'):
+
 
     # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
@@ -775,9 +775,14 @@ def _process_gemlog_data(df, offset, rollover = 2**13, version = '0.9'):
     D_cols = ['msSamp', 'ADC']
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute',
               'second', 'lat', 'lon']
-    M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
-              'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
-              'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+    if version in ['0.85', '0.85C', '0.9']:
+        M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
+                  'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
+                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+    elif version in ['0.8']:
+        M_cols = ['millis', 'batt', 'temp', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
+                  'maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+        
 
     # column names are currently integers (except for the calculated cols)
     D = D[['millis-corrected', data_col]]
@@ -1012,7 +1017,7 @@ def _assign_times(L):
     return (L, timing_info)
 
     
-def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False):
+def read_gem(path = 'raw', nums = np.arange(10000), units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False):
     """
     Read raw Gem files.
 
@@ -1082,7 +1087,8 @@ def read_gem(nums = np.arange(10000), path = './', SN = '', units = 'Pa', bitwei
     All sample times involving the Gem (and most other passive 
     seismic/acoustic data) are in UTC; time zones are not supported.
     """
-    
+    if type(nums) == int:
+        nums = np.array([nums])
     if(len(station) == 0):
         station = SN
     fnList = _find_nonmissing_files(path, SN, nums)
@@ -1145,7 +1151,7 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
     t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## 2019-09-11
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
     ## R code here had code to catch t2 <= t1. should add that.
-    breaks_raw = np.where(np.diff(t_in) > 0.015)[0]
+    breaks_raw = np.where((np.diff(t_in) > 0.015) | (np.diff(t_in) < 0.007) )[0] # 2020-11-04: check for backwards steps too
     breaks = breaks_raw[(t_in[breaks_raw] > t1) & (t_in[breaks_raw+1] < t2)]
     starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
     ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
@@ -1163,7 +1169,7 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
             _breakpoint()
-            if not _debug:
+            if not _debug: # so pdb doesn't end immediately with this exception
                 raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
                                 ' and ' + str(obspy.UTCDateTime(ends[i]))))
         t_interp = np.arange(starts[i], ends[i] + eps, 0.01)
