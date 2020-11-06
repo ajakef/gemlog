@@ -473,6 +473,12 @@ def _read_SN(fn):
     return SN
 
 def _read_format_version(fn):
+    """
+    0.9: like 0.85C, but includes C line (possible that C line appeared in some earlier 0.85C files)
+    0.85C: data format is more compact than 0.85; otherwise like 0.85
+    0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
+    0.8: file extension .TXT, 1-hour files
+    """
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'])
     version = versionLine['s'][0][7:]
     return version
@@ -1097,13 +1103,15 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
     if(len(station) == 0):
         station = SN
     fnList = _find_nonmissing_files(path, SN, nums)
-    if len(fnList) == 0:
-        raise MissingRawFiles(str(path) + ': ' + str(nums))
-    try:
-        version = _read_format_version(fnList[0])
-        config = _read_config(fnList[0])
-    except:
-        raise CorruptRawFile(fnList[0])
+    while True:
+        if len(fnList) == 0:
+            raise MissingRawFiles(str(path) + ': ' + str(nums))
+        try:
+            version = _read_format_version(fnList[0])
+            config = _read_config(fnList[0])
+        except: # if we can't read the config for the first file here, drop it and try the next one
+            fnList = fnList[1:] # 
+            #raise CorruptRawFile(fnList[0])
     if version == '0.9':
         L = _read_several(fnList)
     elif version == '0.85C':
