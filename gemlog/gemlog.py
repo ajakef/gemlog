@@ -134,26 +134,31 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     
     ## make sure the raw directory exists and has real data
     if not os.path.isdir(rawpath):
-        raise Exception('Raw directory ' + rawpath + ' does not exist')
+        raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
     if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
-        raise Exception('No data files found in directory ' + rawpath)
-
+        raise MissingRawFiles('No data files found in directory ' + rawpath)
+    try:
+        SN = str(SN)
+        int(SN) # make sure it's number-like
+    except:
+        raise Exception('Invalid serial number')
+    if len(SN) != 3:
+        raise Exception('Invalid serial number; SN type is length-'+ str(len(SN)) +' ' + str(type(SN)) + ', not length-3 str')
+    
     ## make sure bitweight is a scalar
-    if((type(nums) == type(1)) or (type(nums) == type(1.0))):
+    if((type(nums) is int) or (type(nums) is float)):
         nums = np.array([nums])
     else:
         nums = np.array(nums)
-
-    ## if 'nums' is default, convert all the files in this directory
-    if((len(nums) == 0) or np.isnan(nums[0])):
-        if(True or len(SN) == 1): # trying to check that SN is a scalar
-            fn = glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.' + SN) + \
-                 glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.TXT')
-        else:
-            fn = glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')
-        nums = np.array([int(x[-8:-4]) for x in fn]) # "list comprehension"
-
-    ## check serial numbers for all files including those ending in TXT, and exclude misfits
+    
+    ## find a list of possibly eligible raw files 
+    if (type(SN) is not str) or (len(SN) != 3): # check that SN is appropriately formatted...this should always happen
+        fn = glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')
+    else:
+        fn = glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.' + SN) + \
+            glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.TXT')
+    
+    ## filter out raw files whose serial numbers don't match SN
     fn_new = []
     for file in fn:
         try:
@@ -162,13 +167,22 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         except:
             pass # if we can't read the file's SN, it's corrupt and should be skipped
     fn = fn_new
+    
+    ## narrow the list of raw files if nums is provided, or calculate nums if not
+    nums_from_fn = np.array([int(x[-8:-4]) for x in fn]) 
+    if((len(nums) == 0) or np.isnan(nums[0])):
+        nums = nums_from_fn
+    else: # find the intersection between the available nums and the user-defined nums
+        w = np.where([(i in nums) for i in nums_from_fn])[0]
+        fn = [fn[i] for i in w]
+        nums = nums_from_fn[w]
 
     ## Catch if rawpath doesn't contain any files from SN. This won't catch files ending in TXT.
     if len(nums) == 0:
         raise Exception('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
-    nums.sort()
 
     ## start at the first file in 'nums'
+    nums.sort()
     n1 = np.min(nums)
   
     ## read the first set of up to (24*blockdays) files
@@ -473,12 +487,12 @@ def _read_SN(fn):
     return SN
 
 def _read_format_version(fn):
-    """
-    0.9: like 0.85C, but includes C line (possible that C line appeared in some earlier 0.85C files)
-    0.85C: data format is more compact than 0.85; otherwise like 0.85
-    0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
-    0.8: file extension .TXT, 1-hour files
-    """
+    #"""
+    #0.9: like 0.85C, but includes C line (possible that C line appeared in some earlier 0.85C files)
+    #0.85C: data format is more compact than 0.85; otherwise like 0.85
+    #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
+    #0.8: file extension .TXT, 1-hour files
+    #"""
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'])
     version = versionLine['s'][0][7:]
     return version
@@ -1103,15 +1117,21 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
     if(len(station) == 0):
         station = SN
     fnList = _find_nonmissing_files(path, SN, nums)
+
+    ## at this point, if we don't have any files, raise a missing file exception
+    if len(fnList) == 0:
+        raise MissingRawFiles(str(path) + ': ' + str(nums))
     while True:
-        if len(fnList) == 0:
-            raise MissingRawFiles(str(path) + ': ' + str(nums))
+        if len(fnList) == 0: # at this point, if we have no files, they're all corrupt. 
+            raise CorruptRawFile(str(path) + ': ' + str(nums))
         try:
             version = _read_format_version(fnList[0])
             config = _read_config(fnList[0])
         except: # if we can't read the config for the first file here, drop it and try the next one
             fnList = fnList[1:] # 
             #raise CorruptRawFile(fnList[0])
+        else:
+            break
     if version == '0.9':
         L = _read_several(fnList)
     elif version == '0.85C':
