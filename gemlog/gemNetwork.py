@@ -60,9 +60,9 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                 SN = station_info[(station_info['network'] == network_name) & (station_info['station'] == station_name) & (station_info['location'] == location_name)]['SN'].iloc[0]
                 ## find the coords line corresponding to this location
                 if 'SN' in coords.keys():
-                    line = coords[coords['SN'] == SN]
+                    line = coords[coords['SN'].astype(int) == int(SN)] # int just in case there's some type discrepancy
                 else:
-                    line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'] == location_name)]
+                    line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'].astype(int) == int(location_name))]
                 ## We need to extract the coordinate and times for this location.
                 lat = line['lat'].iloc[0]
                 lon = line['lon'].iloc[0]
