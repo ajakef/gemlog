@@ -63,6 +63,10 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                     line = coords[coords['SN'].astype(int) == int(SN)] # int just in case there's some type discrepancy
                 else:
                     line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'].astype(int) == int(location_name))]
+                ## if no GPS info for this station is found, skip it
+                if line.shape[0] == 0:
+                    print('No coords found for ' + SN + ', skipping')
+                    continue
                 ## We need to extract the coordinate and times for this location.
                 lat = line['lat'].iloc[0]
                 lon = line['lon'].iloc[0]
