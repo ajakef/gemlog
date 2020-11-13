@@ -7,7 +7,6 @@ import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 import obspy
-#import datetime
 import sys
 
 _debug = False
@@ -399,7 +398,7 @@ def make_db(path, pattern = '*', savefile = './DB.csv'):
         Glob-type pattern for selecting converted data files to summarize
 
     savefile : str, default './DB.csv'
-        File name where database should be written.
+        File name where database is written. Use 'savefile = None' to not save an output file.
 
     Returns
     -------
@@ -424,7 +423,8 @@ def make_db(path, pattern = '*', savefile = './DB.csv'):
             print(str(count) + ' of ' + str(len(files)))
         count = count + 1
     DB = pd.concat(DB)
-    DB.to_csv(savefile)
+    if savefile is not None:
+        DB.to_csv(savefile)
     return(DB)
 
 def calc_channel_stats(DB, t1, t2):
