@@ -87,23 +87,37 @@ def verify_huddle_test(path):
         else:
             print('Sufficient Temperature Range')
 
-        ############################################
-        #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
-
-
-        if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01:
-            pass
-            ## fail the check
-        else:
-            pass
-            ## pass the check
-
-        if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
-            failure_message = SN + ': Bad A2'
-            print(failure_message)
-            errors.append(failure_message) 
-        else:
-            print('A2 okay')
+        if False:
+            #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
+            ##A2
+            #re-evaluate threshold percentage
+            if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01: 
+                failure_message = SN + ': A2 dV/dt error'
+                print(failure_message)
+                failures.append(failure_message)
+            else:
+                print('dV/dt okay')
+            if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
+                failure_message = SN + ': Bad A2'
+                print(failure_message)
+                failures.append(failure_message) 
+            else:
+                print('A2 okay')
+            
+            ##A3
+            if (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 )) > 0.01: 
+                failure_message = SN + ': A3 dV/dt error'
+                print(failure_message)
+                failures.append(failure_message)
+            else:
+                print('dV/dt okay')
+            if not (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1)):
+                failure_message = SN + ': Bad A3'
+                print(failure_message)
+                failures.append(failure_message) 
+            else:
+                print('A3 okay')
+            
         #### minFifoFree and maxFifoUsed should always add to 75
 
         if any((metadata.minFifoFree + metadata.maxFifoUsed) != 75):
@@ -113,10 +127,20 @@ def verify_huddle_test(path):
         else:
             print('FIFO sum is correct')
         
-        ############################################
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
-        ############################################
-
+        if len(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 ) > 0.01:
+            failure_message = SN + ': FIFO exceeds acceptable range'
+            print(failure_message)
+            failures.append(failure_message)
+        else:
+            print('maxFifo within acceptable range')
+        if any(metadata.maxFifoUsed > 25):
+            failure_message = SN + ': FIFO exceeds acceptable value'
+            print(failure_message)
+            failures.append(failure_message)
+        else:
+            print('FIFO values okay')
+            
         #### maxOverruns should always be zero 
         if any(metadata.maxOverruns) !=0:
             failure_message = SN + ': Too many overruns!'
@@ -133,7 +157,7 @@ def verify_huddle_test(path):
         else:
             print('Sufficient Stack')
 
-        #### gpsOnFlag should never be on for more than 3 minutes at a time
+
         #### find time differences among samples with gps off that are > 180 sec
         if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180): 
             failure_message = SN + ': GPS ran for too long'
@@ -141,7 +165,7 @@ def verify_huddle_test(path):
             errors.append(failure_message)
         else:
             print('GPS runtime ok')
-
+        
         ## individual GPS:
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
