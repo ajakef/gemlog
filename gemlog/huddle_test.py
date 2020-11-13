@@ -156,7 +156,6 @@ def verify_huddle_test(path):
             failure_message = SN + ': disagrees excessively with average temperature'
             print(failure_message)
             failures.append(failure_message)
-            breakpoint()
     
     
     ## Group GPS
