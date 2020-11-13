@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-import os, glob, obspy 
+import os, glob, obspy
+import scipy.signal
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -25,11 +26,13 @@ def verify_huddle_test(path):
     SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
     print('Identified serial numbers ' + str(SN_list))
 
-    
+    metadata_dict = {}
+    gps_dict = {}
     ## Individual Metadata:
     for SN in SN_list:
         print('Checking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
+        metadata_dict[SN] = metadata
 
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
@@ -50,10 +53,6 @@ def verify_huddle_test(path):
         ############################################
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
 
-        if not (all(metadata.A2 >= 0) & all(metadata.A2 <= 3.1)):
-            pass # the pass keyword just means do nothing. we need something here for indentation purposes
-        
-            ##
 
         if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01:
             pass
@@ -61,7 +60,6 @@ def verify_huddle_test(path):
         else:
             pass
             ## pass the check
-        ############################################
 
         if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
             failure_message = SN + ': Bad A2'
@@ -98,10 +96,7 @@ def verify_huddle_test(path):
         else:
             print('Sufficient Stack')
 
-        ############################################
         #### gpsOnFlag should never be on for more than 3 minutes at a time
-        ############################################
-
         #### find time differences among samples with gps off that are > 180 sec
         if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180): 
             failure_message = SN + ': GPS ran for too long'
@@ -112,6 +107,7 @@ def verify_huddle_test(path):
 
         ## individual GPS:
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
+        gps_dict[SN] = gps
         lat_deg_to_meters = 40e6 / 360 # conversion factor from degrees latitude to meters
         lon_deg_to_meters = 40e6 / 360 * np.cos(np.median(gps.lat) * np.pi/180) # smaller at the poles
 
@@ -130,9 +126,38 @@ def verify_huddle_test(path):
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
 
     ## Group metadata:
-    #### at every given time, temperature must agree within 2C for all loggers
     #### all loggers' first and last times should agree within 20 minutes
-
+    start_time = metadata_dict[SN_list[0]].t.min()
+    stop_time = metadata_dict[SN_list[0]].t.max()
+    for SN in SN_list[1:]:
+        if np.abs(metadata_dict[SN].t.min() - start_time) > (20*60):
+            failure_message = 'metadata start times disagree excessively'
+            print(failure_message)
+            failures.append(failure_message)
+        if np.abs(metadata_dict[SN].t.max() - stop_time) > (20*60):
+            failure_message = 'metadata stop times disagree excessively'
+            print(failure_message)
+            failures.append(failure_message)
+            
+        start_time = max(start_time, metadata_dict[SN].t.min())
+        stop_time = min(stop_time, metadata_dict[SN].t.max())
+        
+    #### at every given time, temperature must agree within 2C for all loggers
+    times_to_check = np.arange(start_time, stop_time)
+    average_temperatures = 0
+    temperatures = {}
+    for SN in SN_list:
+        temperatures[SN] = scipy.signal.lfilter(np.ones(100)/100, [1],
+            scipy.interpolate.interp1d(metadata_dict[SN].t, metadata_dict[SN].temp)(times_to_check))
+        # to do: use the median instead
+        average_temperatures += temperatures[SN]/ len(SN_list) 
+    for SN in SN_list:
+        if np.sum(np.abs(temperatures[SN] - average_temperatures) > 2)/len(times_to_check) > 0.1:
+            failure_message = SN + ': disagrees excessively with average temperature'
+            print(failure_message)
+            failures.append(failure_message)
+            breakpoint()
+    
     
     ## Group GPS
     #### all loggers' average lat and lon should agree within 1 m
@@ -143,3 +168,4 @@ def verify_huddle_test(path):
     #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
 
 
+    return failures
