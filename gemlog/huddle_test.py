@@ -94,13 +94,13 @@ def verify_huddle_test(path):
             if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01: 
                 failure_message = SN + ': A2 dV/dt error'
                 print(failure_message)
-                failures.append(failure_message)
+                errors.append(failure_message)
             else:
                 print('dV/dt okay')
             if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
                 failure_message = SN + ': Bad A2'
                 print(failure_message)
-                failures.append(failure_message) 
+                errors.append(failure_message) 
             else:
                 print('A2 okay')
             
@@ -108,13 +108,13 @@ def verify_huddle_test(path):
             if (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 )) > 0.01: 
                 failure_message = SN + ': A3 dV/dt error'
                 print(failure_message)
-                failures.append(failure_message)
+                errors.append(failure_message)
             else:
                 print('dV/dt okay')
             if not (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1)):
                 failure_message = SN + ': Bad A3'
                 print(failure_message)
-                failures.append(failure_message) 
+                errors.append(failure_message) 
             else:
                 print('A3 okay')
             
@@ -131,13 +131,13 @@ def verify_huddle_test(path):
         if len(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 ) > 0.01:
             failure_message = SN + ': FIFO exceeds acceptable range'
             print(failure_message)
-            failures.append(failure_message)
+            errors.append(failure_message)
         else:
             print('maxFifo within acceptable range')
         if any(metadata.maxFifoUsed > 25):
             failure_message = SN + ': FIFO exceeds acceptable value'
             print(failure_message)
-            failures.append(failure_message)
+            errors.append(failure_message)
         else:
             print('FIFO values okay')
             
