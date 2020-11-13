@@ -1,13 +1,17 @@
 import pandas as pd
 import numpy as np
-import os, glob, obspy 
+import os, glob, obspy
+import scipy.signal
+import gemlog
+from gemlog.gemlog_aux import check_lags
+
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
 def verify_huddle_test(path):
-#%%
+    
     path = '/home/tamara/demo_QC'
     failures = []
     ## Huddle test performance requirements:
@@ -25,11 +29,13 @@ def verify_huddle_test(path):
     SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
     print('Identified serial numbers ' + str(SN_list))
 
-    
+    metadata_dict = {}
+    gps_dict = {}
     ## Individual Metadata:
     for SN in SN_list:
         print('Checking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
+        metadata_dict[SN] = metadata
 
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
@@ -46,6 +52,7 @@ def verify_huddle_test(path):
             failures.append(failure_message)
         else:
             print('Sufficient Temperature Range')
+
         if False:
             #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
             ##A2
@@ -116,6 +123,7 @@ def verify_huddle_test(path):
         else:
             print('Sufficient Stack')
 
+
         #### find time differences among samples with gps off that are > 180 sec
         if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180): 
             failure_message = SN + ': GPS ran for too long'
@@ -123,9 +131,10 @@ def verify_huddle_test(path):
             failures.append(failure_message)
         else:
             print('GPS runtime ok')
-#%%
+        
         ## individual GPS:
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
+        gps_dict[SN] = gps
         lat_deg_to_meters = 40e6 / 360 # conversion factor from degrees latitude to meters
         lon_deg_to_meters = 40e6 / 360 * np.cos(np.median(gps.lat) * np.pi/180) # smaller at the poles
 
@@ -144,9 +153,42 @@ def verify_huddle_test(path):
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
 
     ## Group metadata:
-    #### at every given time, temperature must agree within 2C for all loggers
     #### all loggers' first and last times should agree within 20 minutes
-
+    start_time = metadata_dict[SN_list[0]].t.min()
+    stop_time = metadata_dict[SN_list[0]].t.max()
+    for SN in SN_list[1:]:
+        if np.abs(metadata_dict[SN].t.min() - start_time) > (20*60):
+            failure_message = SN + ': metadata start times disagree excessively'
+            print(failure_message)
+            failures.append(failure_message)
+        else:
+            print(SN + ': metadata start times agree')
+        if np.abs(metadata_dict[SN].t.max() - stop_time) > (20*60):
+            failure_message = 'metadata stop times disagree excessively'
+            print(failure_message)
+            failures.append(failure_message)
+        else:
+            print(SN + ': metadata stop times agree')
+        start_time = max(start_time, metadata_dict[SN].t.min())
+        stop_time = min(stop_time, metadata_dict[SN].t.max())
+        
+    #### at every given time, temperature must agree within 2C for all loggers
+    times_to_check = np.arange(start_time, stop_time)
+    average_temperatures = 0
+    temperatures = {}
+    for SN in SN_list:
+        temperatures[SN] = scipy.signal.lfilter(np.ones(100)/100, [1],
+            scipy.interpolate.interp1d(metadata_dict[SN].t, metadata_dict[SN].temp)(times_to_check))
+        # to do: use the median instead
+        average_temperatures += temperatures[SN]/ len(SN_list) 
+    for SN in SN_list:
+        if np.sum(np.abs(temperatures[SN] - average_temperatures) > 2)/len(times_to_check) > 0.1:
+            failure_message = SN + ': disagrees excessively with average temperature'
+            print(failure_message)
+            failures.append(failure_message)
+        else:
+            print(SN + ': Temperatures agree')
+    
     
     ## Group GPS
     #### all loggers' average lat and lon should agree within 1 m
@@ -155,5 +197,15 @@ def verify_huddle_test(path):
     ## group waveform data data:
     #### length of converted data should match among all loggers
     #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
+    DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
+    [t, lag, xc_coef, consistency] = check_lags(DB)
+    coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
+    if (np.sum(np.all(lag[:,coherent_windows]==0, 0)) / np.sum(coherent_windows)) < 0.8:
+        failure_message = 'Time lags are excessively nonzero for coherent time windows'
+        print(failure_message)
+        failures.append(failure_message)
+    else:
+        print('Time lags for coherent time windows are mostly/all zero')
+        
 
-
+    return failures
