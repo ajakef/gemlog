@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import os, glob, obspy
 import scipy.signal
+import gemlog
+from gemlog.gemlog_aux import check_lags
+
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -131,14 +134,17 @@ def verify_huddle_test(path):
     stop_time = metadata_dict[SN_list[0]].t.max()
     for SN in SN_list[1:]:
         if np.abs(metadata_dict[SN].t.min() - start_time) > (20*60):
-            failure_message = 'metadata start times disagree excessively'
+            failure_message = SN + ': metadata start times disagree excessively'
             print(failure_message)
             failures.append(failure_message)
+        else:
+            print(SN + ': metadata start times agree')
         if np.abs(metadata_dict[SN].t.max() - stop_time) > (20*60):
             failure_message = 'metadata stop times disagree excessively'
             print(failure_message)
             failures.append(failure_message)
-            
+        else:
+            print(SN + ': metadata stop times agree')
         start_time = max(start_time, metadata_dict[SN].t.min())
         stop_time = min(stop_time, metadata_dict[SN].t.max())
         
@@ -156,6 +162,8 @@ def verify_huddle_test(path):
             failure_message = SN + ': disagrees excessively with average temperature'
             print(failure_message)
             failures.append(failure_message)
+        else:
+            print(SN + ': Temperatures agree')
     
     
     ## Group GPS
@@ -165,6 +173,15 @@ def verify_huddle_test(path):
     ## group waveform data data:
     #### length of converted data should match among all loggers
     #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
-
+    DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
+    [t, lag, xc_coef, consistency] = check_lags(DB)
+    coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
+    if (np.sum(np.all(lag[:,coherent_windows]==0, 0)) / np.sum(coherent_windows)) < 0.8:
+        failure_message = 'Time lags are excessively nonzero for coherent time windows'
+        print(failure_message)
+        failures.append(failure_message)
+    else:
+        print('Time lags for coherent time windows are mostly/all zero')
+        
 
     return failures
