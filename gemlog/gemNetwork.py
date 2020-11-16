@@ -187,7 +187,7 @@ ReadLoggerGPS = read_gps # alias; v1.0.0
 
 def summarize_gps(gps_dir_pattern, output_file = '', station_info = None):
     """
-    Read up-to-date GPS data from all Gems in a project, calculate their locations using a robustn
+    Read up-to-date GPS data from all Gems in a project, calculate their locations using a robust
     trimmed-mean method.
 
     Parameters

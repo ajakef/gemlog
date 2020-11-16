@@ -9,7 +9,7 @@ def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
-def verify_huddle_test(path):
+def verify_huddle_test(path, SN_list = [], SN_to_exclude = []):
     """Perform a battery of tests on converted data from a huddle test to ensure that no Gems are
     obviously malfunctioning. 
 
@@ -34,6 +34,11 @@ def verify_huddle_test(path):
     ----------
     path : str
         Path to project folder, which contains subfolders mseed, metadata, and gps
+    SN_list : list
+        List of serial numbers that should be processed
+    SN_to_exclude : list
+        List of serial numbers that should NOT be processed
+
     Returns
     -------
     dict with elements 'errors', 'warnings', and 'notes'.
@@ -59,8 +64,10 @@ def verify_huddle_test(path):
             fn = os.listdir(test_path)
         except:
             raise(Exception(test_path + ' not found'))
-        
-    SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
+    ## identify the list of serial numbers to test, including user input to include/exclude
+    if len(SN_list) == 0:
+        SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
+    SN_list = [SN for SN in SN_list if SN not in SN_to_exclude]
     print('Identified serial numbers ' + str(SN_list))
 
     metadata_dict = {}
@@ -128,16 +135,16 @@ def verify_huddle_test(path):
             print('FIFO sum is correct')
         
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
-        if len(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 ) > 0.01:
-            failure_message = SN + ': FIFO exceeds acceptable range'
+        if np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 ) > 0.01:
+            failure_message = SN + ': FIFO use is generally excessive'
             print(failure_message)
-            errors.append(failure_message)
+            warnings.append(failure_message)
         else:
             print('maxFifo within acceptable range')
         if any(metadata.maxFifoUsed > 25):
-            failure_message = SN + ': FIFO exceeds acceptable value'
+            failure_message = SN + ': FIFO use exceeds safe value'
             print(failure_message)
-            errors.append(failure_message)
+            warnings.append(failure_message)
         else:
             print('FIFO values okay')
             
@@ -150,10 +157,10 @@ def verify_huddle_test(path):
             print('Sufficient overruns')    
         
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
-        if any(metadata.unusedStack1 <= 50) or any(metadata.unusedStackIdle <= 30):
+        if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             failure_message = SN + ': Inadequate unused Stack'
             print(failure_message)
-            errors.append(failure_message)
+            warnings.append(failure_message)
         else:
             print('Sufficient Stack')
 
@@ -162,7 +169,7 @@ def verify_huddle_test(path):
         if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180): 
             failure_message = SN + ': GPS ran for too long'
             print(failure_message)
-            errors.append(failure_message)
+            warnings.append(failure_message)
         else:
             print('GPS runtime ok')
         

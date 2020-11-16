@@ -27,7 +27,7 @@ def CheckDiscontinuity(files):
 import gemlog, obspy
 import numpy as np
 
-def check_lags(DB, winlength = 1000, fl = 0.5, fh = 20, maxshift = 10):
+def check_lags(DB, winlength = 1000, fl = 0.5, fh = 20, maxshift = 10, verbose = False):
     stations = DB.station.unique()
     nsta = len(stations)
     from obspy.signal.cross_correlation import xcorr, correlate, xcorr_max
@@ -47,7 +47,7 @@ def check_lags(DB, winlength = 1000, fl = 0.5, fh = 20, maxshift = 10):
     while t1 < max(DB.t2):
         count += 1
         t1 += winlength
-        print(str(count) + ' of ' + str(N))
+        if verbose: print(str(count) + ' of ' + str(N))
         try:
             test_lags = []
             test_xc_coefs = []
@@ -96,3 +96,101 @@ def plot_lags(lag0, lag1, use_consistency = True):
 
     plt.legend([str(i) for i in range(N)], loc = 'lower right')
     plt.show()
+
+def make_db(path, pattern = '*', savefile = None, verbose = False):
+    """Create a database summarizing a set of converted data files.
+
+    Parameters
+    ----------
+    path : str
+        Path to folder containing converted data files to summarize.
+    
+    pattern : str, default '*'
+        Glob-type pattern for selecting converted data files to summarize
+
+    savefile : str, default None
+        File name where database is written. Use 'savefile = None' to not save an output file.
+
+    verbose : bool, default False
+        If True, print progress updates.
+
+    Returns
+    -------
+    pandas.DataFrame containing converted file database.
+    """
+    #path = 'mseed'
+    #pattern = '*'
+    files = glob.glob(path + '/' + pattern)
+    files.sort()
+    DB = []
+    count = 0
+    for file in files:
+        tr = obspy.read(file)[0]
+        maxVal = tr.data.max()
+        minVal = tr.data.min()
+        tr.detrend('linear')
+        tr.filter('highpass', freq=0.5)
+        amp_HP = tr.std()
+        row = pd.DataFrame([[file, tr.stats.station, tr.stats.location, amp_HP, maxVal, minVal, tr.stats.starttime, tr.stats.endtime]], columns = ['filename', 'station', 'location', 'amp_HP', 'max', 'min', 't1', 't2'])
+        DB.append(row)
+        if((count % 100) == 0 and verbose):
+            print(str(count) + ' of ' + str(len(files)))
+        count = count + 1
+    DB = pd.concat(DB)
+    if savefile is not None:
+        DB.to_csv(savefile)
+    return(DB)
+
+################################################
+
+################
+
+def calc_channel_stats(DB, t1, t2):
+    """
+    Calculate uptime and other statistics for all channels in a database.
+
+    Parameters
+    ----------
+    DB : pandas.DataFrame
+        Output of make_db().
+    
+    t1 : time-like 
+        Start time for which statistics should be calculated.
+
+    t2 : time-like 
+        End time for which statistics should be calculated.
+
+    Returns
+    -------
+    pandas.DataFrame containing the following columns:
+
+        - station : station name
+        - goodData : proportion of time window (t1-t2) that is not obviously bad (e.g., clipped)
+        - anyData : proportion of time window (t1-t2) for which data are available
+        - q1 : first quartile amplitude 
+        - q3 : third quartile amplitude
+    """
+    import obspy, glob
+    import pandas as pd
+    from obspy import UTCDateTime as T
+    #t1 = '2020-04-14'
+    #t2 = '2020-04-24T20:00:00'
+    t1 = obspy.core.UTCDateTime(t1)
+    t2 = obspy.core.UTCDateTime(t2)
+    numHour = (t2 - t1)/3600.0
+    DB.t1 = DB.t1.apply(T)
+    DB.t2 = DB.t2.apply(T)
+    DB.goodData = (DB.amp_HP > 0.5) & (DB.amp_HP < 2e4) & ((DB.t2 - DB.t1) > 3598) & ((DB.t2 - DB.t1) < 3602)
+    DB.anyData = (DB.amp_HP > 0) 
+    out = []
+    for sta in DB.station.unique():
+        w = np.where((DB.station == sta) & (DB.t1 > t1) & (DB.t2 < t2))[0]
+        if(len(w) == 0):
+            continue
+        else:
+            q1 = np.quantile(np.array(DB.amp_HP)[w], 0.25)
+            q3 = np.quantile(np.array(DB.amp_HP)[w], 0.75)
+            out.append(pd.DataFrame([[sta, np.sum(np.array(DB.goodData)[w])/numHour, np.sum(np.array(DB.anyData)[w])/numHour, q1, q3]], columns = ['station', 'goodData', 'anyData', 'q1', 'q3']))
+    out = pd.concat(out)
+    return(out)
+
