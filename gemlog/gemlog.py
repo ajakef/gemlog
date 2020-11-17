@@ -454,7 +454,6 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             config = _read_config(fnList[0])
         except: # if we can't read the config for the first file here, drop it and try the next one
             fnList = fnList[1:] # 
-            #raise CorruptRawFile(fnList[0])
         else:
             break
     if version == '0.9':
@@ -463,7 +462,6 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList) # same function works for both
     elif (version == '0.85') | (version == '0.8') :
         L = _read_several(fnList, version = version) # same function works for both
-        #raise Exception(fnList[0] + ': Obsolete data format ' + version + ' not yet supported')
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
@@ -941,31 +939,18 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
 
 def _read_several(fnList, version = 0.9):
     ## initialize the output variables
-    G = pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
-                                'second', 'lat', 'lon', 't'])
-    M = pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', \
-                                'minFifoFree', 'maxFifoUsed', 'maxOverruns', 'gpsOnFlag', \
-                                'unusedStack1', 'unusedStackIdle'])
     D = np.ndarray([0,2]) # expected number 7.2e5
-    num_filler = np.zeros(len(fnList))
-    header = pd.DataFrame.from_dict({'file': fnList,
-                                     'SN':['' for fn in fnList],
-                                     'lat': num_filler,
-                                     'lon': num_filler,
-                                     'start_ms': num_filler,
-                                     'end_ms': num_filler,
-                                     'drift_slope': num_filler,
-                                     'drift_intercept': num_filler,
-                                     'drift_slope_stderr': num_filler,
-                                     'drift_resid_std': num_filler,
-                                     'drift_resid_MAD': num_filler,
-                                     'num_gps_pts': num_filler
-                                     })
+    header = _make_empty_header(fnList)
+    G = _make_empty_gps()
+    M = _make_empty_metadata()
+    
     ## loop through the files
     startMillis = 0
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
+            #if str(version) in ['0.9', '0.85C', '0.85', '0.8']: # this should work--instead of the following if block--but it doesn't. why not?
+            #    L = _read_single(fn, startMillis, version = version)
             if str(version) in ['0.9', '0.85C']:
                 L = _read_single(fn, startMillis)
             elif str(version) in ['0.8', '0.85']:
@@ -1095,7 +1080,8 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
             ##if not _debug: # so pdb doesn't end immediately with this exception
             ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
             ##                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
-        t_interp = np.arange(starts[i], ends[i] + eps, 0.01)
+        #t_interp = np.arange(starts[i], ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
+        t_interp = starts[i] + np.arange(np.trunc((ends-starts)[i]/0.01)) * 0.01
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
         tr.stats.starttime = t_interp[0]
@@ -1268,3 +1254,25 @@ def _find_breaks_(L):
     ends = np.append(ends, tD.max())
     return {'starts':starts, 'ends':ends}
 
+def _make_empty_header(fnList):
+    num_filler = np.zeros(len(fnList))
+    return pd.DataFrame.from_dict({'file': fnList,
+                                   'SN':['' for fn in fnList],
+                                   'lat': num_filler,
+                                   'lon': num_filler,
+                                   'start_ms': num_filler,
+                                   'end_ms': num_filler,
+                                   'drift_slope': num_filler,
+                                   'drift_intercept': num_filler,
+                                   'drift_slope_stderr': num_filler,
+                                   'drift_resid_std': num_filler,
+                                   'drift_resid_MAD': num_filler,
+                                   'num_gps_pts': num_filler
+    })
+def _make_empty_gps():
+    return pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
+                                   'second', 'lat', 'lon', 't'])
+def _make_empty_metadata():
+    return pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', \
+                                   'minFifoFree', 'maxFifoUsed', 'maxOverruns', 'gpsOnFlag', \
+                                   'unusedStack1', 'unusedStackIdle'])

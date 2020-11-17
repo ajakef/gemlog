@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-import obspy
-from gemlog import *
+import obspy, glob, gemlog
+#from gemlog import *
 def PlotAmp(DB):
     allSta = DB.station.unique()
     allSta.sort()
@@ -24,8 +25,6 @@ def CheckDiscontinuity(files):
         for tr in st:
             print(tr.id + ' ' + tr.stats.starttime.isoformat() + '--' + tr.stats.endtime.isoformat())
 
-import gemlog, obspy
-import numpy as np
 
 def check_lags(DB, winlength = 1000, fl = 0.5, fh = 20, maxshift = 10, verbose = False):
     stations = DB.station.unique()
