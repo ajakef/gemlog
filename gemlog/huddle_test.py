@@ -81,10 +81,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = []):
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
             failure_message = SN + ': Impossible Battery Voltage'
-            print(failure_message)
+            print('Error: ' + failure_message)
             errors.append(failure_message)
         else:
-            print('Sufficient Battery Voltage')
+            print(SN + ': Sufficient Battery Voltage')
 
         #### temperature must be in reasonable range (-20 to 60 C)
         if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius 'Impossible Temperature'
@@ -247,6 +247,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = []):
     #### length of converted data should match among all loggers
     #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
     DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
+    DB = DB.loc[DB.station.isin(SN_list),:]
     [t, lag, xc_coef, consistency] = check_lags(DB)
     coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
     zero_lags = lag[:,coherent_windows]==0
