@@ -1081,7 +1081,7 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
             ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
             ##                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
         #t_interp = np.arange(starts[i], ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
-        t_interp = starts[i] + np.arange(np.trunc((ends-starts)[i]/0.01)) * 0.01
+        t_interp = np.round(starts[i] + np.arange(np.trunc((ends-starts)[i]/0.01)) * 0.01, 2)
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
         tr.stats.starttime = t_interp[0]
