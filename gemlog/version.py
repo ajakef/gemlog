@@ -1,4 +1,5 @@
-__version__ = '1.3.0' # improvements to gemconvert, added support for older raw file formats, and fixed bugs 
+__version__ = '1.3.1' # 'bug fix, and improvements to huddle test' 
+#__version__ = '1.3.0' # improvements to gemconvert, added support for older raw file formats, and fixed bugs 
 #__version__ = '1.2.7' # more bug fixes 
 #__version__ = '1.2.6' # bug fixes to improve support for raw formats 0.8 and 0.85 and to make converting large datasets more reliable 
 #__version__ = '1.2.5' # added support for raw format version 0.8 
@@ -20,4 +21,4 @@ __version__ = '1.3.0' # improvements to gemconvert, added support for older raw 
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive##########
+## List of old versions is not yet comprehensive###########

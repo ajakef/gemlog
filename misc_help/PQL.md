@@ -41,7 +41,7 @@ First, change the settings on the left side of the main screen for each of the f
 * "Spectra" tab: set window scale to "window"
 
 Then, click the "Controls" button near the bottom left, and make the following changes:
-* "General" tab: change sort settings to 1 absolute start time, 2 station, 3 channel
+* "General" tab: change sort settings to 1 absolute start time, 2 network, 3 station, 4 location, 5 channel
 * "Overlay" tab: change color #3 (originally yellow) to anything that's more visible against pink background
 * "Spectra" tab: set both amplitude and frequency to log scale
 
