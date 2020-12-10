@@ -160,11 +160,13 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     
     ## filter out raw files whose serial numbers don't match SN
     fn_new = []
+    corrupt_files_flag = False
     for file in fn:
         try:
             if _read_SN(file) == SN:
                 fn_new.append(file)
         except:
+            corrupt_files_flag = True
             pass # if we can't read the file's SN, it's corrupt and should be skipped
     fn = fn_new
     
@@ -179,7 +181,10 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
     ## Catch if rawpath doesn't contain any files from SN. This won't catch files ending in TXT.
     if len(nums) == 0:
-        raise Exception('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
+        if corrupt_files_flag:
+            raise CorruptRawFile('No non-corrupt data files for SN "' + SN + '" found in raw directory ' + rawpath)
+        else:
+            raise MissingRawFiles('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
 
     ## start at the first file in 'nums'
     nums.sort()
