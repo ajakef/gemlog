@@ -91,7 +91,8 @@ def make_gem_inventory(station_info, coords, response = 'default'):
         inventory.networks.append(network)
     return inventory
     
-def rename_files(infile_pattern, station_info, output_dir, output_format = 'mseed'):
+def rename_files(infile_pattern, station_info, output_dir, output_format = 'mseed', outfile_pattern =
+                 '{year}-{mon}-{day}T{hour}_{min}_{sec}.{net}.{sta}.{loc}.{chan}.{fmt}'):
     """
     Rename a set of converted data files, assigning the correct network, station, and location 
     codes (instead of the original code with empty location/network and the station code being the
@@ -111,6 +112,9 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     output_format : str
         default 'mseed'; 'sac' also works, as do other obspy-supported formats
 
+    outfile_pattern : str
+        format of output file names; note the abbreviations, and that 'jd' means 'day of year'
+
     Returns
     -------
     pandas.DataFrame containing the station_info table.
@@ -126,19 +130,58 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
         st = obspy.read(infile)
         fileParts = infile.split('/')[-1].split('.')
         SN = fileParts[2]
-        w = np.where(station_info.SN == SN)[0][0]
+        try:
+            w = np.where(station_info.SN == SN)[0][0]
+        except:
+            print('skipping ' + infile)
+            continue
         network = station_info.network[w]
         station = station_info.station[w]
         location = station_info.location[w]
+        t1 = st[0].stats.starttime
         for tr in st:
             tr.stats.network = network
             tr.stats.station = station
             tr.stats.location = location
-        outputFile = output_dir + '/' + '%s.%s.%s.%s.HDF.%s' % (fileParts[0], network, station, location, output_format)
-        st.write(outputFile, format = output_format)
-        print(str(i) + ' of ' + str(len(infiles)) + ': ' + infile + ', ' + outputFile)
+            t1 = min(t1, tr.stats.starttime)
+        #outputFile = output_dir + '/' + '%s.%s.%s.%s.HDF.%s' % (fileParts[0], network, station, location, output_format)
+        trace_info_dict = {'year':t1.year, 'mon':t1.month, 'day':t1.day,
+                           'jd':t1.julday, 'hour':t1.hour, 'min':t1.minute,
+                           'sec':t1.second, 'net':network, 'sta':station,
+                           'loc':location, 'chan':'HDF', 'fmt':output_format}
+        outfile_pattern = _fix_file_name_digits(outfile_pattern)
+        output_file = outfile_pattern.format(**trace_info_dict)
+        st.write(output_file, format = output_format)
+        print(str(i) + ' of ' + str(len(infiles)) + ': ' + infile + ', ' + output_file)
     return station_info
 
+def merge_files_day(infile_path, infile_pattern = '*', outfile_dir = 'merge_file_output'):
+    if not os.path.isdir(outfile_dir):
+        os.makedirs(outfile_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir2
+    infiles = glob.glob(infile_path + '/' + infile_pattern)
+    infiles.sort()
+    ## find unique year, month, day lists for all files
+    cuts = [infile.split('/')[-1].split('.')[0].split('T')[0] + ',' + '.'.join(infile.split('/')[-1].split('.')[1:])
+            for infile in infiles]
+    cuts = _unique(cuts)
+    days = [cut.split(',')[0] for cut in cuts]
+    suffixes = [cut.split(',')[1] for cut in cuts]
+    
+    ## for each item, read all the files and 
+    for day, suffix in zip(days, suffixes):
+        x = obspy.read(infile_path + '/' + day + '*' + suffix)
+        x.merge(fill_value = 'latest', method = 1)
+        x.write(outfile_dir + '/' + day + 'T00_00_00' + suffix)
+    
+def _fix_file_name_digits(fn):
+    fn.replace('{year}', '{year:04d}')
+    fn.replace('{mon}', '{mon:02d}')
+    fn.replace('{day}', '{day:02d}')
+    fn.replace('{hour}', '{hour:02d}')
+    fn.replace('{min}', '{min:02d}')
+    fn.replace('{sec}', '{sec:02d}')
+    fn.replace('{jd}', '{jd:03d}')
+    return fn
 
 
 # function to get unique values from list while preserving order (set-based shortcut doesn't do this)
@@ -148,7 +191,7 @@ def _unique(list1):
         # check if exists in unique_list or not 
         if x not in unique_list: 
             unique_list.append(x) 
-    return unique_list
+    return unique_li<st
 
 ## function to exclude outliers by repeatedly calculating standard dev and tossing points outside N standard devs, until none are left
 ## this matters because occasionally a dataset will start or end with short recordings made elsewhere, which must be excluded from the calculation of station coords
