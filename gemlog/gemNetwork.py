@@ -191,7 +191,7 @@ def _unique(list1):
         # check if exists in unique_list or not 
         if x not in unique_list: 
             unique_list.append(x) 
-    return unique_li<st
+    return unique_list
 
 ## function to exclude outliers by repeatedly calculating standard dev and tossing points outside N standard devs, until none are left
 ## this matters because occasionally a dataset will start or end with short recordings made elsewhere, which must be excluded from the calculation of station coords
