@@ -169,10 +169,12 @@ def merge_files_day(infile_path, infile_pattern = '*', outfile_dir = 'merge_file
     
     ## for each item, read all the files and 
     for day, suffix in zip(days, suffixes):
+        print(day + ' ' + suffix)
         x = obspy.read(infile_path + '/' + day + '*' + suffix)
         x.merge(fill_value = 'latest', method = 1)
-        x.write(outfile_dir + '/' + day + 'T00_00_00' + suffix)
-    
+        x.write(outfile_dir + '/' + day + 'T00_00_00.' + suffix)
+    return
+
 def _fix_file_name_digits(fn):
     fn.replace('{year}', '{year:04d}')
     fn.replace('{mon}', '{mon:02d}')
