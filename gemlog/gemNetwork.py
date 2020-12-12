@@ -151,7 +151,7 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
                            'loc':location, 'chan':'HDF', 'fmt':output_format}
         outfile_pattern = _fix_file_name_digits(outfile_pattern)
         output_file = outfile_pattern.format(**trace_info_dict)
-        st.write(output_file, format = output_format)
+        st.write(output_dir + '/' + output_file, format = output_format)
         print(str(i) + ' of ' + str(len(infiles)) + ': ' + infile + ', ' + output_file)
     return station_info
 
