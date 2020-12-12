@@ -1,5 +1,6 @@
 import numpy as np
 import pytest, shutil, os, obspy
+import gemlog
 import gemlog.gem_network
 
 def setup_module():
