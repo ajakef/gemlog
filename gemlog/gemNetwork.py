@@ -176,13 +176,13 @@ def merge_files_day(infile_path, infile_pattern = '*', outfile_dir = 'merge_file
     return
 
 def _fix_file_name_digits(fn):
-    fn.replace('{year}', '{year:04d}')
-    fn.replace('{mon}', '{mon:02d}')
-    fn.replace('{day}', '{day:02d}')
-    fn.replace('{hour}', '{hour:02d}')
-    fn.replace('{min}', '{min:02d}')
-    fn.replace('{sec}', '{sec:02d}')
-    fn.replace('{jd}', '{jd:03d}')
+    fn = fn.replace('{year}', '{year:04d}')
+    fn = fn.replace('{mon}', '{mon:02d}')
+    fn = fn.replace('{day}', '{day:02d}')
+    fn = fn.replace('{hour}', '{hour:02d}')
+    fn = fn.replace('{min}', '{min:02d}')
+    fn = fn.replace('{sec}', '{sec:02d}')
+    fn = fn.replace('{jd}', '{jd:03d}')
     return fn
 
 
