@@ -9,7 +9,7 @@ def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
-def verify_huddle_test(path, SN_list = [], SN_to_exclude = []):
+def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False):
     """Perform a battery of tests on converted data from a huddle test to ensure that no Gems are
     obviously malfunctioning. 
 
@@ -196,7 +196,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = []):
 
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
-    if len(SN_list) == 1:
+    if (len(SN_list) == 1) or individual_only:
         warnings.append('Test only includes one logger; cannot run comparison tests')
         return {'errors':errors, 'warnings':warnings, 'notes':notes}
 
@@ -237,7 +237,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = []):
             errors.append(failure_message)
         else:
             print(SN + ': Temperatures agree')
-    
     
     ## Group GPS
     #### all loggers' average lat and lon should agree within 1 m
