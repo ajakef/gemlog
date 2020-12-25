@@ -472,7 +472,8 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
 
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
-        return L
+        #return L
+        raise CorruptRawFileNoGPS(str(path) + ': ' + str(nums))
     
     L, timing_info = _assign_times(L)
     
