@@ -223,15 +223,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
     #### at every given time, temperature must agree within 2C for all loggers
     times_to_check = np.arange(start_time, stop_time)
-    average_temperatures = 0
+    #average_temperatures = 0
+    all_temperatures = np.zeros((len(SN_list), len(times_to_check)))
     temperatures = {}
-    for SN in SN_list:
+    for i, SN in enumerate(SN_list):
         temperatures[SN] = scipy.signal.lfilter(np.ones(100)/100, [1],
             scipy.interpolate.interp1d(metadata_dict[SN].t, metadata_dict[SN].temp)(times_to_check))
         # to do: use the median instead
-        average_temperatures += temperatures[SN]/ len(SN_list) 
+        #average_temperatures += temperatures[SN]/ len(SN_list)
+        all_temperatures[i,:] =  temperatures[SN]
+    med_temperatures = np.median(all_temperatures, 0)
     for SN in SN_list:
-        if np.sum(np.abs(temperatures[SN] - average_temperatures) > 2)/len(times_to_check) > 0.1:
+        if np.sum(np.abs(temperatures[SN] - med_temperatures) > 2)/len(times_to_check) > 0.1:
             failure_message = SN + ': disagrees excessively with average temperature'
             print(failure_message)
             errors.append(failure_message)

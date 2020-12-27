@@ -199,6 +199,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             L = read_gem(path = rawpath, nums = nums_block, SN = SN, network = network, station = station, location = location)
         except MissingRawFiles: # if the block has no files, keep searching
             continue
+        except CorruptRawFile: # if the block has no files, keep searching
+            continue
         except: # if there's any other problem, raise it
             raise
     p = L['data']
@@ -280,6 +282,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             try:
                 L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], SN = SN)
             except MissingRawFiles: # this can happen if a block of empty files is encountered
+                continue
+            except CorruptRawFile: # if the block has no files, keep searching
                 continue
             except: # especially for KeyboardInterrupt!
                 raise
@@ -473,8 +477,8 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
         #return L
-        raise CorruptRawFileNoGPS(str(path) + ': ' + str(nums))
-    
+        raise CorruptRawFileNoGPS('No GPS information in data files ' + str(nums) + ' for SN "' + SN + '" in raw directory ' + str(path))
+
     L, timing_info = _assign_times(L)
     
     for tr in L['data']:
@@ -758,7 +762,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             pass
         else: # if we're here, the file read worked. it may be invalid though.
             if (len(output['gps'].lat) == 0) and require_gps:
-                raise CorruptRawFileNoGPS(filename)
+                raise CorruptRawFile(filename)
             return output
 
 
