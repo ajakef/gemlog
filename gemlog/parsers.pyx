@@ -38,14 +38,15 @@ def parse_gemfile(filename):
 
     cdef int n_matched = 0
     # D placeholders
-    cdef int DmsSamp = 0, ADC = 0
+    cdef int ADC = 0
+    cdef double DmsSamp = 0
     # G placeholders
-    cdef int msPPS = 0, msLag = 0, yr = 0, mo = 0, day = 0, hr = 0, mn = 0
-    cdef double sec = 0, lat = 0, lon = 0
+    cdef int yr = 0, mo = 0, day = 0, hr = 0, mn = 0
+    cdef double msPPS = 0, msLag = 0, sec = 0, lat = 0, lon = 0
     # M placeholders
-    cdef int ms = 0, maxLag = 0, minFree = 0, maxUsed = 0, maxOver = 0
+    cdef int maxLag = 0, minFree = 0, maxUsed = 0, maxOver = 0
     cdef int gpsFlag = 0, freeStack1 = 0, freeStackIdle = 0
-    cdef double batt = 0, temp = 0, A2 = 0, A3 = 0
+    cdef double ms = 0, batt = 0, temp = 0, A2 = 0, A3 = 0
 
     # array to store parsed data
     n_row = 780000  # max number of rows to expect: 750000 + 15000 + 15000
@@ -59,8 +60,9 @@ def parse_gemfile(filename):
     cdef char[:] type_view = result_linetypes
     # 1-D array to store millis.
     # range is 0 to 2**13, so choose short int
-    result_millis = np.zeros(n_row, dtype=np.int16)
-    cdef short[:] millis_view = result_millis
+    result_millis = np.zeros(n_row, dtype=np.double)
+    # cdef short[:] millis_view = result_millis
+    cdef double[:] millis_view = result_millis
 
     cdef Py_ssize_t line_number = 0
     # were this python 3.8 we could maybe use the walrus operator.  alas
@@ -74,7 +76,7 @@ def parse_gemfile(filename):
         if line_type == 68:  # ord('D') == 68
             # DmsSamp,ADC
             # D7780,-1
-            n_matched = sscanf(line + 1, "%d,%d", &DmsSamp, &ADC)
+            n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
             view[line_number, 0] = ADC
             millis_view[line_number] = DmsSamp
 
@@ -82,7 +84,7 @@ def parse_gemfile(filename):
             # G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
             # G,8171,70,2020,6,20,5,21,22.0,43.62226,-116.20594
             n_matched = sscanf(line + 2,
-                               "%d,%d,%d,%d,%d,%d,%d,%lf,%lf,%lf",
+                               "%lf,%lf,%d,%d,%d,%d,%d,%lf,%lf,%lf",
                                &msPPS, &msLag, &yr, &mo, &day, &hr, &mn,
                                &sec, &lat, &lon)
             view[line_number, 0] = msLag
@@ -101,7 +103,7 @@ def parse_gemfile(filename):
             # gpsFlag,freeStack1,freeStackIdle
             # M,8001,3.02,22.1,1.412,2.052,94,66,9,0,0,57,86
             n_matched = sscanf(line + 2,
-                               "%d,%lf,%lf,%lf,%lf,%d,%d,%d,%d,%d,%d,%d",
+                               "%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%d,%d,%d,%d",
                                &ms, &batt, &temp, &A2, &A3, &maxLag,
                                &minFree, &maxUsed, &maxOver, &gpsFlag,
                                &freeStack1, &freeStackIdle)

@@ -465,10 +465,8 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             fnList = fnList[1:] # 
         else:
             break
-    if version == '0.9':
-        L = _read_several(fnList)
-    elif version == '0.85C':
-        L = _read_several(fnList) # same function works for both
+    if version in ['0.85C', '0.9', '0.91']:
+        L = _read_several(fnList)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
         L = _read_several(fnList, version = version) # same function works for both
     else:
@@ -528,6 +526,7 @@ def _read_SN(fn):
 
 def _read_format_version(fn):
     #"""
+    #0.91: like 0.9, but millisecond counts for GPS lines are floats
     #0.9: like 0.85C, but includes C line (possible that C line appeared in some earlier 0.85C files)
     #0.85C: data format is more compact than 0.85; otherwise like 0.85
     #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
@@ -961,7 +960,7 @@ def _read_several(fnList, version = 0.9):
         try:
             #if str(version) in ['0.9', '0.85C', '0.85', '0.8']: # this should work--instead of the following if block--but it doesn't. why not?
             #    L = _read_single(fn, startMillis, version = version)
-            if str(version) in ['0.9', '0.85C']:
+            if str(version) in ['0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis)
             elif str(version) in ['0.8', '0.85']:
                 L = _read_single(fn, startMillis, version = version)
