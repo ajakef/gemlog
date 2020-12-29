@@ -84,6 +84,12 @@ def reference_output(inputs):
     fn, offset = inputs
     return _slow__read_single_v0_9(fn, offset)
 
+## test a good format 0.91 file to make sure it at least doesn't crash
+@pytest.mark.parametrize('reader_function', [_read_with_cython, _read_with_pandas, _slow__read_single_v0_9])
+def test_good_data_no_crash_0_91(reader_function):
+    # serves as an implicit check that the reference reader doesn't error, but
+    # would still be good to test its return values for correctness
+    return reader_function('../data/v0.91/FILE0040.059', 5787)
 
 def assert_gem_results_equal(L0, L1, eps=1e-12):
     assert np.abs(L1['data'] - L0['data']).max() < eps
