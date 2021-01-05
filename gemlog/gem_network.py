@@ -23,7 +23,7 @@ def make_gem_inventory(station_info, coords, response = 'default'):
         station, location, and channel)
     
     coords : pandas.DataFrame
-        output of summarize_gps()
+        output of summarize_gps(), with 'elevation' column added
 
     response: str
         instrument response information (currently only 'default' is supported)
@@ -40,8 +40,8 @@ def make_gem_inventory(station_info, coords, response = 'default'):
         raise Exception('invalid coords; must be pandas.DataFrame')
     elif ('SN' not in coords.keys()) and any([key not in coords.keys() for key in ['network', 'station', 'location']]):
         raise Exception("invalid coords; must contain key 'SN', or keys 'network', 'station', 'location'")
-    elif any([key not in coords.keys() for key in ['lat', 'lon']]):
-        raise Exception("invalid coords; must contain keys 'lat', 'lon'")
+    elif any([key not in coords.keys() for key in ['lat', 'lon', 'elevation']]):
+        raise Exception("invalid coords; must contain keys 'lat', 'lon', 'elevation'")
     
     ## create the inventory and loop through all the networks, stations, and locations in it
     inventory = obspy.Inventory()
@@ -70,6 +70,7 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                 ## We need to extract the coordinate and times for this location.
                 lat = line['lat'].iloc[0]
                 lon = line['lon'].iloc[0]
+                elevation = line['elevation'].iloc[0]
                 ## Check to see if the coords include start/end times. If so, pad
                 ## them 1 hour to be safe. If not, assume the station is eternal.
                 if all([key in coords.keys() for key in ['starttime', 'endtime']]):
@@ -80,14 +81,18 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                     t2 = obspy.UTCDateTime('9999-12-31T23:59:59')
                 ## Assume it's a gem v1.0--safe for now
                 equipment = obspy.core.inventory.util.Equipment(serial_number = SN, model = 'Gem Infrasound Logger v1.0', description = 'Gem 1.0 (Infrasound), 0.039-27.1 Hz, 0.0035012 Pa/count')
-                channel = obspy.core.inventory.Channel('HDF', location_code = location_name, latitude = lat, longitude = lon, elevation = 0, depth = 0, response = response, equipments = equipment, start_date = t1, end_date = t2, sample_rate = 100, clock_drift_in_seconds_per_sample = 0, types = ['GEOPHYSICAL'], sensor = equipment)
+                channel = obspy.core.inventory.Channel('HDF', location_code = location_name, latitude = lat, longitude = lon, elevation = elevation, depth = 0, response = response, equipments = equipment, start_date = t1, end_date = t2, sample_rate = 100, clock_drift_in_seconds_per_sample = 0, types = ['GEOPHYSICAL'], sensor = equipment, azimuth = 0, dip = 0)
                 station.channels.append(channel)
             ## calculate the current station's coordinate as the mean of its locations,
             ## then append it to the network
             station.latitude = np.mean([channel.latitude for channel in station.channels])
             station.longitude = np.mean([channel.longitude for channel in station.channels])
+            station.start_date = np.min([channel.start_date for channel in station.channels])
+            station.end_date = np.max([channel.end_date for channel in station.channels])
             network.stations.append(station)
         ## append the current network to the inventory
+        network.start_date = np.min([station.start_date for station in network.stations])
+        network.end_date = np.max([station.end_date for station in network.stations])
         inventory.networks.append(network)
     return inventory
     
@@ -230,7 +235,7 @@ def read_gps(gps_dir_pattern, SN):
     return gpsTable
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
-def summarize_gps(gps_dir_pattern, output_file = '', station_info = None):
+def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
     """
     Read up-to-date GPS data from all Gems in a project, calculate their locations using a robust
     trimmed-mean method.
@@ -240,12 +245,12 @@ def summarize_gps(gps_dir_pattern, output_file = '', station_info = None):
     gps_dir_pattern : str
         Path to folder or glob-style pattern describing folders containing GPS data to review.
 
-    output_file : str
-        Path to file where output should be written (optional)
-
     station_info : str
         Path to text file containing table assigning serial numbers to network, station, and 
         location codes.
+
+    output_file : str
+        Path to file where output should be written (optional)
 
     Returns
     -------

@@ -35,6 +35,10 @@ def test_demo():
 	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
 			    '0 - 128000 counts/V']) # may cause warning--ok to ignore
 
+    ## manually add elevation to 'coords'. raise an issue on github if you know an
+    ## easy-to-install, cross-platform way to automate this!
+    coords['elevation'] = [1983, 1983, 1988, 1983, 1986, 1987] # from google earth
+    
     ## create an inventory of all sensors used in this project--may cause warnings
     inv = gemlog.make_gem_inventory('../demo/demo/station_info.txt', coords, response)
     inv.write('NM_inventory.xml', format='STATIONXML')

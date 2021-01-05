@@ -63,7 +63,7 @@ $ cat station_info.txt
 Begin by activating your conda environment as before: `conda activate gem` and open python within your project directory. Run the following code:
 ```
 import gemlog
-coords = gemlog.summarize_gps('gps', output_file = 'project_coords.csv', station_info = 'station_info.txt')
+coords = gemlog.summarize_gps('gps', station_info = 'station_info.txt', output_file = 'project_coords.csv')
 gemlog.rename_files('mseed/*', station_info = 'station_info.txt', output_dir = 'renamed_mseed')
 ```
 
@@ -79,11 +79,11 @@ The first command creates a new csv file containing the following columns:
 * network: Network code
 * station: Station code
 * location: Location code
-It saves the same information to variable `coords` as a pandas DataFrame. If the stationFile input (which assigns network, station, and location codes to each serial number) is not provided, the last three columns will be omitted.
+It saves the same information to variable `coords` as a pandas DataFrame. If the stationFile input (which assigns network, station, and location codes to each serial number) is not provided, the last three columns will be omitted. Note that although standard errors of latitude and longitude are reported, they are not totally valid measures of the location uncertainty due to likely correlated errors in the GPS points. Accuracy might be insufficient for beamforming with small arrays; consider a different means of surveying in such cases.
 
 The second command reads each miniSEED file from the `mseed/` folder, assigns the corresponding network, station, and location codes, and writes it to the new folder `renamed mseed/`.
 
-You can now create a basic station map using the following code. Note that the GPS coordinate averages may not be accurate enough for array processing if only a short period of data is used (less than a day or two).
+You can now create a basic station map using the following code. 
 ```
 import matplotlib.pyplot as plt
 plt.plot(coords.lon, coords.lat, 'k.') # plot the lon and lat as black dots
@@ -99,6 +99,10 @@ nrl = NRL()
 response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
 	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
 			    '0 - 128000 counts/V']) # may cause warning--ok to ignore
+
+## manually add elevation to 'coords'. raise an issue on github if you know an
+## easy-to-install, cross-platform way to automate this!
+coords['elevation'] = [1983, 1983, 1988, 1983, 1986, 1987] # from google earth
 
 ## create an inventory of all sensors used in this project--may cause warnings
 inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
