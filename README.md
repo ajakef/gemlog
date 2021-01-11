@@ -1,7 +1,5 @@
-# Installation
-See the [installation guide](https://github.com/ajakef/gemlog/tree/main/Installation.md).
-
 # Getting started
+* Installation: follow the directions [here](https://github.com/ajakef/gemlog/tree/main/Installation.md).
 * Most users will only need the `gemconvert` tool for converting data to standard formats. `gemconvert` is run from the terminal. This call will give you the syntax and options.
 ```
 gemconvert -h # print the help page
