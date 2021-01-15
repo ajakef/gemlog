@@ -28,7 +28,7 @@ git clone https://github.com/ajakef/gemlog/
 pip install --upgrade ./gemlog
 ```
 
-If you are new to git, checkout the [git cheat sheet](https://github.com/ajakef/gemlog/git_instructions.md).
+If you are new to git, checkout the [git cheat sheet](https://github.com/ajakef/gemlog/tree/main/git_instructions.md).
 
 ## Supported Python versions:
 Minimum 3.6. Python 2.7 (obsolete) is not supported and will not be supported in the future.
