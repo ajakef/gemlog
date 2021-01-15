@@ -21,6 +21,7 @@ User contributions are welcome! If you want to improve performance or address ou
 
 ##### Workflow requirements for contributing:
 * Follow the installation instructions for developers in the link above.
+* If you are new to `git`, check out the [git cheat sheet](https://github.com/ajakef/gemlog/tree/main/git_instructions.md).
 * Contributing code via github pull request is *required* unless, for a good reason, you have a complete and significant contribution and you are totally unable to share using github. Code contributed via other channels (e.g., email) is less transparent and more burdensome on maintainers.
 * Begin your contribution by raising an issue to get quick feedback from maintainers and users.
 * Be sure you are editing the most current gemlog version! 
