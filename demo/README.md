@@ -1,7 +1,7 @@
 # Gem Data Pre-Processing Workflow
 
 ### Installing the gemlog software
-Follow the gemlog installation procedure [here](https://github.com/ajakef/gemlog/blob/main/README.md).
+Follow the gemlog [installation procedure](https://github.com/ajakef/gemlog/blob/main/Installation.md).
 
 ### Getting Started
 First, download the zip file in the list of files above; this contains the inputs for this demonstration. Move the file to some convenient folder, unzip it, and cd into the project folder.
