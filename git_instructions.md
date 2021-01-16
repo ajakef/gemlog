@@ -4,16 +4,26 @@ All git commands must be run after navigating to the repository folder. The only
 # Overview of gemlog editing workflow
 Unless you're a registered collaborator on gemlog, you need to log in to github, fork the gemlog repository, push your work to your fork, and then send a pull request to the primary github repository.
 
-If you are a registored collaborator on gemlog, you don't need to fork it, and you can push straight to the primary github repo.
+If you are a registered collaborator on gemlog, you don't need to fork it, and you can push straight to the primary github repo.
 
 Either way, your code should be on a named branch--please don't push code to 'main'.
 
-# Basic Routine Tasks
-
-### Download updates to a repository you already have
+# Absolute Basic Route Tasks
+### Update a repository you already have
 ```
 git pull
 ```
+### Commit your changes to the current branch (creates a "save point")
+```
+git commit -a -m 'write a description of the commit changes here in quotes'
+```
+
+### Push your changes on the 'bug_fix' branch to your own gemlog fork
+```
+git push origin bug_fix
+```
+
+# Next Level Basic Routine Tasks
 
 ### See what branches already exist
 ```
@@ -25,19 +35,21 @@ git branch -v
 git checkout bug_fix
 ```
 
-### Create a new branch (in this case, named 'parallelize')
+### Create a new branch (in this case, named 'bug_fix')
 ```
-git branch parallelize
-```
-
-### Commit your changes to the current branch (creates a "save point")
-```
-git commit -a -m 'write a description of the commit changes here in quotes'
+git checkout -b bug_fix
 ```
 
-### Push your changes on the 'parallelize' branch to your own gemlog fork
+### Move your uncommitted work to existing branch bug_fix
 ```
-git push origin parallelize
+git stash
+git checkout bug_fix
+git stash apply
+```
+
+### Start tracking a new file 'new_file.py' (must be done before committing)
+```
+git add new_file.py
 ```
 
 # Basic One-Time Tasks
@@ -47,14 +59,19 @@ git push origin parallelize
 git clone https://github.com/ajakef/gemlog/
 ```
 
-### Set the "upstream" remote:
+### See what remotes are already set up
+```
+git remote -v
+```
+
+### Set the new "upstream" remote:
 This is where you download updates from. 
 
 ```
 git remote add upstream https://github.com/ajakef/gemlog
 ```
 
-### Set the "origin" remote:
+### Change the existing "origin" remote:
 This is where you upload your work to. If you're registered as a collaborator, you can push code directly to the primary repository (ajakef/gemlog). Otherwise, you can push code to your own gemlog fork on your own github site; in that case, just replace 'ajakef' below with your own github username.
 
 ```
@@ -62,6 +79,16 @@ git remote set_url origin https://github.com/ajakef/gemlog
 ```
 
 # Occasional Intermediate Tasks
+### Check how current the repository is
+```
+git status
+```
+
+### See all uncommitted changes
+```
+git diff
+```
+
 ### Reverting all uncommitted changes
 Careful with this--there's no undoing it. This command must be run from the root folder of the repository.
 
@@ -100,10 +127,10 @@ git checkout cee5b2e1dd5890cc2240f4e595e0415be0f3ad4a
 ```
 
 ### Return to what you were working on before checking out an old commit
-This assumes you were working on branch 'parallelize'.
+This assumes you were working on branch 'bug_fix'.
 
 ```
-git checkout parallelize
+git checkout bug_fix
 ```
 
 ### Amend the last commit
