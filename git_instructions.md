@@ -2,7 +2,12 @@
 All git commands must be run after navigating to the repository folder. The only exception is `git clone`, which creates the repository folder.
 
 ### Overview of gemlog editing workflow
-Unless you're a registered collaborator on gemlog, you need to log in to github, fork the gemlog repository, push your work to your fork, and then send a pull request to the primary github repository.
+Unless you're a registered collaborator on gemlog, you need to log in to github and fork the gemlog repository before proceeding. Then, do the following steps:
+* Run `git clone` to download the repository and set up the remotes if working with it for the first time, or run `git pull` to update it on your computer if you've worked on it before.
+* Create a new branch using `git checkout -b`
+* Edit the code. Run `git commit` every time you reach a stopping point.
+* After committing the last edits, run `git push` to write the changes to github
+* Create a pull request to have your changes merged into the primary repository.
 
 If you are a registered collaborator on gemlog, you don't need to fork it, and you can push straight to the primary github repo.
 
