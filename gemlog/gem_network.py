@@ -87,6 +87,7 @@ def make_gem_inventory(station_info, coords, response = 'default'):
             ## then append it to the network
             station.latitude = np.mean([channel.latitude for channel in station.channels])
             station.longitude = np.mean([channel.longitude for channel in station.channels])
+            station.elevation = np.mean([channel.elevation for channel in station.channels])
             station.start_date = np.min([channel.start_date for channel in station.channels])
             station.end_date = np.max([channel.end_date for channel in station.channels])
             network.stations.append(station)
