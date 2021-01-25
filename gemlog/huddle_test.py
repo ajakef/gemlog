@@ -73,31 +73,36 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     metadata_dict = {}
     gps_dict = {}
     ## Individual Metadata:
+    batt_errors = []
+    temp_errors = []
+    
+    error_dict = {"battery" : batt_errors,"temperature" : temp_errors}
     for SN in SN_list:
         print('Checking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
         metadata_dict[SN] = metadata
 
         #### battery voltage must be in reasonable range (1.7 to 15 V)
+        failure_type = "battery"
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
             failure_message = SN + ': Impossible Battery Voltage'
-            print('Error: ' + failure_message)
+            batt_errors.append(max(metadata.batt))
             errors.append(failure_message)
-        else:
-            print(SN + ': Sufficient Battery Voltage')
-
+            print(f"{failure_type.upper()} ERROR: {failure_type} voltage of {max(metadata.batt)}.")
+    
         #### temperature must be in reasonable range (-20 to 60 C)
+        failure_type = "temperature"
         if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius 'Impossible Temperature'
-            failure_message = SN + ': Impossible Temperature'
-            print(failure_message)
+            failure_message = SN + ': Impossible Temperature of ' + metadata.temp +'C'
+            temp_errors.append(max(metadata.temp))
             errors.append(failure_message)
-        else:
-            print('Sufficient Temperature Range')
-
-        if False:
+            print(f"{failure_type.upper()} ERROR: {failure_type} of {max(metadata.temp)} Celcius.")
+    
+#%%        if False:
             #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
             ##A2
             #re-evaluate threshold percentage
+            #Add increased information in error messages
             if (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) > 0.01: 
                 failure_message = SN + ': A2 dV/dt error'
                 print(failure_message)
@@ -126,22 +131,39 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
                 print('A3 okay')
             
         #### minFifoFree and maxFifoUsed should always add to 75
-
-        if any((metadata.minFifoFree + metadata.maxFifoUsed) != 75):
-           failure_message = SN + ': Impossible FIFO sum'
+        fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
+        #failure_type = "FIFO sum"
+        if any((fifo_sum) != 75):
+           failure_message = SN + ': Impossible FIFO sum of' + fifo_sum
+            #fifo_errors = []
+            #fifo_errors.append(fifo_sum)
+            #if len(fifo_errors) = 1:
+                #print(f"ERROR - {failure_type.upper()}: One error exceeds range by {fifo_errors - 75}.")
+            #else:
+                #print(f"ERROR - {failure_type.upper()}: There were {len(fifo_errors)} errors with a minimum  of \
+                  #{min(fifo_errors)} and a maximum of {max(fifo_errors)}.")
            print(failure_message)
            errors.append(failure_message)
         else:
             print('FIFO sum is correct')
+            #print(f"{failure_type.upper()}: There were no {failure_type} errors.")
         
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
+        #maxFifoUsedEq = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
+        #failure_type = "max fifo used"
         if np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 ) > 0.01:
             failure_message = SN + ': FIFO use is generally excessive'
-            print(failure_message)
+            #maxFifo_warnings= []
+            #maxFifo_warnings.append(SN + ": Excessive FIFO usage of " + maxFifoUsedEq*100)
+            #print(f"WARNING {failure_type.upper()}: {SN} is {(maxFifoUsedEq - 0.01)*100} percent outside the \
+                #acceptable range")
+             print(failure_message)
             warnings.append(failure_message)
         else:
             print('maxFifo within acceptable range')
+            #print(f"{failure_type.upper()}: maxFifo within acceptable range.")
         if any(metadata.maxFifoUsed > 25):
+            
             failure_message = SN + ': FIFO use exceeds safe value'
             print(failure_message)
             warnings.append(failure_message)
