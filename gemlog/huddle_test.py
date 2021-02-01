@@ -69,12 +69,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
     SN_list = [SN for SN in SN_list if SN not in SN_to_exclude]
     print('Identified serial numbers ' + str(SN_list))
-
-    metadata_dict = {}
-    gps_dict = {}
-    
+   
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
-    
     
     ## Individual Metadata:    
     # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
@@ -85,20 +81,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         failure_type = "battery"
-        batt_errors = []
+        #batt_errors = []
         if any(metadata.batt > 15) or any(metadata.batt < 1.7):
             failure_message = SN + ': Impossible Battery Voltage'
-            batt_errors.append(max(metadata.batt))
+            #batt_errors.append(max(metadata.batt))
             errors_df.loc[SN, failure_type] = max(metadata.batt)
             errors.append(failure_message)
             print(f"{failure_type.upper()} ERROR: {failure_type} voltage of {max(metadata.batt)}.")
 
         #### temperature must be in reasonable range (-20 to 60 C)
         failure_type = "temperature"
-        temp_errors = []
+        #temp_errors = []
         if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius 'Impossible Temperature'
             failure_message = SN + ': Impossible Temperature of ' + metadata.temp +'C'
-            temp_errors.append(max(metadata.temp))
+            #temp_errors.append(max(metadata.temp))
+            errors_df.loc[SN, failure_type] = max(metadata.temp)
             errors.append(failure_message)
             print(f"{failure_type.upper()} ERROR: {failure_type} of {max(metadata.temp)} Celcius.")
             
@@ -107,89 +104,83 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             ##A2
             #re-evaluate threshold percentage
             #Add increased information in error messages
-            failure_type = "A2 dV/dt"
+            failure_type = "A2"
             A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
             if A2_check > 0.01: 
                 failure_message = SN + ': A2 dV/dt error'
                 errors.append(failure_message)
-                print(f"{failure_type} ERROR: {failure_type} constant ratio of {A2_check} .")
+                erros_df.loc[SN, failure_type + "dV/dt"] = A2_check
+                print(f"{failure_type.upper()} ERROR: {failure_type} dV/dt constant ratio of {A2_check} .")
             if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
                 failure_message = SN + ': Bad A2'
-                print(failure_message)
+                erros_df.loc[SN, failure_type + "error"] = 1 #yes error exists (true)
                 errors.append(failure_message) 
+                print(f"{failure_type.upper()} ERROR: {failure_type} malfunction")
             else:
-                print('A2 okay')
+                errors_df.loc[SN, failure_type + "error"] = 0 #no error present(false)
             
             ##A3
-            if (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 )) > 0.01: 
+            failure_type = "A3"
+            A3_check = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
+            if A3_check > 0.01: 
                 failure_message = SN + ': A3 dV/dt error'
-                print(failure_message)
+                errors_df.loc[SN, failure_type + "dV/dt"]
                 errors.append(failure_message)
-            else:
-                print('dV/dt okay')
+                print(f"{failure_type.upper()} ERROR: {failure_type} dV/dt constant ratio of {A2_check} .")
             if not (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1)):
                 failure_message = SN + ': Bad A3'
-                print(failure_message)
+                errors_df.loc[SN, failure_type + "error"]
                 errors.append(failure_message) 
-            else:
-                print('A3 okay')
+                print(f"{failure_type.upper()} ERROR: {failure_type} malfunction.")
             
         #### minFifoFree and maxFifoUsed should always add to 75
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
         failure_type = "FIFO sum"
-        fifosum_error = []
         if any((fifo_sum) != 75):
            failure_message = SN + ': Impossible FIFO sum of' + fifo_sum
-           fifo_errors.append(failure_message)
-           print(f"ERROR - {failure_type.upper()}: One error exceeds range by {fifo_errors - 75}.")
+           errors_df.loc[SN, failure_type] = max(fifo_sum)
            errors.append(failure_message)
+           print(f"{failure_type.upper()} ERROR - {failure_type.upper()}: One error exceeds range by {fifo_errors - 75}.")
+           
         
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
         #maxFifoUsedEq = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
-        #failure_type = "max fifo used"
-        if np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 ) > 0.01:
+        failure_type = "max fifo used"
+        max_fifo_check = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
+        if max_fifo_check > 0.01:
             failure_message = SN + ': FIFO use is generally excessive'
-            #maxFifo_warnings= []
-            #maxFifo_warnings.append(SN + ": Excessive FIFO usage of " + maxFifoUsedEq*100)
-            #print(f"WARNING {failure_type.upper()}: {SN} is {(maxFifoUsedEq - 0.01)*100} percent outside the \
-                #acceptable range")
-             print(failure_message)
+            warnings.append(SN + ": Excessive FIFO usage of " + max(max_fifo_check*100)
+            print(f"{failure_type.upper()} WARNING: {SN} is {(maxFifoUsedEq - 0.01)*100} percent outside the acceptable range")
             warnings.append(failure_message)
-        else:
-            print('maxFifo within acceptable range')
-            #print(f"{failure_type.upper()}: maxFifo within acceptable range.")
-        if any(metadata.maxFifoUsed > 25):
             
+        if any(metadata.maxFifoUsed > 25):
             failure_message = SN + ': FIFO use exceeds safe value'
-            print(failure_message)
             warnings.append(failure_message)
-        else:
-            print('FIFO values okay')
+            print(f"{failure_type.upper()} WARNING: {SN} fifo used exceeds 25")
+
             
         #### maxOverruns should always be zero 
+        failure_type ="max overrun"
         if any(metadata.maxOverruns) !=0:
             failure_message = SN + ': Too many overruns!'
-            print(failure_message)
+            errors_df.loc[SN, failure_type] = max(metadata.maxOverruns)
             errors.append(failure_message)
-        else:
-            print('Sufficient overruns')    
+            print(f"{failure_type.upper()} ERROR: {failure_type} exceeds maximum of 0")
         
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
+        failure_type = "unused stack"
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             failure_message = SN + ': Inadequate unused Stack'
-            print(failure_message)
             warnings.append(failure_message)
-        else:
-            print('Sufficient Stack')
-
+            print(f"{failure_type.upper()} WARNING: Exceeds maximum of 30")
 
         #### find time differences among samples with gps off that are > 180 sec
-        if any(np.diff(metadata.t[metadata.gpsOnFlag == 0]) > 180): 
+        time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])
+        failure_type = " gps run time"
+        if any(time_check > 180): 
             failure_message = SN + ': GPS ran for too long'
-            print(failure_message)
             warnings.append(failure_message)
-        else:
-            print('GPS runtime ok')
+            print(f"{failure_type.upper()} WARNING: GPS exceeds 180 second maximum runtime")
         
         ## individual GPS:
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
@@ -212,6 +203,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
 
+    print("Serial number tests complete.")
+    #[IDEA]: Would you like to see statistics of the results? Y/N:
+ #%%  
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
     if (len(SN_list) == 1) or individual_only:
@@ -223,6 +217,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #### all loggers' first and last times should agree within 20 minutes
     start_time = metadata_dict[SN_list[0]].t.min()
     stop_time = metadata_dict[SN_list[0]].t.max()
+    failure_type = "time sync"
     for SN in SN_list[1:]:
         if np.abs(metadata_dict[SN].t.min() - start_time) > (20*60):
             failure_message = SN + ': metadata start times disagree excessively'
