@@ -70,6 +70,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     SN_list = [SN for SN in SN_list if SN not in SN_to_exclude]
     print('Identified serial numbers ' + str(SN_list))
    
+    pstats_df = pd.DataFrame(index = SN_list) #create dataframe for parameter statistics
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
     gps_dict = {}
     
@@ -78,30 +79,63 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
-
+        a = " min"
+        b = " max"
+        c = " average"
+        
         #### battery voltage must be in reasonable range (1.7 to 15 V)
-        failure_type = "battery"
-        errors_df.loc[SN, failure_type] = np.NaN
-        #batt_errors = []
-        if any(metadata.batt > 15) or any(metadata.batt < 1.7):
-            failure_message = SN + ': Impossible Battery Voltage'
-            #batt_errors.append(max(metadata.batt))
-            errors_df.loc[SN, failure_type] = max(metadata.batt)
-            errors.append(failure_message)
-            print(f"{failure_type.upper()} ERROR: {failure_type} voltage of {max(metadata.batt)}.")
-
-        #### temperature must be in reasonable range (-20 to 60 C)
-        failure_type = "temperature"
-        errors_df.loc[SN, failure_type] = np.NaN
-        #temp_errors = []
-        if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius 'Impossible Temperature'
-            failure_message = SN + ': Impossible Temperature of ' + metadata.temp +'C'
-            #temp_errors.append(max(metadata.temp))
-            errors_df.loc[SN, failure_type] = max(metadata.temp)
-            errors.append(failure_message)
-            print(f"{failure_type.upper()} ERROR: {failure_type} of {max(metadata.temp)} Celcius.")
+        parameter_type = "battery"
+        pstats_df.loc[SN, parameter_type + a] = min(metadata.batt)
+        pstats_df.loc[SN, parameter_type + b] = max(metadata.batt)
+        
+        #battery voltage minimum tests
+        if pstats_df.loc[SN, parameter_type + a] < 1.7:
+            errors_df.loc[SN, parameter_type + a] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + a] < 3.0:
+            errors_df.loc[SN, parameter_type + a] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + a] = "PAR"
             
-           
+        #battery voltage maximum tests    
+        if pstats_df.loc[SN, parameter_type + b] > 15:
+            errors_df.loc[SN, parameter_type + b] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + b] > 14.95:
+            errors_df.loc[SN, parameter_type + b] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + b] = "PAR"  
+            
+        ####temperature must be within reasonable range (-20 t0 60 C)    
+        parameter_type = "temperature"
+        pstats_df.loc[SN, parameter_type + a] = min(metadata.temp)
+        pstats_df.loc[SN, parameter_type + b] = max(metadata.temp)
+        pstats_df.loc[SN, parameter_type + c] = np.mean(metadata.temp)
+        
+        #temperature minimum check
+        if pstats_df.loc[SN, parameter_type + a] < -20: #degrees Celcius
+            errors_df.loc[SN, parameter_type + a] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + a] < -15: #modify as needed, just a backbone structure for now.
+            errors_df.loc[SN, parameter_type + a] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + a] = "PAR" 
+        #temperature maximum check
+        if pstats_df.loc[SN, parameter_type + b] > 60: #degrees Celcius
+            errors_df.loc[SN, parameter_type + b] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + b] > 50: #modify as needed, just a backbone structure for now.
+            errors_df.loc[SN, parameter_type + b] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + b] = "PAR" 
+            
+    #return pstats_df
+    return errors_df           
+ #%%          
        #if False:
             #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
             ##A2
