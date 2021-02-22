@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import scipy.signal
 import os, glob, obspy, gemlog
+import matplotlib.pyplot as plt
 from gemlog.gemlog_aux import check_lags
 
 
@@ -134,7 +135,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors_df.loc[SN, parameter_type + b] = "PAR" 
             
     #return pstats_df
-    return errors_df           
+    #return errors_df
+             
+
+    p_plot = pstats_df.plot();
+    
+    #count number of errors and warning for each SN
+    #display as stacked barchart showing number of error, warning and par
+    
+    #which error has the highest number of occurences?
+    
+    #group graphs by error type and also plot threshold levels
+    
+    
  #%%          
        #if False:
             #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
