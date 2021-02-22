@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy.signal
+import matplotlib.pyplot as plt
 import os, glob, obspy, gemlog
 from gemlog.gemlog_aux import check_lags
 
@@ -133,8 +134,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN, parameter_type + b] = "PAR" 
             
-    #return pstats_df
-    return errors_df           
+    pstats_df.plot()            
+    return [pstats_df, errors_df]  
+         
  #%%          
        #if False:
             #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
