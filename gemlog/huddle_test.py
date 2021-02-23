@@ -3,6 +3,7 @@ import numpy as np
 import scipy.signal
 import os, glob, obspy, gemlog
 import matplotlib.pyplot as plt
+import datetime
 from gemlog.gemlog_aux import check_lags
 
 
@@ -76,7 +77,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     gps_dict = {}
     
     ## Individual Metadata:    
-    # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
+    
+    ##Create battery and temperature time series graphs for all SN
+    batt_temp_fig = plt.figure(0)
+    batt_temp_ax = batt_temp_fig.subplots(2)
+    batt_temp_ax[0].set_title("Battery Voltage")
+    batt_temp_ax[0].set_ylabel("voltage (V)")
+    batt_temp_ax[0].set_xlabel("seconds")
+    batt_temp_ax[1].set_title("Temperature")
+    batt_temp_ax[1].set_ylabel("temperature (C)")
+    batt_temp_ax[1].set_xlabel("seconds")
+    batt_temp_fig.tight_layout()
+    #format x axis from POXIS to datetime
+    
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
@@ -88,7 +101,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         parameter_type = "battery"
         pstats_df.loc[SN, parameter_type + a] = min(metadata.batt)
         pstats_df.loc[SN, parameter_type + b] = max(metadata.batt)
-        
         #battery voltage minimum tests
         if pstats_df.loc[SN, parameter_type + a] < 1.7:
             errors_df.loc[SN, parameter_type + a] = "ERROR"
@@ -108,7 +120,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
         else:
             errors_df.loc[SN, parameter_type + b] = "PAR"  
-            
+        batt_temp_ax[0].plot(metadata.t, metadata.batt)    
         ####temperature must be within reasonable range (-20 t0 60 C)    
         parameter_type = "temperature"
         pstats_df.loc[SN, parameter_type + a] = min(metadata.temp)
@@ -133,8 +145,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
         else:
             errors_df.loc[SN, parameter_type + b] = "PAR" 
-            
-    #return pstats_df
+        batt_temp_ax[1].plot(metadata.t, metadata.temp)
+    batt_temp_fig.show()
+    return pstats_df
     #return errors_df
              
 
@@ -146,7 +159,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #which error has the highest number of occurences?
     
     #group graphs by error type and also plot threshold levels
+    #hopefully not worth plotting individual errors
     
+    # time plot for battery voltage of all SN
+    # two subplot: temp and batt
+    # p1_plot = plt.figure(1)
+    # axs = plt.subplots(2)
+
     
  #%%          
        #if False:
