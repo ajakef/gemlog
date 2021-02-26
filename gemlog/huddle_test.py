@@ -80,10 +80,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
+        #Parameter descriptors
         a = " min"
         b = " max"
         c = " average"
-        
+        d = " dV/dt"
+        e = " within range"
+        f = " sum"
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         parameter_type = "battery"
         pstats_df.loc[SN, parameter_type + a] = min(metadata.batt)
@@ -133,102 +136,117 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
         else:
             errors_df.loc[SN, parameter_type + b] = "PAR" 
+                     
+      
+        #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
+        ##A2
+        #re-evaluate threshold percentage
+        #Add increased information in error messages
+        parameter_type = "A2"
+        A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
+        pstats_df.loc[SN, parameter_type + d] = A2_check
+        within_A2_range = (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1))
+        
+        #Check that A2 dV/dt is greater than 0 more than <1% of time
+        if pstats_df.loc[SN, parameter_type + d] > 0.01: 
+            errors_df.loc[SN, parameter_type + d] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} dV/dt constant ratio below minimum threshold.")
+        elif pstats_df.loc[SN, parameter_type + d] > 0.05: #placeholder of 5%
+            errors_df.loc[SN, parameter_type + d] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} dV/dt constant ratio of approaching minimum threshold.")
+        else:
+            errors_df.loc[SN, parameter_type + d] = "PAR"
             
-    pstats_df.plot()            
-    return [pstats_df, errors_df]  
-         
- #%%          
-       #if False:
-            #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
-            ##A2
-            #re-evaluate threshold percentage
-            #Add increased information in error messages
-            failure_type = "A2"
-            errors_df.loc[SN, failure_type] = np.NaN
-            A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
-            if A2_check > 0.01: 
-                failure_message = SN + ': A2 dV/dt error'
-                errors.append(failure_message)
-                errors_df.loc[SN, failure_type + "dV/dt"] = A2_check
-                print(f"{failure_type.upper()} ERROR: {failure_type} dV/dt constant ratio of {A2_check} .")
-            if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
-                failure_message = SN + ': Bad A2'
-                errors_df.loc[SN, failure_type + "error"] = 1 #yes error exists (true)
-                errors.append(failure_message) 
-                print(f"{failure_type.upper()} ERROR: {failure_type} malfunction")
-            else:
-                errors_df.loc[SN, failure_type + "error"] = 0 #no error present(false)
+       #Check A2 is within range     
+        if not within_A2_range:
+            pstats_df.loc[SN, parameter_type + e] = 0 #outside of range (false)
+            errors_df.loc[SN, parameter_type + e] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} value outside allowable range.")
+        else:
+            pstats_df.loc[SN, parameter_type + e] = 1 #within range(true)
+            errors_df.loc[SN, parameter_type + e] = "PAR" 
+        
+        ##A3
+        parameter_type = "A3"
+        A3_check = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
+        pstats_df.loc[SN, parameter_type + d] = A3_check
+        within_A3_range = (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1))
+        
+        #Check that A3 dV/dt is greater than 0 more than <1% of time
+        if pstats_df.loc[SN, parameter_type + d] > 0.01: 
+            errors_df.loc[SN, parameter_type + d] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} dV/dt constant ratio below minimum threshold.")
+        elif pstats_df.loc[SN, parameter_type + d] > 0.05: #placeholder of 5%
+            errors_df.loc[SN, parameter_type + d] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} dV/dt constant ratio of approaching minimum threshold.")
+        else:
+            errors_df.loc[SN, parameter_type + d] = "PAR"
             
-            ##A3
-            failure_type = "A3"
-            errors_df.loc[SN, failure_type + "dV/dt"] = np.NaN
-            errors_df.loc[SN, failure_type + "error"] = np.NaN
-            A3_check = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
-            if A3_check > 0.01: 
-                failure_message = SN + ': A3 dV/dt error'
-                errors_df.loc[SN, failure_type + "dV/dt"]
-                errors.append(failure_message)
-                print(f"{failure_type.upper()} ERROR: {failure_type} dV/dt constant ratio of {A2_check} .")
-            if not (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1)):
-                failure_message = SN + ': Bad A3'
-                errors_df.loc[SN, failure_type + "error"]
-                errors.append(failure_message) 
-                print(f"{failure_type.upper()} ERROR: {failure_type} malfunction.")
+       #Check A3 is within range     
+        if not within_A3_range:
+            pstats_df.loc[SN, parameter_type + e] = 0 #outside of range (false)
+            errors_df.loc[SN, parameter_type + e] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} value outside allowable range.")
+        else:
+            pstats_df.loc[SN, parameter_type + e] = 1 #within range(true)
+            errors_df.loc[SN, parameter_type + e] = "PAR" 
             
         #### minFifoFree and maxFifoUsed should always add to 75
+        parameter_type = "FIFO sum"
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
-        failure_type = "FIFO sum"
-        errors_df.loc[SN, failure_type] = np.NaN
+        pstats_df.loc[SN, parameter_type + f] = max(fifo_sum)
         if any((fifo_sum) != 75):
-           failure_message = SN + ': Impossible FIFO sum of' + fifo_sum
-           errors_df.loc[SN, failure_type] = max(fifo_sum)
-           errors.append(failure_message)
-           print(f"{failure_type.upper()} ERROR - {failure_type.upper()}: One error exceeds range by {max(fifo_sum)- 75}.")
-           
-        
+           errors_df.loc[SN, parameter_type + f] = "ERROR"
+           print(f"{parameter_type.upper()} ERROR: Error exceeds range by {max(fifo_sum)- 75}.")
+        ##elif for warning??
+        else:
+            errors_df.loc[SN, parameter_type + e] = "PAR"
+            
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
-        maxFifoUsedEq = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
-        failure_type = "max fifo used"
-        errors_df.loc[SN, failure_type] = np.NaN
+        #how to display in dataframe if less than 5 99%?
+        parameter_type = "max fifo used"
         max_fifo_check = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
+        pstats_df.loc[SN, parameter_type + e] = max_fifo_check
         if max_fifo_check > 0.01:
-            failure_message = SN + ': FIFO use is generally excessive'
-            warnings.append(SN + ": Excessive FIFO usage of " + max(max_fifo_check*100))
-            print(f"{failure_type.upper()} WARNING: {SN} is {(maxFifoUsedEq - 0.01)*100} percent outside the acceptable range")
-            warnings.append(failure_message)
+            errors_df.loc[SN, parameter_type + e] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {SN} is {(max_fifo_check - 0.01)*100} percent outside the standard operating range.")
+        else:
+            errors_df.loc[SN, parameter_type + e] = "PAR"
             
         if any(metadata.maxFifoUsed > 25):
-            failure_message = SN + ': FIFO use exceeds safe value'
-            warnings.append(failure_message)
-            errors_df.loc[SN, failure_type] = max(metadata.maxFifoUsed)
-            print(f"{failure_type.upper()} WARNING: {SN} fifo used exceeds 25")
-
+            errors_df.loc[SN, parameter_type] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {SN} fifo used exceeds 25")
+        else:
+            errors_df.loc[SN, parameter_type + e] = "PAR"
             
         #### maxOverruns should always be zero 
-        failure_type ="max overrun"
-        errors_df.loc[SN, failure_type] = np.NaN
+        parameter_type ="max overruns"
+        pstats_df.loc[SN, parameter_type + b] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
-            failure_message = SN + ': Too many overruns!'
-            errors_df.loc[SN, failure_type] = max(metadata.maxOverruns)
-            errors.append(failure_message)
-            print(f"{failure_type.upper()} ERROR: {failure_type} exceeds maximum of 0")
-        
+            errors_df.loc[SN, parameter_type] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} overruns should equal 0.")
+        else:
+            errors_df.loc[SN, parameter_type + e] = "PAR"
+            
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
+        parameter_type = "unused stack1"
+        parameter_type2 = "unused stack idle"
         failure_type = "unused stack"
-        errors_df.loc[SN, failure_type] = np.NaN
+        pstats_df.loc[SN, parameter_type + b] = max(metadata.unusedStack1)
+        pstats_df.loc[SN, parameter_type2 + b] = max(metadata.unusedStackIdle)
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
-            failure_message = SN + ': Inadequate unused Stack'
-            warnings.append(failure_message)
-            print(f"{failure_type.upper()} WARNING: Exceeds maximum of 30")
-
+            errors_df.loc[SN, failure_type] = "WARNING"
+            print(f"{failure_type.upper()} WARNING: One value of unused stack exceeds maximum of 30")
+        else:
+            errors_df.loc[SN, failure_type] = "PAR"
+            
         #### find time differences among samples with gps off that are > 180 sec
         time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])
-        failure_type = " gps run time"
-        errors_df.loc[SN, failure_type] = np.NaN
+        parameter_type = " gps run time"
+        pstats_df.loc[SN, parameter_type + b] = max(time_check)
         if any(time_check > 180): 
-            failure_message = SN + ': GPS ran for too long'
-            warnings.append(failure_message)
-            print(f"{failure_type.upper()} WARNING: GPS exceeds 180 second maximum runtime")
+            errors_df.loc[SN, parameter_type] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: GPS exceeds 180 second maximum runtime")
         
         ## individual GPS:
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
