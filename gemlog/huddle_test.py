@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import scipy.signal
 import os, glob, obspy, gemlog
+import matplotlib.pyplot as plt
+import datetime
 from gemlog.gemlog_aux import check_lags
 
 
@@ -70,38 +72,101 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     SN_list = [SN for SN in SN_list if SN not in SN_to_exclude]
     print('Identified serial numbers ' + str(SN_list))
    
+    pstats_df = pd.DataFrame(index = SN_list) #create dataframe for parameter statistics
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
     gps_dict = {}
     
     ## Individual Metadata:    
-    # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
+    
+    ##Create battery and temperature time series graphs for all SN
+    batt_temp_fig = plt.figure(0)
+    batt_temp_ax = batt_temp_fig.subplots(2)
+    batt_temp_ax[0].set_title("Battery Voltage")
+    batt_temp_ax[0].set_ylabel("voltage (V)")
+    batt_temp_ax[0].set_xlabel("seconds")
+    batt_temp_ax[1].set_title("Temperature")
+    batt_temp_ax[1].set_ylabel("temperature (C)")
+    batt_temp_ax[1].set_xlabel("seconds")
+    batt_temp_fig.tight_layout()
+    #format x axis from POXIS to datetime
+    
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
-
+        a = " min"
+        b = " max"
+        c = " average"
+        
         #### battery voltage must be in reasonable range (1.7 to 15 V)
-        failure_type = "battery"
-        errors_df.loc[SN, failure_type] = np.NaN
-        #batt_errors = []
-        if any(metadata.batt > 15) or any(metadata.batt < 1.7):
-            failure_message = SN + ': Impossible Battery Voltage'
-            #batt_errors.append(max(metadata.batt))
-            errors_df.loc[SN, failure_type] = max(metadata.batt)
-            errors.append(failure_message)
-            print(f"{failure_type.upper()} ERROR: {failure_type} voltage of {max(metadata.batt)}.")
-
-        #### temperature must be in reasonable range (-20 to 60 C)
-        failure_type = "temperature"
-        errors_df.loc[SN, failure_type] = np.NaN
-        #temp_errors = []
-        if any(metadata.temp > 60) or any(metadata.temp <-20): #celsius 'Impossible Temperature'
-            failure_message = SN + ': Impossible Temperature of ' + metadata.temp +'C'
-            #temp_errors.append(max(metadata.temp))
-            errors_df.loc[SN, failure_type] = max(metadata.temp)
-            errors.append(failure_message)
-            print(f"{failure_type.upper()} ERROR: {failure_type} of {max(metadata.temp)} Celcius.")
+        parameter_type = "battery"
+        pstats_df.loc[SN, parameter_type + a] = min(metadata.batt)
+        pstats_df.loc[SN, parameter_type + b] = max(metadata.batt)
+        #add time series of battery voltage to graph for SN
+        
+        #battery voltage minimum tests
+        if pstats_df.loc[SN, parameter_type + a] < 1.7:
+            errors_df.loc[SN, parameter_type + a] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + a] < 3.0:
+            errors_df.loc[SN, parameter_type + a] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + a] = "PAR"
             
-           
+        #battery voltage maximum tests    
+        if pstats_df.loc[SN, parameter_type + b] > 15:
+            errors_df.loc[SN, parameter_type + b] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + b] > 14.95:
+            errors_df.loc[SN, parameter_type + b] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + b] = "PAR"  
+        batt_temp_ax[0].plot(metadata.t, metadata.batt)  
+        
+        ####temperature must be within reasonable range (-20 t0 60 C)    
+        parameter_type = "temperature"
+        pstats_df.loc[SN, parameter_type + a] = min(metadata.temp)
+        pstats_df.loc[SN, parameter_type + b] = max(metadata.temp)
+        pstats_df.loc[SN, parameter_type + c] = np.mean(metadata.temp)
+        #add time series of temperature to graph for SN
+        
+        #temperature minimum check
+        if pstats_df.loc[SN, parameter_type + a] < -20: #degrees Celcius
+            errors_df.loc[SN, parameter_type + a] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + a] < -15: #modify as needed, just a backbone structure for now.
+            errors_df.loc[SN, parameter_type + a] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + a] = "PAR" 
+        #temperature maximum check
+        if pstats_df.loc[SN, parameter_type + b] > 60: #degrees Celcius
+            errors_df.loc[SN, parameter_type + b] = "ERROR"
+            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+        elif pstats_df.loc[SN, parameter_type + b] > 50: #modify as needed, just a backbone structure for now.
+            errors_df.loc[SN, parameter_type + b] = "WARNING"
+            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+        else:
+            errors_df.loc[SN, parameter_type + b] = "PAR" 
+        batt_temp_ax[1].plot(metadata.t, metadata.temp)
+    batt_temp_fig.show()
+    return pstats_df
+    #return errors_df
+             
+
+    p_plot = pstats_df.plot();
+    
+    
+    #group graphs by error type and also plot threshold levels
+    
+    # time plot for battery voltage of all SN
+    # two subplot: temp and batt
+    # p1_plot = plt.figure(1)
+    # axs = plt.subplots(2)
+
+    
+ #%%          
        #if False:
             #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
             ##A2
@@ -110,6 +175,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             failure_type = "A2"
             errors_df.loc[SN, failure_type] = np.NaN
             A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
+            #graph time series 
+            
             if A2_check > 0.01: 
                 failure_message = SN + ': A2 dV/dt error'
                 errors.append(failure_message)
@@ -124,6 +191,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
                 errors_df.loc[SN, failure_type + "error"] = 0 #no error present(false)
             
             ##A3
+            
             failure_type = "A3"
             errors_df.loc[SN, failure_type + "dV/dt"] = np.NaN
             errors_df.loc[SN, failure_type + "error"] = np.NaN
@@ -140,6 +208,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
                 print(f"{failure_type.upper()} ERROR: {failure_type} malfunction.")
             
         #### minFifoFree and maxFifoUsed should always add to 75
+        #graph (B)
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
         failure_type = "FIFO sum"
         errors_df.loc[SN, failure_type] = np.NaN
@@ -151,6 +220,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
            
         
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
+        #graph (B)
         maxFifoUsedEq = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
         failure_type = "max fifo used"
         errors_df.loc[SN, failure_type] = np.NaN
@@ -168,7 +238,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(f"{failure_type.upper()} WARNING: {SN} fifo used exceeds 25")
 
             
-        #### maxOverruns should always be zero 
+        #### maxOverruns should always be zero
+        #graph (B)
         failure_type ="max overrun"
         errors_df.loc[SN, failure_type] = np.NaN
         if any(metadata.maxOverruns) !=0:
@@ -178,6 +249,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(f"{failure_type.upper()} ERROR: {failure_type} exceeds maximum of 0")
         
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
+        #graph (B)
         failure_type = "unused stack"
         errors_df.loc[SN, failure_type] = np.NaN
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
@@ -186,6 +258,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(f"{failure_type.upper()} WARNING: Exceeds maximum of 30")
 
         #### find time differences among samples with gps off that are > 180 sec
+        #plot gpsOnFlag (A)
         time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])
         failure_type = " gps run time"
         errors_df.loc[SN, failure_type] = np.NaN
