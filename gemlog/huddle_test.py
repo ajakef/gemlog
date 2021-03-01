@@ -77,7 +77,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     gps_dict = {}
     
     ## Individual Metadata:    
-    
+
     ##Create battery and temperature time series graphs for all SN
     batt_temp_fig = plt.figure(0)
     batt_temp_ax = batt_temp_fig.subplots(2)
@@ -89,7 +89,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     batt_temp_ax[1].set_xlabel("seconds")
     batt_temp_fig.tight_layout()
     #format x axis from POXIS to datetime
-    
+
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
