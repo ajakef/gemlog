@@ -76,8 +76,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     gps_dict = {}
     metadata_dict = {}
     ## Individual Metadata:    
+
     # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
     ## Add error and warning lists back...
+
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
