@@ -74,7 +74,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pstats_df = pd.DataFrame(index = SN_list) #create dataframe for parameter statistics
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
     gps_dict = {}
-    
+    metadata_dict = {}
     ## Individual Metadata:    
     # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
     ## Add error and warning lists back...
