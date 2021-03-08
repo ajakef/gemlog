@@ -75,6 +75,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
     gps_dict = {}
     metadata_dict = {}
+    
+    errors = []
+    warnings = []
+    notes = []
+    
     ## Individual Metadata:    
     # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
     ## Add error and warning lists back...
@@ -94,22 +99,29 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type + b] = max(metadata.batt)
         
         #battery voltage minimum tests
+        err_message = parameter_type.upper() +  " ERROR: " + parameter_type + " range exceeded"
+        warn_message = parameter_type.upper() + " WARNING: " + parameter_type + " approaching threshold"
+        
         if pstats_df.loc[SN, parameter_type + a] < 1.7:
             errors_df.loc[SN, parameter_type + a] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            errors.append(err_message)
+            print(err_message)
         elif pstats_df.loc[SN, parameter_type + a] < 3.0:
             errors_df.loc[SN, parameter_type + a] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warnings.append(warn_message)
+            print(warn_message)
         else:
             errors_df.loc[SN, parameter_type + a] = "PAR"
             
         #battery voltage maximum tests    
         if pstats_df.loc[SN, parameter_type + b] > 15:
             errors_df.loc[SN, parameter_type + b] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            errors.append(err_message)
+            print(err_message)
         elif pstats_df.loc[SN, parameter_type + b] > 14.95:
             errors_df.loc[SN, parameter_type + b] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warnings.append(warn_message)
+            print(warn_message)
         else:
             errors_df.loc[SN, parameter_type + b] = "PAR"  
             
@@ -118,23 +130,29 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type + a] = min(metadata.temp)
         pstats_df.loc[SN, parameter_type + b] = max(metadata.temp)
         pstats_df.loc[SN, parameter_type + c] = np.mean(metadata.temp)
-        
+     
         #temperature minimum check
+        err_message = parameter_type.upper() +  " ERROR: " + parameter_type + " range exceeded"
+        warn_message = parameter_type.upper() + " WARNING: " + parameter_type + " approaching threshold"
         if pstats_df.loc[SN, parameter_type + a] < -20: #degrees Celcius
             errors_df.loc[SN, parameter_type + a] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            errors.append(err_message)
+            print(err_message)
         elif pstats_df.loc[SN, parameter_type + a] < -15: #modify as needed, just a backbone structure for now.
             errors_df.loc[SN, parameter_type + a] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warnings.append(warn_message)
+            print(warn_message)
         else:
             errors_df.loc[SN, parameter_type + a] = "PAR" 
         #temperature maximum check
         if pstats_df.loc[SN, parameter_type + b] > 60: #degrees Celcius
             errors_df.loc[SN, parameter_type + b] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            errors.append(err_message)
+            print(err_message)
         elif pstats_df.loc[SN, parameter_type + b] > 50: #modify as needed, just a backbone structure for now.
             errors_df.loc[SN, parameter_type + b] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warnings.append(warn_message)
+            print(warn_message)
         else:
             errors_df.loc[SN, parameter_type + b] = "PAR" 
                      
