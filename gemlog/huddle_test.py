@@ -4,6 +4,8 @@ import scipy.signal
 import matplotlib.pyplot as plt
 import os, glob, obspy, gemlog
 from gemlog.gemlog_aux import check_lags
+from io import StringIO 
+import sys
 
 
 def unique(list1):
@@ -74,10 +76,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pstats_df = pd.DataFrame(index = SN_list) #create dataframe for parameter statistics
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
     gps_dict = {}
+    metadata_dict = {}
+    
+    errors = []
+    warnings = []
+    info = []
     
     ## Individual Metadata:    
+
     # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
     ## Add error and warning lists back...
+
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
@@ -94,111 +103,150 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type + b] = max(metadata.batt)
         
         #battery voltage minimum tests
+    
+        
         if pstats_df.loc[SN, parameter_type + a] < 1.7:
             errors_df.loc[SN, parameter_type + a] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            #err_message = 
+            err_message = f"{SN} {parameter_type.upper()} ERROR: battery level {np.round(1.7-min(metadata.batt),decimals=2)} Volts below minimum threshold."
+            print(err_message)
+            errors.append(err_message)
         elif pstats_df.loc[SN, parameter_type + a] < 3.0:
             errors_df.loc[SN, parameter_type + a] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: battery level within {np.round(min(metadata.batt-1.7),decimals=2)} Volts of minimum threshold."
+            print(warn_message)
+            warnings.append(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + a] = "PAR"
+            errors_df.loc[SN, parameter_type + a] = "OKAY"
             
         #battery voltage maximum tests    
         if pstats_df.loc[SN, parameter_type + b] > 15:
             errors_df.loc[SN, parameter_type + b] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: battery level {np.round(max(metadata.batt)-15,decimals=2)} Volts above maximum threshold."
+            print(err_message)
+            errors.append(err_message)
         elif pstats_df.loc[SN, parameter_type + b] > 14.95:
             errors_df.loc[SN, parameter_type + b] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: battery level within {np.round(15 - max(metadata.batt-1.7), decimals=2)} Volts of maximum threshold."
+            print(warn_message)
+            warnings.append(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + b] = "PAR"  
-            
+            errors_df.loc[SN, parameter_type + b] = "OKAY"  
+        
+          
         ####temperature must be within reasonable range (-20 t0 60 C)    
         parameter_type = "temperature"
         pstats_df.loc[SN, parameter_type + a] = min(metadata.temp)
         pstats_df.loc[SN, parameter_type + b] = max(metadata.temp)
         pstats_df.loc[SN, parameter_type + c] = np.mean(metadata.temp)
-        
+     
         #temperature minimum check
         if pstats_df.loc[SN, parameter_type + a] < -20: #degrees Celcius
             errors_df.loc[SN, parameter_type + a] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold."
+            print(err_message)
+            errors.append(err_message)
         elif pstats_df.loc[SN, parameter_type + a] < -15: #modify as needed, just a backbone structure for now.
             errors_df.loc[SN, parameter_type + a] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: temperature within {np.abs(np.round(20 + min(metadata.temp),decimals=2))} degrees of minimum threshold"
+            print(warn_message)
+            warnings.append(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + a] = "PAR" 
+            errors_df.loc[SN, parameter_type + a] = "OKAY" 
         #temperature maximum check
         if pstats_df.loc[SN, parameter_type + b] > 60: #degrees Celcius
             errors_df.loc[SN, parameter_type + b] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} range exceeded")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold"
+            print(err_message)
+            errors.append(err_message)
         elif pstats_df.loc[SN, parameter_type + b] > 50: #modify as needed, just a backbone structure for now.
             errors_df.loc[SN, parameter_type + b] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} approaching threshold")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: temperature within {np.round(60-max(metadata.temp),decimals=2)} degrees of maximum threshold."
+            print(warn_message)
+            warnings.append(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + b] = "PAR" 
-                     
-      
+            errors_df.loc[SN, parameter_type + b] = "OKAY" 
+                         
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
         ##A2
         #re-evaluate threshold percentage
         #Add increased information in error messages
         parameter_type = "A2"
+        
         A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
         pstats_df.loc[SN, parameter_type + d] = A2_check
         within_A2_range = (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1))
+        pstats_df.loc[SN, parameter_type + e] = within_A2_range
         
         #Check that A2 dV/dt is greater than 0 more than <1% of time
         if pstats_df.loc[SN, parameter_type + d] > 0.01: 
             errors_df.loc[SN, parameter_type + d] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} dV/dt constant ratio below minimum threshold.")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: {np.round(A2_check*100,decimals=1)} percent of A2 dV/dt is greater than 0."
+            print(err_message)
+            errors.append(err_message)
         elif pstats_df.loc[SN, parameter_type + d] > 0.05: #placeholder of 5%
             errors_df.loc[SN, parameter_type + d] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} dV/dt constant ratio of approaching minimum threshold.")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: {np.round(A2_check*100,decimals=1)} percent of A2 dV/dt is greater than 0."
+            warnings.append(warn_message)
+            print(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + d] = "PAR"
+            errors_df.loc[SN, parameter_type + d] = "OKAY"
             
-       #Check A2 is within range     
+       #Check A2 is within range
         if not within_A2_range:
             pstats_df.loc[SN, parameter_type + e] = 0 #outside of range (false)
             errors_df.loc[SN, parameter_type + e] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} value outside allowable range.")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: A2 outside of range"
+            errors.append(err_message)
+            print(err_message)
         else:
             pstats_df.loc[SN, parameter_type + e] = 1 #within range(true)
-            errors_df.loc[SN, parameter_type + e] = "PAR" 
+            errors_df.loc[SN, parameter_type + e] = "OKAY" 
         
         ##A3
         parameter_type = "A3"
         A3_check = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
         pstats_df.loc[SN, parameter_type + d] = A3_check
         within_A3_range = (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1))
+        pstats_df.loc[SN, parameter_type + e] = within_A3_range
         
         #Check that A3 dV/dt is greater than 0 more than <1% of time
         if pstats_df.loc[SN, parameter_type + d] > 0.01: 
             errors_df.loc[SN, parameter_type + d] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} dV/dt constant ratio below minimum threshold.")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: {np.round(A3_check*100,decimals=1)} percent of A3 dV/dt is greater than 0."
+            errors.append(err_message)
+            print(err_message)
         elif pstats_df.loc[SN, parameter_type + d] > 0.05: #placeholder of 5%
             errors_df.loc[SN, parameter_type + d] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {parameter_type} dV/dt constant ratio of approaching minimum threshold.")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: {np.round(A3_check*100,decimals=1)} percent of A3 dV/dt is greater than 0."
+            warnings.append(warn_message)
+            print(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + d] = "PAR"
+            errors_df.loc[SN, parameter_type + d] = "OKAY"
             
        #Check A3 is within range     
         if not within_A3_range:
             pstats_df.loc[SN, parameter_type + e] = 0 #outside of range (false)
             errors_df.loc[SN, parameter_type + e] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} value outside allowable range.")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: A3 outside of range"
+            errors.append(err_message)
+            print(err_message)
         else:
             pstats_df.loc[SN, parameter_type + e] = 1 #within range(true)
             errors_df.loc[SN, parameter_type + e] = "PAR" 
             
+            
+    
+          
         #### minFifoFree and maxFifoUsed should always add to 75
         parameter_type = "FIFO sum"
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
         pstats_df.loc[SN, parameter_type + f] = max(fifo_sum)
         if any((fifo_sum) != 75):
            errors_df.loc[SN, parameter_type + f] = "ERROR"
-           print(f"{parameter_type.upper()} ERROR: Error exceeds range by {max(fifo_sum)- 75}.")
+           err_message = f"{SN} {parameter_type.upper()} ERROR: {parameter_type} exceeds range by {np.round(75 - max(fifo_sum),decimals=2)}."
+           errors.append(err_message)
+           print(err_message)
         ##elif for warning??
         else:
             errors_df.loc[SN, parameter_type + e] = "PAR"
@@ -209,14 +257,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         max_fifo_check = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
         pstats_df.loc[SN, parameter_type + e] = max_fifo_check
         if max_fifo_check > 0.01:
-            errors_df.loc[SN, parameter_type + e] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {SN} is {(max_fifo_check - 0.01)*100} percent outside the standard operating range.")
+            errors_df.loc[SN, parameter_type + e] = "INFO"
+            info_message = f"{SN} {parameter_type.upper()} INFO: {parameter_type} (max_fifo_check - 0.01)*100 percent outside the standard operating range."
+            print(info_message)
+            info.append(info_message)
         else:
             errors_df.loc[SN, parameter_type + e] = "PAR"
             
         if any(metadata.maxFifoUsed > 25):
             errors_df.loc[SN, parameter_type] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: {SN} fifo used exceeds 25")
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: {parameter_type} exceeds maximum by {np.round(max(metadata.maxFifoUsed)-25,decimals=2)}."
+            warnings.append(warn_message)
         else:
             errors_df.loc[SN, parameter_type + e] = "PAR"
             
@@ -225,7 +276,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type + b] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
             errors_df.loc[SN, parameter_type] = "ERROR"
-            print(f"{parameter_type.upper()} ERROR: {parameter_type} overruns should equal 0.")
+            err_message = f"{SN} {parameter_type.upper()} ERROR: {parameter_type} overruns does equal 0. ({max(metadata.maxOverruns)})"
+            print(err_message)
+            errors.append(err_message)
         else:
             errors_df.loc[SN, parameter_type + e] = "PAR"
             
@@ -237,7 +290,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type2 + b] = max(metadata.unusedStackIdle)
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             errors_df.loc[SN, failure_type] = "WARNING"
-            print(f"{failure_type.upper()} WARNING: One value of unused stack exceeds maximum of 30")
+            warn_message = f"{failure_type.upper()} WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
+            print(warm_message)
+            warnings.append(warn_message)
         else:
             errors_df.loc[SN, failure_type] = "PAR"
             
@@ -247,8 +302,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type + b] = max(time_check)
         if any(time_check > 180): 
             errors_df.loc[SN, parameter_type] = "WARNING"
-            print(f"{parameter_type.upper()} WARNING: GPS exceeds 180 second maximum runtime")
-        
+            warn_message = f"{SN} {parameter_type.upper()} WARNING: GPS runtime is {max(time_check)}."
+            print(warn_message)
+            warnings.append(warn_message)
         ## individual GPS:
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
@@ -272,7 +328,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     print("\nSerial number tests complete.") 
     #return errors_df  
-    #[IDEA]: Error summary
+    return errors,warnings
  #%%  
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.

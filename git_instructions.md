@@ -13,7 +13,7 @@ If you are a registered collaborator on gemlog, you don't need to fork it, and y
 
 Either way, your code should be on a named branch--please don't push code to 'main'.
 
-### Absolute Basic Route Tasks
+### Absolute Basic Routine Tasks
 ##### Update a repository you already have
 ```
 git pull
