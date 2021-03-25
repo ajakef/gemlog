@@ -282,7 +282,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             errors_df.loc[SN, failure_type] = "WARNING"
             warn_message = f"{failure_type.upper()} WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
-            print(warm_message)
+            print(warn_message)
             warnings.append(warn_message)
         else:
             errors_df.loc[SN, failure_type] = "PAR"
