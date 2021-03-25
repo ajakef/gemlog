@@ -166,7 +166,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Check that A2 dV/dt == 0 less than 99% of time. >99% means a likely short circuit.
         if pstats_df.loc[SN, "A2 dV/dt nonzero"] > 0.99: 
             errors_df.loc[SN, "A2 dV/dt nonzero"] = "ERROR"
-            err_message = f"{SN} A2 ERROR: {np.round(a2_zerodiff_proportion*100,decimals=1)} percent of A2 dV/dt is greater than 0."
+            err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)} percent of A2 dV/dt is greater than 0."
             print(err_message)
             errors.append(err_message)
         elif pstats_df.loc[SN,"A2 dV/dt nonzero"] > 0.95: #95% placeholder; uncertain interpretation
