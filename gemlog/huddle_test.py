@@ -44,15 +44,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     Returns
     -------
-    dict with elements 'errors', 'warnings', and 'notes'.
+    dict with following elements:
+    --errors: list of problems that must be fixed
+    --warnings: list of potential problems
+    --stats: data frame showing quantitative results for all tests
+    --results: data frame showing qualitative results for all tests
     """
-    ##path = '.'
-    ###### NEW INFO ON ERROR MESSAGE HANDLING:######
-    ## I'm replacing 'failures' with the 'errors/warnings/notes' framework. Errors must be fixed,
-    ## warnings are likely problems but are not required to be fixed, and notes are alerts that are
-    ## not necessarily problems but are probably unusual. For now, let's call everything an error;
-    ## as we do more of these tests we'll learn how to best categorize them.
-
     errors = []
     warnings = []
     notes = []
@@ -67,6 +64,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             fn = os.listdir(test_path)
         except:
             raise(Exception(test_path + ' not found'))
+
     ## identify the list of serial numbers to test, including user input to include/exclude
     if len(SN_list) == 0:
         SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
@@ -82,11 +80,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     warnings = []
     info = []
     
-    ## Individual Metadata:    
-
-    # errors_dict()= {"battery" : batt_errors,"temperature" : temp_errors}
-    ## Add error and warning lists back...
-
+    ## Individual Metadata tests:
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
@@ -141,7 +135,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, parameter_type + c] = np.mean(metadata.temp)
      
         #temperature minimum check
-        if pstats_df.loc[SN, parameter_type + a] < -20: #degrees Celcius
+        if pstats_df.loc[SN, parameter_type + a] < -20: #degrees Celsius
             errors_df.loc[SN, parameter_type + a] = "ERROR"
             err_message = f"{SN} {parameter_type.upper()} ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold."
             print(err_message)
@@ -154,7 +148,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN, parameter_type + a] = "OKAY" 
         #temperature maximum check
-        if pstats_df.loc[SN, parameter_type + b] > 60: #degrees Celcius
+        if pstats_df.loc[SN, parameter_type + b] > 60: #degrees Celsius
             errors_df.loc[SN, parameter_type + b] = "ERROR"
             err_message = f"{SN} {parameter_type.upper()} ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold"
             print(err_message)
@@ -178,13 +172,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         within_A2_range = (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1))
         pstats_df.loc[SN, parameter_type + e] = within_A2_range
         
-        #Check that A2 dV/dt is greater than 0 more than <1% of time
-        if pstats_df.loc[SN, parameter_type + d] > 0.01: 
+        #Check that A2 dV/dt == 0 less than 99% of time. >99% means a likely short circuit.
+        if pstats_df.loc[SN, parameter_type + d] > 0.99: 
             errors_df.loc[SN, parameter_type + d] = "ERROR"
             err_message = f"{SN} {parameter_type.upper()} ERROR: {np.round(A2_check*100,decimals=1)} percent of A2 dV/dt is greater than 0."
             print(err_message)
             errors.append(err_message)
-        elif pstats_df.loc[SN, parameter_type + d] > 0.05: #placeholder of 5%
+        elif pstats_df.loc[SN, parameter_type + d] > 0.95: #95% placeholder; uncertain interpretation
             errors_df.loc[SN, parameter_type + d] = "WARNING"
             warn_message = f"{SN} {parameter_type.upper()} WARNING: {np.round(A2_check*100,decimals=1)} percent of A2 dV/dt is greater than 0."
             warnings.append(warn_message)
@@ -210,13 +204,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         within_A3_range = (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1))
         pstats_df.loc[SN, parameter_type + e] = within_A3_range
         
-        #Check that A3 dV/dt is greater than 0 more than <1% of time
-        if pstats_df.loc[SN, parameter_type + d] > 0.01: 
+        #Check that A3 dV/dt == 0 less than 99% of time
+        if pstats_df.loc[SN, parameter_type + d] > 0.99: 
             errors_df.loc[SN, parameter_type + d] = "ERROR"
             err_message = f"{SN} {parameter_type.upper()} ERROR: {np.round(A3_check*100,decimals=1)} percent of A3 dV/dt is greater than 0."
             errors.append(err_message)
             print(err_message)
-        elif pstats_df.loc[SN, parameter_type + d] > 0.05: #placeholder of 5%
+        elif pstats_df.loc[SN, parameter_type + d] > 0.95: #placeholder of 95%
             errors_df.loc[SN, parameter_type + d] = "WARNING"
             warn_message = f"{SN} {parameter_type.upper()} WARNING: {np.round(A3_check*100,decimals=1)} percent of A3 dV/dt is greater than 0."
             warnings.append(warn_message)
@@ -235,9 +229,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             pstats_df.loc[SN, parameter_type + e] = 1 #within range(true)
             errors_df.loc[SN, parameter_type + e] = "PAR" 
             
-            
-    
-          
         #### minFifoFree and maxFifoUsed should always add to 75
         parameter_type = "FIFO sum"
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
@@ -291,7 +282,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             errors_df.loc[SN, failure_type] = "WARNING"
             warn_message = f"{failure_type.upper()} WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
-            print(warm_message)
+            print(warn_message)
             warnings.append(warn_message)
         else:
             errors_df.loc[SN, failure_type] = "PAR"
@@ -327,8 +318,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
 
     print("\nSerial number tests complete.") 
-    #return errors_df  
-    return errors,warnings
+    return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
  #%%  
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
