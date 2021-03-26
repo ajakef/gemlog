@@ -1,4 +1,5 @@
-__version__ = '1.3.7' # huddle_test improvements, minor change to make_db 
+__version__ = '1.3.8' # even more workflow fixes 
+#__version__ = '1.3.7' # huddle_test improvements, minor change to make_db 
 #__version__ = '1.3.6' # minor fix for inventory compliance with IRIS requirements 
 #__version__ = '1.3.5' # updated gem_network, demo, and test so that inventory is written with elevation, start/end times for station/network, and azimuth/dip, satisfying IRIS requirements 
 #__version__ = '1.3.4' # now supports format 0.91 (same, but with float pps-milliseconds for better clock drift estimation) 
@@ -27,4 +28,4 @@ __version__ = '1.3.7' # huddle_test improvements, minor change to make_db
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive#################
+## List of old versions is not yet comprehensive##################
