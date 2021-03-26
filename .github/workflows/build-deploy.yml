@@ -1,10 +1,11 @@
 name: Build and upload to PyPI
 
-# publish when a (published) GitHub Release is created:
+# publish when a (published) GitHub Release is created, or on a push (it will only actually upload to pypi if it's a tagged push)
 on:
+  push:
   release:
-  #  types:
-  #    - published
+    types:
+      - published
 
 env:
   # don't build wheels for unsupported CPython versions, and skip pypy altogether
