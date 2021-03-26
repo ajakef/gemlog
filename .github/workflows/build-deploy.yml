@@ -3,8 +3,8 @@ name: Build and upload to PyPI
 # publish when a (published) GitHub Release is created:
 on:
   release:
-    types:
-      - published
+  #  types:
+  #    - published
 
 env:
   # don't build wheels for unsupported CPython versions, and skip pypy altogether
