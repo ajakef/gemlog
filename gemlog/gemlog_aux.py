@@ -124,7 +124,11 @@ def make_db(path, pattern = '*', savefile = None, verbose = False):
     DB = []
     count = 0
     for file in files:
-        tr = obspy.read(file)[0]
+        try:
+            tr = obspy.read(file)[0]
+        except:
+            print('failed to read ' + file + ', skipping')
+            continue
         maxVal = tr.data.max()
         minVal = tr.data.min()
         tr.detrend('linear')

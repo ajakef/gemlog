@@ -7,7 +7,7 @@ import glob, obspy, os
 def _get_station_info(station_info):
     required_keys = ['SN', 'network', 'station', 'location']
     if type(station_info) == str:
-        station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys})
+        station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
     elif (type(station_info) is not pd.DataFrame) or any([key not in station_info.keys() for key in required_keys]):
         raise Exception('invalid station_info')
     return station_info
