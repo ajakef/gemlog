@@ -10,6 +10,10 @@ def _get_station_info(station_info):
         station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
     elif (type(station_info) is not pd.DataFrame) or any([key not in station_info.keys() for key in required_keys]):
         raise Exception('invalid station_info')
+    # if location and network fields are blank in file, they are interpreted as NaN and must be
+    # turned back into blank
+    station_info.loc[station_info.location.isna(), 'location'] = ''
+    station_info.loc[station_info.network.isna(), 'network'] = ''
     return station_info
 
 def make_gem_inventory(station_info, coords, response = 'default'):
