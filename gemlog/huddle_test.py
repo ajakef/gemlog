@@ -272,7 +272,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors_df.loc[SN, "unused stack"] = "OKAY"
             
         #### find time differences among samples with gps off that are > 180 sec
-        time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])
+        time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])[10:] # skip the first ten seconds and first GPS cycle, which is very long by design
         pstats_df.loc[SN, "gps run time"] = max(time_check)
         if any(time_check > 180): 
             errors_df.loc[SN, "gps run time"] = "WARNING"
