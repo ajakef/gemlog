@@ -47,15 +47,15 @@ If the conversion is run multiple times, `gemconvert` will overwrite pre-existin
 ### Organizing the data
 If your dataset is from an array or network, you probably want to create a station map and assign network, station, and location codes to your miniSEED files. You can do this using python functions from gemlog. Before starting python, you need a csv file assigning Gem serial numbers to network, station, and location codes.
 
-In this example, `station_info.txt` describes a network (NM) containing two stations (LADR and MANZ), each containing three locations; each of the six Gem serial numbers is assigned to a network, station, and location. For more information on SEED codes, see [this IRIS page](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/).
+In this example, `station_info.txt` describes a network (NM) containing two stations (LADR and MANZ), each containing three locations; each of the six Gem serial numbers is assigned to a network and station. We follow the convention that location codes are to be used for different sub-sites belonging to a single data logger, meaning that each Gem counts as its own station and does not receive a location code (hence the blanks after the last commas in each line). For more information on SEED codes, see [this IRIS page](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/).
 ```
 $ cat station_info.txt
-077,NM,LADR,00
-088,NM,LADR,01
-103,NM,LADR,02
-096,NM,MANZ,00
-109,NM,MANZ,01
-106,NM,MANZ,02
+077,NM,LADR1,
+088,NM,LADR2,
+103,NM,LADR3,
+096,NM,MANZ1,
+109,NM,MANZ2,
+106,NM,MANZ3,
 ```
 Begin by activating your conda environment as before: `conda activate gem` and open python within your project directory. Run the following code:
 ```
@@ -104,6 +104,10 @@ coords['elevation'] = [1983, 1983, 1988, 1983, 1986, 1987] # from google earth
 ## create an inventory of all sensors used in this project--may cause warnings
 inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
 inv.write('NM_inventory.xml', format='STATIONXML')
+
+## write a kml file you can open in Google Earth or other GIS
+## this only has station-level precision; locations are not given their own points
+inv.write('NM_inventory.kml', format = 'KML')
 ```
 When validating the stationXML file using the [IRIS stationXML Validator](https://github.com/iris-edu/StationXML-Validator/), it should pass with no errors but probably with common warnings related to response units case.
 
