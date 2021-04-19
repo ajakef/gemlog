@@ -1,14 +1,15 @@
- import pandas as pd
+import pandas as pd
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import os, glob, obspy, gemlog
 import matplotlib.pyplot as plt
+import time
 import datetime
 from gemlog.gemlog_aux import check_lags
 from io import StringIO 
 import sys
-
+import pdb
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -52,6 +53,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --stats: data frame showing quantitative results for all tests
     --results: data frame showing qualitative results for all tests
     """
+    
+    SN_list = ['058','061','065','077']
+    SN_to_exclude = []
+    individual_only = False
+    
+    
     errors = []
     warnings = []
     notes = []
@@ -89,13 +96,15 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     batt_temp_ax = batt_temp_fig.subplots(2)
     batt_temp_ax[0].set_title("Battery Voltage")
     batt_temp_ax[0].set_ylabel("voltage (V)")
-    batt_temp_ax[0].set_xlabel("seconds")
+    batt_temp_ax[0].set_xlabel("month-year date")
     batt_temp_ax[1].set_title("Temperature")
     batt_temp_ax[1].set_ylabel("temperature (C)")
     batt_temp_ax[1].set_xlabel("seconds")
     batt_temp_fig.tight_layout()
+    #batt_temp_ax[0].plot(metadata.t,metadata.batt)
+    #batt_temp_ax[1].plot(metadata.t,metadata.temp)
     #format x axis from POXIS to datetime
-    
+    #plt.close('all') #close any previous figures
     ## Individual Metadata tests:
     for SN in SN_list:
         print('\nChecking metadata for ' + SN)
@@ -107,7 +116,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         #battery voltage minimum tests
         if pstats_df.loc[SN, "battery min"] < 1.7:
-          errors_df.loc[SN, "battery min"] = "ERROR"
+            errors_df.loc[SN, "battery min"] = "ERROR"
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(1.7-min(metadata.batt),decimals=2)} Volts below minimum threshold."
             print(err_message)
             errors.append(err_message)
@@ -131,8 +140,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(warn_message)
             warnings.append(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + b] = "PAR"  
-        batt_temp_ax[0].plot(metadata.t, metadata.batt)    
+            errors_df.loc[SN, "battery max"] = "OKAY"  
+            
+        
+        
+        dec_factor = 10 # decimation factor
+        batt_ind = np.arange(len(metadata.batt)/dec_factor)*dec_factor
+        batt_dec = metadata.batt[batt_ind]
+        #date_stamp_ind = np.arange(len(date_stamp)/10)*10
+        time_unix = round(metadata.t,0)
+        time_unix_ind = np.arange(len(time_unix)/dec_factor)*dec_factor
+        time_unix_dec = time_unix[time_unix_ind]
+        #time_datestamp_dec = [datetime.datetime.fromtimestamp(int(t)) for t in time_unix_dec] 
+        time_datestamp_dec = [datetime.datetime.utcfromtimestamp(int(t)) for t in time_unix_dec]
+        batt_temp_ax[0].plot(time_datestamp_dec, batt_dec)
+        
         ####temperature must be within reasonable range (-20 t0 60 C)    
         pstats_df.loc[SN, "temperature min"] = min(metadata.temp)
         pstats_df.loc[SN, "temperature max"] = max(metadata.temp)
@@ -164,7 +186,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             warnings.append(warn_message)
         else:
             errors_df.loc[SN,"temperature max"] = "OKAY" 
-                         
+        batt_temp_ax[1].plot(metadata.t, metadata.temp)
+              
+#%%                       
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
         ##A2
         #re-evaluate threshold percentage
@@ -187,14 +211,14 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             warnings.append(warn_message)
             print(warn_message)
         else:
-            errors_df.loc[SN, parameter_type + b] = "PAR" 
-    batt_temp_ax[1].plot(metadata.t, metadata.temp)
-    batt_temp_fig.show()
-    return pstats_df
+            errors_df.loc[SN, "A2 dV/dt nonzero"] = "OKAY" 
+    #batt_temp_ax[1].plot(metadata.t, metadata.temp)
+    #batt_temp_fig.show()
+    #return pstats_df
     #return errors_df
              
 
-    p_plot = pstats_df.plot();
+    #p_plot = pstats_df.plot();
     
     #count number of errors and warning for each SN
     #display as stacked barchart showing number of error, warning and par
@@ -216,23 +240,23 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             ##A2
             #re-evaluate threshold percentage
             #Add increased information in error messages
-            failure_type = "A2"
-            errors_df.loc[SN, failure_type] = np.NaN
-            A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
-            if A2_check > 0.01: 
-                failure_message = SN + ': A2 dV/dt error'
-                errors.append(failure_message)
-                errors_df.loc[SN, failure_type + "dV/dt"] = A2_check
-                print(f"{failure_type.upper()} ERROR: {failure_type} dV/dt constant ratio of {A2_check} .")
-            if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
-                failure_message = SN + ': Bad A2'
-                errors_df.loc[SN, failure_type + "error"] = 1 #yes error exists (true)
-                errors.append(failure_message) 
-                print(f"{failure_type.upper()} ERROR: {failure_type} malfunction")
-            else:
-                errors_df.loc[SN, failure_type + "error"] = 0 #no error present(false)
-=======
-            errors_df.loc[SN,"A2 dV/dt nonzero"] = "OKAY"
+
+        failure_type = "A2"
+        errors_df.loc[SN, failure_type] = np.NaN
+        A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
+        if A2_check > 0.01: 
+            failure_message = SN + ': A2 dV/dt error'
+            errors.append(failure_message)
+            errors_df.loc[SN, failure_type + "dV/dt"] = A2_check
+            print(f"{failure_type.upper()} ERROR: {failure_type} dV/dt constant ratio of {A2_check} .")
+        if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
+            failure_message = SN + ': Bad A2'
+            errors_df.loc[SN, failure_type + "error"] = 1 #yes error exists (true)
+            errors.append(failure_message) 
+            print(f"{failure_type.upper()} ERROR: {failure_type} malfunction")
+        else:
+            errors_df.loc[SN, failure_type + "error"] = 0 #no error present(false)
+        errors_df.loc[SN,"A2 dV/dt nonzero"] = "OKAY"
             
        #Check A2 is within range
         if not within_A2_range:
