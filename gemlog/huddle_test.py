@@ -3,7 +3,6 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import os, glob, obspy, gemlog
-import matplotlib.pyplot as plt
 import time
 import datetime
 from gemlog.gemlog_aux import check_lags
@@ -11,12 +10,17 @@ from io import StringIO
 import sys
 import pdb
 
+## TO DO:
+# - graphs for GPS runtime
+# - output to pdf (https://matplotlib.org/stable/gallery/misc/multipage_pdf.html#sphx-glr-gallery-misc-multipage-pdf-py)
+# - one plot for each Sn with three axis (normalize GPS and plot with battery voltage)
+
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
 def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False):
-   """Perform a battery of tests on converted data from a huddle test to ensure that no Gems are
+    """Perform a battery of tests on converted data from a huddle test to ensure that no Gems are
     obviously malfunctioning. 
 
     verify_huddle_test assumes that the Gems start recording data simultaneously, stop recording 
@@ -53,11 +57,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --stats: data frame showing quantitative results for all tests
     --results: data frame showing qualitative results for all tests
     """
-#%%    
-    SN_list = ['058','061','065','077']
-    SN_to_exclude = []
-    individual_only = False
-    path = '.'
+    
+    #SN_list = ['058','061','065','077']
+    #SN_to_exclude = []
+    #individual_only = False
+    #path = '.'
     
     errors = []
     warnings = []
@@ -114,6 +118,14 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     A2_A3_ax[1].set_ylabel("Voltage (V)")
     A2_A3_ax[1].set_xlabel("month-date hour")
     A2_A3_fig.tight_layout()
+    
+    ##Create GPS runtime histogram plots for all SN 
+    gps_fig = plt.figure(2)
+    gps_ax = gps_fig.subplots(1)
+    gps_ax[0].set_title("GPS runtime")
+    gps_ax[0].set_xlabel("runtime [seconds]")
+    gps_ax[0].set_ylabel("serial number")
+    gps_fig.tight_layout()
     
         ## Individual Metadata tests:
     for SN in SN_list:
@@ -307,12 +319,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Plot A3 data
         A2_A3_ax[1].plot(time_datestamp_dec, A3_dec)
         A2_A3_ax[1].legend(SN_list)
-#%%            
+        
+    ##%%%%%##            
         #### minFifoFree and maxFifoUsed should always add to 75
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
-        pstats_df.loc[SN, "No documentation available 
-
-ClicFIFO sum"] = max(fifo_sum)
+        pstats_df.loc[SN, "FIFO sum"] = max(fifo_sum)
         if any((fifo_sum) != 75):
            errors_df.loc[SN, "FIFO sum"] = "ERROR"
            err_message = f"{SN} FIFO ERROR: FIFO sum exceeds range by {np.round(75 - max(fifo_sum),decimals=2)}."
@@ -341,6 +352,7 @@ ClicFIFO sum"] = max(fifo_sum)
         else:
             errors_df.loc[SN, "max fifo within range"] = "OKAY"
             
+    ##%%%%%##             
         #### maxOverruns should always be zero 
         pstats_df.loc[SN, "max overruns"] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
@@ -351,6 +363,7 @@ ClicFIFO sum"] = max(fifo_sum)
         else:
             errors_df.loc[SN, "max overruns"] = "OKAY"
             
+    ##%%%%%##             
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
         pstats_df.loc[SN,"unused stack1 max"] = max(metadata.unusedStack1)
         pstats_df.loc[SN,"unused stack idle max"] = max(metadata.unusedStackIdle)
@@ -361,7 +374,8 @@ ClicFIFO sum"] = max(fifo_sum)
             warnings.append(warn_message)
         else:
             errors_df.loc[SN, "unused stack"] = "OKAY"
-            
+
+    ##%%%%%##             
         #### find time differences among samples with gps off that are > 180 sec
         time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])
         pstats_df.loc[SN, "gps run time"] = max(time_check)
@@ -372,12 +386,13 @@ ClicFIFO sum"] = max(fifo_sum)
             warnings.append(warn_message)
         ## individual GPS:
             #plot GPS histogram for runtime
+        gps_fig.pyplot.hist(metadata.gpsOnFlag)    
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
         gps_dict[SN] = gps
         lat_deg_to_meters = 40e6 / 360 # conversion factor from degrees latitude to meters
         lon_deg_to_meters = 40e6 / 360 * np.cos(np.median(gps.lat) * np.pi/180) # smaller at the poles
-
+        
         ############################################
         #### lat and lon should vary by less than 100 m for each logger (could change)
         #### the maximum difference between GPS fix times should never exceed 20 minutes
@@ -391,9 +406,10 @@ ClicFIFO sum"] = max(fifo_sum)
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
         #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
-
-    print("\nSerial number tests complete.") 
+    
     return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
+    
+    print("\nSerial number tests complete.") 
  #%%  
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
