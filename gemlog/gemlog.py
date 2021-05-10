@@ -347,13 +347,43 @@ def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, converte
         if(len(tr) > 0):
             print(tr)
             if(output_format.lower() == 'wav'):
-                ## this is supposed to work for uint8, int16, and int32, but actually only works for uint8. obspy bug?
-                    tr.data = np.array(tr.data, dtype = 'uint8')# - np.min(tr[i].data)
-                    tr.write(convertedpath +'/'+ fn, format = 'WAV', framerate=7000, width=1) 
+                write_wav(tr, filename = fn, path = convertedpath)
             else:
                 tr.write(convertedpath +'/'+ fn, format = output_format, encoding=10) # encoding 10 is Steim 1
     hour_to_write = hour_end
     return hour_to_write
+
+def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'):
+    """
+    Write a trace as a .wav file. This function is needed because obspy's 
+    tr.write() method apparently does not handle wav files correctly.
+
+    Parameters
+    ----------
+    tr : obspy.Trace()
+        Trace containing data to be written to a .wav file.
+    filename : str, default None
+        Does not include path. If default None, creates a filename using time_format and station information.
+    path : str, default '.'
+        Path where file should be written.
+    time_format : str, default '%Y-%m-%dT%H_%M_%S'
+        In case filename is not provided explicitly, how to format the date/time
+        in the output file name.
+"""
+    if filename is None:
+        datetime_str = tr.stats.starttime.strftime(time_format)
+        s = tr.stats
+        station_str = '%s.%s.%s.%s' % (s.network, s.station, s.location, s.channel)
+        filename = datetime_str + '.' + station_str + '.wav'
+    ## need to ensure that the data is either integers, or float from -1 to 1
+    if tr.data.dtype == 'float':
+        ref = np.abs(tr.data).max()
+        if ref > 0:  ## prevent divide-by-zero
+            tr.data /= ref
+    ## sample rate must be an int
+    if int(tr.stats.sampling_rate) != tr.stats.sampling_rate:
+        raise TypeError('sample rate must be an integer')
+    wavfile.write(path + '/' + filename, int(tr.stats.sampling_rate), tr.data)
     
 
 def _trunc_UTCDateTime(x, n=86400):
