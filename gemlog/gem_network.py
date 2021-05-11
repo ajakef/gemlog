@@ -63,10 +63,11 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                 ## find the serial number for this location
                 SN = station_info[(station_info['network'] == network_name) & (station_info['station'] == station_name) & (station_info['location'] == location_name)]['SN'].iloc[0]
                 ## find the coords line corresponding to this location
-                if 'SN' in coords.keys():
+                if ('SN' in coords.keys()) and any(key not in coords.keys() for key in ['network', 'station', 'location']):
                     line = coords[coords['SN'].astype(int) == int(SN)] # int just in case there's some type discrepancy
                 else:
-                    line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'].astype(int) == int(location_name))]
+                    #line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'].astype(int) == int(location_name))] ## this crashes when location is ''
+                    line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'] == location_name)]
                 ## if no GPS info for this station is found, skip it
                 if line.shape[0] == 0:
                     print('No coords found for ' + SN + ', skipping')
