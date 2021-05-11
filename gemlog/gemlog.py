@@ -8,6 +8,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 import obspy
 import sys
+from scipy.io import wavfile
 
 _debug = False
 
@@ -118,7 +119,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     
     output_format : str, default 'MSEED'
         Output file format. Currently, formats 'MSEED' and 'SAC' are 
-        supported.
+        supported; 'WAV' is partly supported.
 
     Returns
     -------
@@ -375,11 +376,13 @@ def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'
         s = tr.stats
         station_str = '%s.%s.%s.%s' % (s.network, s.station, s.location, s.channel)
         filename = datetime_str + '.' + station_str + '.wav'
-    ## need to ensure that the data is either integers, or float from -1 to 1
-    if tr.data.dtype == 'float':
-        ref = np.abs(tr.data).max()
-        if ref > 0:  ## prevent divide-by-zero
-            tr.data /= ref
+    ## having trouble with integer format, although it is allowed. force float
+    ## format instead, which is probably more useful anyway. This needs to be
+    ## centered about zero and scaled to fit in the -1 to 1 range.
+    tr.data = tr.data.astype(float) - np.mean(tr.data)
+    ref = np.abs(tr.data).max()
+    if ref > 0:  ## prevent divide-by-zero
+        tr.data /= ref
     ## sample rate must be an int
     if int(tr.stats.sampling_rate) != tr.stats.sampling_rate:
         raise TypeError('sample rate must be an integer')
