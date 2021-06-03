@@ -407,7 +407,14 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
         #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
-    
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', None)
+    pd.set_option('display.max_colwidth', -1)
+    print('Results')
+    print(errors_df)
+    print('Stats:')
+    print(pstats_df)
     return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
     
     print("\nSerial number tests complete.") 
