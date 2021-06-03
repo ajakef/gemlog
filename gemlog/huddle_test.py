@@ -58,10 +58,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --results: data frame showing qualitative results for all tests
     """
     
-    #SN_list = ['058','061','065','077']
-    #SN_to_exclude = []
-    #individual_only = False
-    #path = '.'
+    # SN_list = ['058','061','065','077']
+    # SN_to_exclude = []
+    # individual_only = False
+    # path = '.'
     
     errors = []
     warnings = []
@@ -122,9 +122,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ##Create GPS runtime histogram plots for all SN 
     gps_fig = plt.figure(2)
     gps_ax = gps_fig.subplots(1)
-    gps_ax[0].set_title("GPS runtime")
-    gps_ax[0].set_xlabel("runtime [seconds]")
-    gps_ax[0].set_ylabel("serial number")
+    gps_ax.set_title("GPS runtime")
+    gps_ax.set_xlabel("runtime [seconds]")
+    gps_ax.set_ylabel("serial number")
     gps_fig.tight_layout()
     
         ## Individual Metadata tests:
@@ -386,7 +386,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             warnings.append(warn_message)
         ## individual GPS:
             #plot GPS histogram for runtime
-        gps_fig.pyplot.hist(metadata.gpsOnFlag)    
+            #change plotting options 
+        plt.hist(time_check)    
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
         gps_dict[SN] = gps
