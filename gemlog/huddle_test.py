@@ -121,14 +121,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     ##Create GPS runtime histogram plots for all SN 
     gps_fig = plt.figure(2)
-    gps_ax = gps_fig.subplots(1)
-    gps_ax.set_title("GPS runtime")
-    gps_ax.set_xlabel("runtime [seconds]")
-    gps_ax.set_ylabel("serial number")
+    gps_ax = gps_fig.subplots(len(SN_list))
+    gps_ax[0].set_title("GPS Runtime")
     gps_fig.tight_layout()
     
         ## Individual Metadata tests:
-    for SN in SN_list:
+    for SN_index, SN in enumerate(SN_list):
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
         
@@ -219,6 +217,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Plot temperature
         batt_temp_ax[1].plot(time_datestamp_dec, temp_dec)
         batt_temp_ax[1].legend(SN_list)
+        
+    
                   
     ##%%%%%##         
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
@@ -387,7 +387,15 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## individual GPS:
             #plot GPS histogram for runtime
             #change plotting options 
-        plt.hist(time_check)    
+    
+        time_filt = time_check[time_check > 12]
+        time_filt[time_filt > 180] = 180
+        binsize = np.arange(10,200,10)
+        gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
+        gps_ax[SN_index].set_xlabel('seconds')
+        gps_ax[SN_index].set_ylabel(SN_list[SN_index])
+        
+        # plt.hist(time_check)    
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
         gps_dict[SN] = gps
