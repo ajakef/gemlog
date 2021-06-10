@@ -777,7 +777,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     # Try each of the three file readers in order of decreasing speed but
     # probably increasing likelihood of success.
 
-    if version in ['0.9', '0.85C']:
+    if version in ['0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
     else:
         readers = [_read_0_8_with_pandas]
@@ -796,7 +796,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             if (len(output['gps'].lat) == 0) and require_gps:
                 raise CorruptRawFile(filename)
             if version in ['0.91', '0.9', '0.85C', '0.85', '0.8']:
-                output['data'] += 10 # time correction needed for these formats, not later ones
+                output['data'][:,0] += 10 # time correction needed for these formats, not later ones
             return output
 
 
