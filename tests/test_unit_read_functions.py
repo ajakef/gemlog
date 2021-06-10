@@ -42,6 +42,7 @@ def test_read_gem_integration():
     reference_st = obspy.read('../data/v0.8/converted_reference/*')
     reference_st.merge()
     reference = reference_st[0]
+    reference.stats.starttime += 0.01 # correction for mseed originally written with time offset
 
     ## make sure the waveforms span the same time window
     dt1 = data.stats.starttime
