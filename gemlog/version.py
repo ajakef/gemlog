@@ -1,4 +1,5 @@
-__version__ = '1.3.11' # fix bug in make_gem_inventory that affected surveys, where a sensor can move around and become multiple stations 
+__version__ = '1.3.12' # read_single: add timing correction for formats 0.91 and earlier 
+#__version__ = '1.3.11' # fix bug in make_gem_inventory that affected surveys, where a sensor can move around and become multiple stations 
 #__version__ = '1.3.10' # implement .wav file outputs 
 #__version__ = '1.3.9' # still trying to get the pypi upload set right 
 #__version__ = '1.3.8' # even more workflow fixes 
@@ -31,4 +32,4 @@ __version__ = '1.3.11' # fix bug in make_gem_inventory that affected surveys, wh
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive#####################
+## List of old versions is not yet comprehensive######################
