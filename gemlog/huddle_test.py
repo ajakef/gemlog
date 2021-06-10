@@ -387,15 +387,22 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## individual GPS:
             #plot GPS histogram for runtime
             #change plotting options 
-    
+        
+        #IDEAS - change to stacked bar chart with different colors for serial numbers
+        # how to select colors automatically?
         time_filt = time_check[time_check > 12]
         time_filt[time_filt > 180] = 180
-        binsize = np.arange(10,200,10)
+        binsize = np.arange(10,180,10)
         gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
-        gps_ax[SN_index].set_xlabel('seconds')
-        gps_ax[SN_index].set_ylabel(SN_list[SN_index])
+        gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
+        gps_ax[SN_index].axes.xaxis.set_ticklabels([])
+        gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
+        gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
+        if SN == SN_list[-1]:    
+            gps_ax[SN_index].set_xlabel('seconds')
+            gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
         
-        # plt.hist(time_check)    
+           
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
         gps_dict[SN] = gps
