@@ -795,8 +795,9 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
         else: # if we're here, the file read worked. it may be invalid though.
             if (len(output['gps'].lat) == 0) and require_gps:
                 raise CorruptRawFile(filename)
-            if version in ['0.91', '0.9', '0.85C', '0.85', '0.8']:
-                output['data'][:,0] += 10 # time correction needed for these formats, not later ones
+
+            # implement a small timing correction (depends on the raw format version)
+            output['data'][:,0] += _time_corrections[version]
             return output
 
 
@@ -1320,3 +1321,12 @@ def _make_empty_metadata():
     return pd.DataFrame(columns = ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', \
                                    'minFifoFree', 'maxFifoUsed', 'maxOverruns', 'gpsOnFlag', \
                                    'unusedStack1', 'unusedStackIdle'])
+
+_time_corrections = { # milliseconds
+    '0.8':15.25,
+    '0.85':15.25,
+    '0.85C':15.25,
+    '0.9':15.25,
+    '0.91':15.25
+}
+    
