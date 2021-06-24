@@ -9,6 +9,8 @@ from gemlog.gemlog_aux import check_lags
 from io import StringIO 
 import sys
 import pdb
+import shutil
+from fpdf import FPDF
 
 ## TO DO:
 # - graphs for GPS runtime
@@ -97,6 +99,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ### Initialize plots
     plt.close('all') #close any previous figures  
     
+    ## Create a PDF output of plots
+    plot_dir = 'plots'
+    
+            
     ##Create battery and temperature time series graphs for all SN
     batt_temp_fig = plt.figure(0)
     batt_temp_ax = batt_temp_fig.subplots(2)
@@ -430,9 +436,22 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     print(errors_df)
     print('Stats:')
     print(pstats_df)
-    return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
+    
     
     print("\nSerial number tests complete.") 
+   
+    pstats_df.to_html()
+    ## Create a PDF output of plots
+    report_date = datetime.datetime.today()
+    report_date = report_date.strftime("%Y-%m-%d")
+    filename = "Huddle_test_output_" + report_date
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font('helvetica', size=12)
+    pdf.cell("This pdf will contain the images and figures generated in the report.")
+    pdf.output(f"{filename}.pdf")
+    #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
+    
  #%%  
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
