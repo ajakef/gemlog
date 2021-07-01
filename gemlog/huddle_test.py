@@ -428,6 +428,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
         #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
+    
+    #Do not omit rows and columns when displaying in console
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', None)
@@ -440,15 +442,38 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     print("\nSerial number tests complete.") 
    
-    pstats_df.to_html()
+    s = pstats_df.shape
+    print(s)
     ## Create a PDF output of plots
     report_date = datetime.datetime.today()
     report_date = report_date.strftime("%Y-%m-%d")
-    filename = "Huddle_test_output_" + report_date
+    filename = str("Huddle_test_output_" + report_date)
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font('helvetica', size=12)
-    pdf.cell("This pdf will contain the images and figures generated in the report.")
+    pdf.cell(0,10, f"Huddle Test Results: {report_date}", border=1, ln=0, align= 'C')
+    pdf.ln() #new line
+    pdf.cell(0,10, f"Date: {report_date}",border=1,align= 'C', ln=1)
+    pdf.cell(50,10,"This is a column header", ln=1)
+    pdf.set_font('helvetica', size=8)
+    #attempting to get headers to wrap text... so far just smushing together.
+    for col in pstats_df.columns:
+       header = col.split()
+       print(header)
+       if len(header) == 1: 
+           header_text = header[0]
+           pdf.cell(12,10, '%s' % header[0])
+       elif len(header) == 2:
+           header_text = header[0] + "\n" + header[1]
+           pdf.cell(12,10, '%s' % header_text)
+           print()
+    pdf.ln()
+    for i in range(0,len(pstats_df)):
+       for j in range(0,len(pstats_df.columns)): 
+           pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
+       pdf.ln()
+
+    
     pdf.output(f"{filename}.pdf")
     #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
     
