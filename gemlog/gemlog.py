@@ -797,7 +797,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
                 raise CorruptRawFile(filename)
 
             # implement a small timing correction (depends on the raw format version)
-            output['data'][:,0] += _time_corrections[version]
+            output['data'][:,0] += 0 * _time_corrections[version] # fix this
             return output
 
 
@@ -1018,17 +1018,18 @@ def _read_several(fnList, version = 0.9):
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
             _breakpoint()
-            linreg, num_gps_nonoutliers, MAD_nonoutliers = _robust_regress(L['gps'].msPPS, L['gps'].t)
-            resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
+            reg, num_gps_nonoutliers, MAD_nonoutliers, resid = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            #resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
             startMillis = D[-1,0]
             header.loc[i, 'lat'] = np.median(L['gps']['lat'])
             header.loc[i, 'lon'] = np.median(L['gps']['lon'])
             header.loc[i, 'start_ms'] = L['data'][0,0] # save this as a millis first, then convert
             header.loc[i, 'end_ms'] = L['data'][-1,0]
             header.loc[i, 'SN'] = _read_SN(fn)
-            header.loc[i, 'drift_slope'] = linreg.slope
-            header.loc[i, 'drift_intercept'] = linreg.intercept
-            header.loc[i, 'drift_slope_stderr'] = linreg.stderr
+            header.loc[i, 'drift_deg2'] = reg[0]
+            header.loc[i, 'drift_deg1'] = reg[1]
+            header.loc[i, 'drift_deg0'] = reg[2]
+            header.loc[i, 'drift_slope_stderr'] = np.nan #reg.stderr
             header.loc[i, 'drift_resid_std'] = np.std(resid)
             header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
             header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
@@ -1039,22 +1040,24 @@ def _read_several(fnList, version = 0.9):
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
 def _robust_regress(x, y, z=2):
-    # goal: a linear regression that is robust to RARE outliers, especially for GPS data
+    # goal: a quadratic regression that is robust to RARE outliers, especially for GPS data
     # scipy.stats.theilslopes (median-based) looks problematic because the median is only affected
     # by the central data point and doesn't benefit from the other samples' information. Also, GPS
     # data slopes are weirdly distributed.
     # In this function, z is the z-score (number of standard deviations) for defining outliers.
 
     ## Calculate regression line and residuals.
-    linreg = scipy.stats.linregress(x, y)
-    resid = y - (linreg.intercept + x * linreg.slope)
+    #linreg = scipy.stats.linregress(x, y)
+    #resid = y - (linreg.intercept + x * linreg.slope)
+    reg = np.polyfit(x, y, 2)
+    resid = y - (reg[2] + x * reg[1] + x**2 * reg[0])
 
     ## If any are found to be outliers, remove them and recalculate recursively.
     outliers = np.abs(resid) > (z*np.std(resid))
     if any(outliers):
         return _robust_regress(x[~outliers], y[~outliers], z)
     else:
-        return (linreg, len(x), np.max(np.abs(resid)))
+        return (reg, len(x), np.max(np.abs(resid)), resid)
 
 def _apply_segments(x, model):
     y = np.zeros(len(x))

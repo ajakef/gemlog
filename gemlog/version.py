@@ -1,4 +1,4 @@
-__version__ = '1.3.12' # read_single: add timing correction for formats 0.91 and earlier 
+__version__ = '1.3.13' # read_single: add timing correction for formats 0.91 and earlier 
 #__version__ = '1.3.11' # fix bug in make_gem_inventory that affected surveys, where a sensor can move around and become multiple stations 
 #__version__ = '1.3.10' # implement .wav file outputs 
 #__version__ = '1.3.9' # still trying to get the pypi upload set right 
