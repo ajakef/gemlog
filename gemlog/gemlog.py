@@ -797,7 +797,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
                 raise CorruptRawFile(filename)
 
             # implement a small timing correction (depends on the raw format version)
-            output['data'][:,0] += 0 * _time_corrections[version] # fix this
+            #output['data'][:,0] += _time_corrections[version] 
             return output
 
 
@@ -1026,10 +1026,11 @@ def _read_several(fnList, version = 0.9):
             header.loc[i, 'start_ms'] = L['data'][0,0] # save this as a millis first, then convert
             header.loc[i, 'end_ms'] = L['data'][-1,0]
             header.loc[i, 'SN'] = _read_SN(fn)
-            header.loc[i, 'drift_deg2'] = reg[0]
-            header.loc[i, 'drift_deg1'] = reg[1]
-            header.loc[i, 'drift_deg0'] = reg[2]
-            header.loc[i, 'drift_slope_stderr'] = np.nan #reg.stderr
+            header.loc[i, 'drift_deg3'] = reg[0]
+            header.loc[i, 'drift_deg2'] = reg[1]
+            header.loc[i, 'drift_deg1'] = reg[2]
+            header.loc[i, 'drift_deg0'] = reg[3]
+            #header.loc[i, 'drift_slope_stderr'] = np.nan #reg.stderr
             header.loc[i, 'drift_resid_std'] = np.std(resid)
             header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
             header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
@@ -1049,8 +1050,8 @@ def _robust_regress(x, y, z=2):
     ## Calculate regression line and residuals.
     #linreg = scipy.stats.linregress(x, y)
     #resid = y - (linreg.intercept + x * linreg.slope)
-    reg = np.polyfit(x, y, 2)
-    resid = y - (reg[2] + x * reg[1] + x**2 * reg[0])
+    reg = np.polyfit(x, y, 3)
+    resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
 
     ## If any are found to be outliers, remove them and recalculate recursively.
     outliers = np.abs(resid) > (z*np.std(resid))
@@ -1064,7 +1065,8 @@ def _apply_segments(x, model):
     y[:] = np.nan
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
-        y[w] = model['drift_intercept'][i] + model['drift_slope'][i] * x[w]
+        #y[w] = model['drift_intercept'][i] + model['drift_slope'][i] * x[w]
+        y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
     return y
     
 def _assign_times(L):
@@ -1310,9 +1312,13 @@ def _make_empty_header(fnList):
                                    'lon': num_filler,
                                    'start_ms': num_filler,
                                    'end_ms': num_filler,
-                                   'drift_slope': num_filler,
-                                   'drift_intercept': num_filler,
-                                   'drift_slope_stderr': num_filler,
+                                   #'drift_slope': num_filler,
+                                   #'drift_intercept': num_filler,
+                                   #'drift_slope_stderr': num_filler,
+                                   'drift_deg0': num_filler,
+                                   'drift_deg1': num_filler,
+                                   'drift_deg2': num_filler,
+                                   'drift_deg3': num_filler,
                                    'drift_resid_std': num_filler,
                                    'drift_resid_MAD': num_filler,
                                    'num_gps_pts': num_filler
@@ -1325,11 +1331,12 @@ def _make_empty_metadata():
                                    'minFifoFree', 'maxFifoUsed', 'maxOverruns', 'gpsOnFlag', \
                                    'unusedStack1', 'unusedStackIdle'])
 
+## time corrections spec taken from 2021-07-07 PPS test.
 _time_corrections = { # milliseconds
-    '0.8':15.25,
-    '0.85':15.25,
-    '0.85C':15.25,
-    '0.9':15.25,
-    '0.91':15.25
+    '0.8':8.93,
+    '0.85':8.93,
+    '0.85C':8.93,
+    '0.9':8.93,
+    '0.91':8.93
 }
     
