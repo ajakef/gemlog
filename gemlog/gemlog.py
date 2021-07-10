@@ -797,7 +797,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
                 raise CorruptRawFile(filename)
 
             # implement a small timing correction (depends on the raw format version)
-            #output['data'][:,0] += _time_corrections[version] 
+            output['data'][:,0] += _time_corrections[version] 
             return output
 
 
