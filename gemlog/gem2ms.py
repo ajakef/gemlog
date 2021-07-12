@@ -6,6 +6,7 @@ try:
     import os, glob, getopt, requests
     import logging, traceback
     import gemlog
+    from concurrent.futures import ProcessPoolExecutor
 except Exception as e:
     print('Either dependencies are missing, or the environment is not active')
     print('Error message:')
@@ -31,8 +32,31 @@ def unique(list1): # thanks Kevin!
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
+def convert_single_SN(arg_list):
+    inputdir, SN, outputdir, output_format, output_length = arg_list
+    logging.info('Beginning ' + SN)
+    try:
+        print([inputdir, SN, outputdir, output_format, output_length])
+        gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
+        print(SN + ' done')
+    except KeyboardInterrupt:
+        logging.info('Interrupted by user')
+        print('Interrupted')
+        #sys.exit()
+    except Exception as e:
+        print(e)
+        ####logging.info(traceback.format_exc(e.__traceback__))
+        logging.exception(parse_error(e), exc_info = gemlog._debug)
+        ####logging.exception(traceback.format_exc())
+        logging.info('Error in ' + SN)
+        pass
+    else:
+        pass
+    logging.info('Completed ' + SN)
+    return 0
+
 def print_call():
-    print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format> -l <filelength_hours>')
+    print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format> -l <filelength_hours> -p <number_of_processes>')
     print('-i --inputdir: default ./raw/')
     print('-s --serialnumbers: separate by commas (no spaces); default all')
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
@@ -40,6 +64,7 @@ def print_call():
     print('-f --format: mseed, sac, or tspair (text) currently supported; default mseed')
     print('-l --length: length of output converted files in hours; default 1')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
+    print('-p --parallel: number of processes to run in parallel (limited by your computer); default 1.')
     print('-h --help: print this message')
     print('alias: gem2ms. gemlog version: ' + gemlog.__version__)
 
@@ -64,9 +89,10 @@ def main(argv = None):
     test = False
     output_format = 'MSEED'
     output_length = 1 # hours
+    num_processes = 1
     gemlog._debug = False
     try:
-        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:",["inputdir=","serialnumber="])
+        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:p:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
         print_call()
         sys.exit(2)
@@ -97,6 +123,11 @@ def main(argv = None):
             output_format = arg
         elif opt in ("-l", "--length"):
             output_length = arg
+        elif opt in ("-p", "--parallel"):
+            try:
+                num_processes = int(arg)
+            except:
+                'could not interpret number_of_processes ' + arg + ' as integer'
 
     if outputdir is None:
         outputdir = output_format.lower()
@@ -135,21 +166,10 @@ def main(argv = None):
     if not test:
         logging.info('***Starting conversion (gemlog version ' + gemlog.__version__ + ')***')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
-        for SN in SN_list:
-            logging.info('Beginning ' + SN)
-            try:
-                gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
-            except KeyboardInterrupt:
-                logging.info('Interrupted by user')
-                print('Interrupted')
-                sys.exit()
-            except Exception as e:
-                #logging.info(traceback.format_exc(e.__traceback__))
-                logging.exception(parse_error(e), exc_info = gemlog._debug)
-                #logging.exception(traceback.format_exc())
-                logging.info('Error in ' + SN)
-            else:
-                logging.info('Completed ' + SN)
+        #for SN in SN_list:
+        with ProcessPoolExecutor(max_workers=num_processes) as pool:
+            args_list = [[inputdir, SN, outputdir, output_format, output_length] for SN in SN_list]
+            res = pool.map(convert_single_SN, args_list)
 
 if __name__ == "__main__":
    main(sys.argv[1:])

@@ -302,8 +302,11 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 for i in w:
                     print('Problem with files, skipping: ' + L['header'].file[i])
 
-            #pdb.set_trace()
             if(len(L['data']) > 0):
+                if (L['data'][0].stats.starttime - p[-1].stats.endtime) <= 0.031: # interpolate a gap up to 3 samples
+                    L['data'] += p[-1]
+                    L['data'].merge(fill_value = 'interpolate')
+                ## merge all the data, regardless of whether we interpolated a gap above
                 p = p + L['data']
                 p.merge()
             #print(p)
@@ -851,7 +854,7 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
         data_col = 2
     D = grouper.get_group(Dkey)
     M = grouper.get_group(Mkey)
-    _breakpoint()
+    #_breakpoint()
     # pick out columns of interest and rename
     D_cols = ['msSamp', 'ADC']
 
@@ -1017,7 +1020,7 @@ def _read_several(fnList, version = 0.9):
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
-            _breakpoint()
+            #_breakpoint()
             reg, num_gps_nonoutliers, MAD_nonoutliers, resid = _robust_regress(L['gps'].msPPS, L['gps'].t)
             #resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
             startMillis = D[-1,0]
@@ -1037,7 +1040,7 @@ def _read_several(fnList, version = 0.9):
             header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_nonoutliers
             header.loc[i, 'num_gps_nonoutliers'] = num_gps_nonoutliers
         ## end of fn loop
-    _breakpoint()
+    #_breakpoint()
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
 def _robust_regress(x, y, z=2):
@@ -1070,6 +1073,7 @@ def _apply_segments(x, model):
     return y
     
 def _assign_times(L):
+    #_breakpoint()
     fnList = L['header'].file
     if L['gps'].shape[0] == 0:
         raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
@@ -1104,24 +1108,24 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
     w_nonnan = ~np.isnan(data[:,2])
     t_in = data[w_nonnan,2]
     p_in = data[w_nonnan,1]
-    #_breakpoint()
-    t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## 2019-09-11
+    _breakpoint()
+    #t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## added on 2019-09-11. 2021-07-11: this line is responsible for losing samples before the start of a second
+    t1 = t_in[t_in >= (t1 - 0.01 - eps)][0]
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
     ## R code here had code to catch t2 <= t1. should add that.
     breaks_raw = np.where((np.diff(t_in) > 0.015) | (np.diff(t_in) < 0.007) )[0] # 2020-11-04: check for backwards steps too
+    breaks_raw = np.where((np.diff(t_in) > 0.025) | (np.diff(t_in) < 0.007) )[0] # 2020-11-04: check for backwards steps too
     breaks = breaks_raw[(t_in[breaks_raw] > t1) & (t_in[breaks_raw+1] < t2)]
     starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
     ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
     w_same = (starts != ends)
     starts = starts[w_same]
     ends = ends[w_same]
-    starts_round = np.trunc(starts)
-    ends_round = np.trunc(ends+eps+1)
     ## make an output time vector excluding data gaps, rounded to the nearest samples
     #t_interp = np.zeros(0)
     output = obspy.Stream()
-    for i in range(len(starts_round)):
-        w = (t_in >= starts[i]) & (t_in <= ends[i])
+    for i in range(len(starts)):
+        w = (t_in >= (starts[i] - 0.01 - eps)) & (t_in <= (ends[i] + 0.01 - eps))
         try:
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
@@ -1244,6 +1248,7 @@ def _reformat_GPS(G_in):
     return pd.DataFrame.from_dict(G_dict)
 
 def _find_breaks_(L):
+    #_breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -1276,9 +1281,9 @@ def _find_breaks_(L):
         ends = np.append(ends, np.min(tD[(i-1):(i+2)]))
     tG = np.array(L['gps'].t).astype('float')
     mG = np.array(L['gps'].msPPS).astype('float')
-    dmG_dtG = np.diff(mG)/np.diff(tG)
+    dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
-                         ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # drift between cycles
+                         ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
                          ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle
                         )
     for i in gpsBreaks:
