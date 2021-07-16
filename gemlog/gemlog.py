@@ -554,7 +554,7 @@ def _new_gem_var():
 
 def _read_SN(fn):
     try:
-        SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'])
+        SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'], encoding_errors='ignore')
         SN = SN_line['SN'][0]
     except:
         raise CorruptRawFile(fn + ': missing serial number')
@@ -568,7 +568,7 @@ def _read_format_version(fn):
     #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
     #0.8: file extension .TXT, 1-hour files
     #"""
-    versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'])
+    versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore')
     version = versionLine['s'][0][7:]
     return version
     
@@ -580,7 +580,7 @@ def _read_config(fn):
                     'led_shutoff' : 0,
                     'serial_output' : 0}) ## default config: it's fairly safe to use this as the default because any other configuration would require ...
     for j in range(10):
-        line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', names = ['na', 'gps_mode','gps_cycle','gps_quota','adc_range','led_shutoff','serial_output'])
+        line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', names = ['na', 'gps_mode','gps_cycle','gps_quota','adc_range','led_shutoff','serial_output'], encoding_errors='ignore')
         if line.iloc[0,0] == 'C':
             #config = line.iloc[0,1:]
             config = {key:int(line[key]) for key in list(line.keys())[1:]}
@@ -698,11 +698,11 @@ def _read_0_8_with_pandas(filename, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
-        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6, encoding_errors='ignore')
     except Exception:
         try:
             df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
-                             error_bad_lines = False, warn_bad_lines = False)
+                             error_bad_lines = False, warn_bad_lines = False, encoding_errors='ignore')
         except:
             raise CorruptRawFile(filename)
     if df.shape[0] == 0:
@@ -727,11 +727,11 @@ def _read_with_pandas(filename, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
-        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6)
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6, encoding_errors='ignore')
     except Exception:
         try:
             df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
-                             error_bad_lines = False, warn_bad_lines = False)
+                             error_bad_lines = False, warn_bad_lines = False, encoding_errors='ignore')
         except:
             raise CorruptRawFile(filename)
     if df.shape[0] == 0:

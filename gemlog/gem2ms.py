@@ -36,7 +36,7 @@ def convert_single_SN(arg_list):
     inputdir, SN, outputdir, output_format, output_length = arg_list
     logging.info('Beginning ' + SN)
     try:
-        print([inputdir, SN, outputdir, output_format, output_length])
+        #print([inputdir, SN, outputdir, output_format, output_length])
         gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
         print(SN + ' done')
     except KeyboardInterrupt:
@@ -62,7 +62,7 @@ def print_call():
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
     print('-o --outputdir: default ./mseed')
     print('-f --format: mseed, sac, or tspair (text) currently supported; default mseed')
-    print('-l --length: length of output converted files in hours; default 1')
+    print('-l --length: length of output converted files in hours; default 24')
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-p --parallel: number of processes to run in parallel (limited by your computer); default 1.')
     print('-h --help: print this message')
@@ -88,7 +88,7 @@ def main(argv = None):
     outputdir = None
     test = False
     output_format = 'MSEED'
-    output_length = 1 # hours
+    output_length = 24 # hours
     num_processes = 1
     gemlog._debug = False
     try:
