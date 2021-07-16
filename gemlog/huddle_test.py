@@ -456,18 +456,39 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.cell(0,10, f"Date: {report_date}",border=1,align= 'C', ln=1)
     pdf.cell(50,10,"This is a column header", ln=1)
     pdf.set_font('helvetica', size=8)
-    #attempting to get headers to wrap text... so far just smushing together.
-    for col in pstats_df.columns:
-       header = col.split()
-       print(header)
-       if len(header) == 1: 
-           header_text = header[0]
-           pdf.cell(12,10, '%s' % header[0])
-       elif len(header) == 2:
-           header_text = header[0] + "\n" + header[1]
-           pdf.cell(12,10, '%s' % header_text)
-           print()
+    pdf_header = []
+    #attempt to get multiline headers
+    for index, col in enumerate(pstats_df.columns):
+       col_header = [[],[]]
+       col_header = col.split() 
+       pdf_header.append(col_header)
+    #replace temperature with temp
+    for word in pdf_header:
+        if word[0] == "temperature":
+            word[0] = "temp"
+    
+    for i, header in enumerate(pdf_header):
+        if len(pdf_header[i]) == 3:
+            pdf_header[i].append('')
+        elif len(pdf_header[i]) == 2:
+            pdf_header[i].append('')
+            pdf_header[i].append('')
+        elif len(pdf_header[i]) == 1:
+            pdf_header[i].append('')
+            pdf_header[i].append('')
+            pdf_header[i].append('')
+        else:
+            pass
+    for i, header in enumerate(pdf_header):
+        print(pdf_header)
+        for j in range(0,4):
+               pdf.set_font('helvetica', size=8)
+               pdf.cell(12,5, '%s' % pdf_header[i][4])
+       #pdf.ln() 
+       
     pdf.ln()
+    
+    #print out stats data frame into pdf
     for i in range(0,len(pstats_df)):
        for j in range(0,len(pstats_df.columns)): 
            pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
