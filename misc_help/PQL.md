@@ -22,12 +22,12 @@ Download the .pkg file from the latest release here: https://www.passcal.nmt.edu
 
 Find the downloaded file and double-click to install. If the "unidentified source" error comes up, right click on the installation package, and choose "open".... Another warning will pop up, but you can hit "open" again, and it will start the installation process.  
 
-Open the hidden file `~/.bash_profile` using your favorite text editor, and add the following lines to the very end. This tells your system where to look to find the PQL command.
+Find out what your default shell is; newer macs typically use zsh (config file .zshrc), and older macs typically use bash (config file ~/.bash_profile). Open the hidden file `~/.zshrc` or `~/.bash_profile` using your favorite text editor, and add the following lines to the very end. This tells your system where to look to find the PQL command.
 ```
 PATH=$PATH:/opt/passcal/bin/
 alias pql='pql -l' # uses setting that makes it resizeable on small screens
 ```
-Then, run this command in the terminal to implement your changes: `source ~/.bash_profile`
+Then, run this command in the terminal to implement your changes: `source ~/.zshrc` or `source ~/.bash_profile`.
 
 Finally, run the command `pql` in the terminal. If you get a display error, you might need to run it through XTerm instead (which may require installing XQuartz).
 
@@ -41,11 +41,11 @@ First, change the settings on the left side of the main screen for each of the f
 * "Spectra" tab: set window scale to "window"
 
 Then, click the "Controls" button near the bottom left, and make the following changes:
-* "General" tab: change sort settings to 1 absolute start time, 2 network, 3 station, 4 location, 5 channel
+* "General" tab: click "Edit" next to "Sort Definitions" to 1 absolute start time, 2 network, 3 station, 4 location, 5 channel
 * "Overlay" tab: change color #3 (originally yellow) to anything that's more visible against pink background
 * "Spectra" tab: set both amplitude and frequency to log scale
 
-Finally, click "Set Defaults" to save all the settings you just changed, then "Continue" to return to the main screen.
+Finally, click "Set Defaults" in the top left to save all the settings you just changed, then "Continue" to return to the main screen.
 
 ### Using PQL
 #### Starting PQL
