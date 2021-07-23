@@ -244,17 +244,71 @@ def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None,
         noise_spec = pd.read_csv(gemlog.__path__[0] + '/../data/Gem_v0.98_Noise_spec.txt')
     else:
         raise Exception('version %s not supported' % version)
+    freq_in = noise_spec['f']
+    power_in = noise_spec['amp']**2
 
-    spec_function = scipy.interpolate.CubicSpline(noise_spec['f'], noise_spec['amp']**2, extrapolate = False)
+    return _noise_spectrum_helper(freq_in, power_in, freq, spectype, freq_min, freq_max)
+
+def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, freq_max = 50):
+    """Return noise from an IMS noise model as a one-sided spectrum integrated
+    over a defined frequency band
+
+    Parameters
+    ----------
+    freq : numpy array
+        Input frequencies for spectrum. If None, use default.
+    spectype : str
+        Type of spectrum and noise calculations: either 'power', 'amp', or 'dB' 
+    freq_min : float
+        minimum frequency of band for calculating noise
+    freq_max : float
+        maximum frequency of band for calculating noise
     
-    ## decide whether to use user-provided frequencies or default frequencies
-    if freq is None:
-        freq = noise_spec['f']
-        amp = noise_spec['amp']**2
-        power = noise_spec['amp']**2
-    else:
-        power = spec_function(freq)
+    Returns
+    -------
+    Dictionary with following items:
+    freqs: frequencies of output spectrum
+    spectrum: low noise model (one-sided self-noise spectrum)
+    type: type of spectrum (power, amplitude, or dB, depends on spectrype input)
+    spectrum_units: units of spectrum (depends on spectype input)
+    freq_min: lower bound of noise band
+    freq_max: upper bound of noise band
+    noise: integrated noise over band
+    noise_units: units of integrated noise (depends on spectype input)
 
+    Example
+    -------
+    ## calculate gem noise over the 0.1-20 Hz band as an RMS amplitude
+    noise_info = ims_noise(model = 'low', freq_min = 0.1, freq_max = 20, spectype = 'amp')
+    print(noise_info['noise'])
+    print(noise_info['noise_units'])
+    
+    """
+    # use cases:
+    # 1: wants output spectrum for given frequency vector
+    # 2: wants output frequencies and spectrum with no frequency input
+    # in order to permit 2, we need to return frequencies and spectrum
+    noise_spec = pd.read_csv('/home/jake/Work/gemlog_python/data/IMSNOISE_MIN_MED_MAX.txt',
+                             names = ['f', 'min', 'med', 'max'], sep = '\s+')
+    freq_in = noise_spec['f']
+    if model.lower() in ['low', 'min']:
+        power_in = 10**noise_spec['min']
+    elif model.lower() == 'med':
+        power_in = 10**noise_spec['med']
+    elif model.lower() in ['high', 'hi', 'max']:
+        power_in = 10**noise_spec['max']
+    else:
+        raise Exception('Invalid IMS model: %s' % model)
+    
+    return _noise_spectrum_helper(freq_in, power_in, freq, spectype, freq_min, freq_max)
+
+
+
+def _noise_spectrum_helper(freq_in, power_in, freq_out, spectype, freq_min, freq_max):
+    if freq_out is None:
+        freq_out = freq_in
+    spec_function = scipy.interpolate.CubicSpline(freq_in, power_in, extrapolate = False)
+    power = spec_function(freq_out)
     if (freq_min is not None) and (freq_max is not None):
         noise = scipy.integrate.quad(spec_function, freq_min, freq_max)[0] # 'quad' outputs are the estimated integral and error bar
     else:
@@ -266,7 +320,7 @@ def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None,
         spec_units = 'Pa^2/Hz'
         noise_units = 'Pa^2'
     elif spectype.lower()[:3] == 'amp':
-        spec = amp
+        spec = np.sqrt(power)
         noise = np.sqrt(noise)
         spec_units = 'Pa/sqrt(Hz)'
         noise_units = 'Pa'
@@ -278,4 +332,4 @@ def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None,
     else:
         raise Exception('spectype %s not supported' % spectype)
 
-    return {'freqs':freq, 'spectrum':spec, 'type':spectype, 'spectrum_units':spec_units, 'freq_min':freq_min, 'freq_max':freq_max, 'noise':noise, 'noise_units':noise_units}
+    return {'freqs':freq_out, 'spectrum':spec, 'type':spectype, 'spectrum_units':spec_units, 'freq_min':freq_min, 'freq_max':freq_max, 'noise':noise, 'noise_units':noise_units}
