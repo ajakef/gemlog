@@ -153,3 +153,10 @@ This won't delete the work you did, but it will remove the commit from the log. 
 git reset HEAD^
 ```
 
+##### Configure the repo for ssh access
+This makes it so you can use an ssh key to push and pull changes, rather than entering a username and password. First, follow instructions [here](https://docs.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account) to create a public/private key pair and then tell GitHub the public key.
+```
+git remote set-url origin git@github.com:ajakef/gemlog
+```
+
+If you have other remotes (e.g., your own fork, perhaps labeled "upstream"), you will need to repeat this process, replacing "origin" with the other remote's name.

@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import obspy, glob, gemlog
+import scipy.integrate
+import scipy.interpolate
 #from gemlog import *
 def PlotAmp(DB):
     allSta = DB.station.unique()
@@ -197,3 +199,83 @@ def calc_channel_stats(DB, t1, t2):
     out = pd.concat(out)
     return(out)
 
+def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None, freq_max = 50):
+    """Calculate Gem self-noise as a one-sided spectrum, and integrated over 
+    a defined frequency band
+
+    Parameters
+    ----------
+    freq : numpy array
+        Input frequencies for spectrum. If None, use default.
+    spectype : str
+        Type of spectrum and noise calculations: either 'power', 'amp', or 'dB' 
+    version : str
+        Gem version to find noise spectrum for
+    freq_min : float
+        minimum frequency of band for calculating noise
+    freq_max : float
+        maximum frequency of band for calculating noise
+    
+    Returns
+    -------
+    Dictionary with following items:
+    freqs: frequencies of output spectrum
+    spectrum: one-sided self-noise spectrum
+    type: type of spectrum (power, amplitude, or dB, depends on spectrype input)
+    spectrum_units: units of spectrum (depends on spectype input)
+    freq_min: lower bound of noise band
+    freq_max: upper bound of noise band
+    noise: integrated noise over band
+    noise_units: untis of integrated noise (depends on spectype input)
+
+    Example
+    -------
+    ## calculate gem noise over the 0.1-20 Hz band as an RMS amplitude
+    noise_info = gem_noise(version = '1.0', freq_min = 0.1, freq_max = 20, spectype = 'amp')
+    print(noise_info['noise'])
+    print(noise_info['noise_units'])
+    
+    """
+    # use cases:
+    # 1: wants output spectrum for given frequency vector
+    # 2: wants output frequencies and spectrum with no frequency input
+    # in order to permit 2, we need to return frequencies and spectrum
+    if(float(version) >= 0.97):
+        noise_spec = pd.read_csv(gemlog.__path__[0] + '/../data/Gem_v0.98_Noise_spec.txt')
+    else:
+        raise Exception('version %s not supported' % version)
+
+    spec_function = scipy.interpolate.CubicSpline(noise_spec['f'], noise_spec['amp']**2, extrapolate = False)
+    
+    ## decide whether to use user-provided frequencies or default frequencies
+    if freq is None:
+        freq = noise_spec['f']
+        amp = noise_spec['amp']**2
+        power = noise_spec['amp']**2
+    else:
+        power = spec_function(freq)
+
+    if (freq_min is not None) and (freq_max is not None):
+        noise = scipy.integrate.quad(spec_function, freq_min, freq_max)[0] # 'quad' outputs are the estimated integral and error bar
+    else:
+        noise = np.NaN
+
+    ## decide what kind of spectrum to return (default "power")
+    if spectype.lower() == 'power':
+        spec = power
+        spec_units = 'Pa^2/Hz'
+        noise_units = 'Pa^2'
+    elif spectype.lower()[:3] == 'amp':
+        spec = amp
+        noise = np.sqrt(noise)
+        spec_units = 'Pa/sqrt(Hz)'
+        noise_units = 'Pa'
+    elif spectype.lower() == 'db':
+        spec = 10*np.log10(power)
+        noise = 10*np.log10(noise)
+        spec_units = 'dB Pa/sqrt(Hz)'
+        noise_units = 'dB Pa'
+    else:
+        raise Exception('spectype %s not supported' % spectype)
+
+    return {'freqs':freq, 'spectrum':spec, 'type':spectype, 'spectrum_units':spec_units, 'freq_min':freq_min, 'freq_max':freq_max, 'noise':noise, 'noise_units':noise_units}
