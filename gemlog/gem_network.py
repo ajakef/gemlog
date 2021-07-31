@@ -13,7 +13,7 @@ def _get_station_info(station_info):
             station_info = pd.read_csv(station_info, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
         else:
             if len(header_list) == 4:
-                station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False, index_col = False)
+                station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
             elif len(header_list) == 5:
                 station_info = pd.read_csv(station_info, names = required_keys + ['elevation'], dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
             else:
