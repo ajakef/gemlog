@@ -7,7 +7,17 @@ import glob, obspy, os
 def _get_station_info(station_info):
     required_keys = ['SN', 'network', 'station', 'location']
     if type(station_info) == str:
-        station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
+        header_df = pd.read_csv(station_info, nrows = 1, header = None, index_col = False)
+        header_list = [header_df[key][0] for key in header_df.keys()]
+        if all([i in (required_keys + ['elevation']) for i in header_list]): # file has header line
+            station_info = pd.read_csv(station_info, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
+        else:
+            if len(header_list) == 4:
+                station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False, index_col = False)
+            elif len(header_list) == 5:
+                station_info = pd.read_csv(station_info, names = required_keys + ['elevation'], dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
+            else:
+                raise Exception('invalid station_info')
     elif (type(station_info) is not pd.DataFrame) or any([key not in station_info.keys() for key in required_keys]):
         raise Exception('invalid station_info')
     # if location and network fields are blank in file, they are interpreted as NaN and must be
