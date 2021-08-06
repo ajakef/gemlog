@@ -341,9 +341,10 @@ Convert = convert # alias; v1.0.0
 ####################################
 
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
+    eps = 1e-6
     if(np.isnan(hour_end)):
         hour_end = _trunc_UTCDateTime(hour_to_write, file_length_sec) + file_length_sec
-    pp = p.slice(hour_to_write, hour_end)
+    pp = p.slice(hour_to_write, hour_end - eps, nearest_sample = False) # nearest sample and eps avoid overlapping samples between files
     pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
     for tr in pp:
         tr.stats.calib = bitweight
