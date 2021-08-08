@@ -7,23 +7,34 @@ import glob, obspy, os
 def _get_station_info(station_info):
     required_keys = ['SN', 'network', 'station', 'location']
     if type(station_info) == str:
+        print('Reading file %s' $ station_info)
         header_df = pd.read_csv(station_info, nrows = 1, header = None, index_col = False)
         header_list = [header_df[key][0] for key in header_df.keys()]
         if all([i in (required_keys + ['elevation']) for i in header_list]): # file has header line
+            print('File has valid header, using that for column names')
             station_info = pd.read_csv(station_info, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
         else:
             if len(header_list) == 4:
+                print('File does not have a valid header, using default columns [SN, network, station, location]')
                 station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
             elif len(header_list) == 5:
+                print('File does not have a valid header, using default columns [SN, network, station, location, elevation]')
                 station_info = pd.read_csv(station_info, names = required_keys + ['elevation'], dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
             else:
-                raise Exception('invalid station_info')
+                raise Exception('invalid station_info file; must have 4 or 5 columns or valid header')
     elif (type(station_info) is not pd.DataFrame) or any([key not in station_info.keys() for key in required_keys]):
-        raise Exception('invalid station_info')
+        raise Exception('invalid station_info input')
     # if location and network fields are blank in file, they are interpreted as NaN and must be
     # turned back into blank
+    if 'elevation' not in station_info.keys():
+        station_info['elevation'] = np.zeros(station_info.shape[0]) - 9999
+        
+    if station_info['elevation'].dtype == 'str':
+        station_info['elevation'] = station_info['elevation'].astype('float')
+        
     station_info.loc[station_info.location.isna(), 'location'] = ''
     station_info.loc[station_info.network.isna(), 'network'] = ''
+    station_info.loc[station_info.elevation.isna(), 'elevation'] = -9999
     return station_info
 
 def make_gem_inventory(station_info, coords, response = 'default'):
@@ -253,7 +264,7 @@ ReadLoggerGPS = read_gps # alias; v1.0.0
 
 def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
     """
-    Read up-to-date GPS data from all Gems in a project, calculate their locations using a robust
+    Read up-to-date GPS data from all Gems in a project, estimate their locations using a robust
     trimmed-mean method.
 
     Parameters
@@ -286,6 +297,7 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         - network: network code (str)
         - station: station code (str)
         - location: location code (str)
+        - elevation: elevation provided in station_info (str)
     """
     gpsDirList = sorted(glob.glob(gps_dir_pattern))
     gpsFileList = []
@@ -304,25 +316,29 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         if gpsTable.shape[0] > 0:
             coords = coords.append(pd.DataFrame(
                 [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
-                columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples']), ignore_index = True)
+                columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples', 'elevation']), ignore_index = True)
     if station_info is not None:
         station_info = _get_station_info(station_info)
         network = []
         station = []
         location = []
+        elevation = []
         for SN in coords.SN:
             try:
                 w = np.where(station_info.SN == SN)[0][0]
                 network.append(station_info.network[w])
                 station.append(station_info.station[w])
                 location.append(station_info.location[w])
+                elevation.append(station_info.elevation[w])
             except:
                 network.append('')
                 station.append('')
                 location.append('')
+                elevation.append(-9999)
         coords['network'] = network
         coords['station'] = station
         coords['location'] = location
+        coords['elevation'] = elevation
     if output_file is not None:
         coords.to_csv(output_file)
     return coords
