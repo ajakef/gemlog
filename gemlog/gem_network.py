@@ -91,7 +91,7 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                     line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'] == location_name)]
                 ## if no GPS info for this station is found, skip it
                 if line.shape[0] == 0:
-                    print('No coords found for ' + SN + ', skipping')
+                    print('No coords found for %s.%s.%s, skipping' % (network_name, station_name, location_name))
                     continue
                 ## We need to extract the coordinate and times for this location.
                 lat = line['lat'].iloc[0]
@@ -109,6 +109,9 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                 equipment = obspy.core.inventory.util.Equipment(serial_number = SN, model = 'Gem Infrasound Logger v1.0', description = 'Gem 1.0 (Infrasound), 0.039-27.1 Hz, 0.0035012 Pa/count')
                 channel = obspy.core.inventory.Channel('HDF', location_code = location_name, latitude = lat, longitude = lon, elevation = elevation, depth = 0, response = response, equipments = equipment, start_date = t1, end_date = t2, sample_rate = 100, clock_drift_in_seconds_per_sample = 0, types = ['GEOPHYSICAL'], sensor = equipment, azimuth = 0, dip = 0)
                 station.channels.append(channel)
+            ## move on to the next station if this one is empty
+            if len(station.channels) == 0:
+                continue
             ## calculate the current station's coordinate as the mean of its locations,
             ## then append it to the network
             station.latitude = np.mean([channel.latitude for channel in station.channels])
