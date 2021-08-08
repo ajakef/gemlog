@@ -7,7 +7,7 @@ import glob, obspy, os
 def _get_station_info(station_info):
     required_keys = ['SN', 'network', 'station', 'location']
     if type(station_info) == str:
-        print('Reading file %s' $ station_info)
+        print('Reading file %s' % station_info)
         header_df = pd.read_csv(station_info, nrows = 1, header = None, index_col = False)
         header_list = [header_df[key][0] for key in header_df.keys()]
         if all([i in (required_keys + ['elevation']) for i in header_list]): # file has header line
