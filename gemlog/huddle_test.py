@@ -256,10 +256,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
         limit = 0.01
         if A2_check > limit: 
-            failure_message = SN + ': A2 dV/dt error'
-            errors.append(failure_message)
             errors_df.loc[SN, "A2 dV/dt"] = A2_check
-            print(f"{SN} A2 ERROR: A2 dV/dt constant ratio of {np.round(A2_check,decimals=3)} (limit is {limit}).")
+            err_message = f"{SN} A2 ERROR: A2 dV/dt constant ratio of {np.round(A2_check,decimals=3)} (limit is {limit})."
+            errors.append(err_message)
         if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
             failure_message = SN + ': Bad A2'
             errors_df.loc[SN, "A2 error"] = 1 #yes error exists (true)
@@ -442,9 +441,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     print("\nSerial number tests complete.") 
    
-    s = pstats_df.shape
-    print(s)
-    ## Create a PDF output of plots
+# ============================================================================= 
+    ## Create a PDF output of plots with the date of report, errors warning and
+    #notes list, and metadata summary dataframes
+# =============================================================================
     report_date = datetime.datetime.today()
     report_date = report_date.strftime("%Y-%m-%d")
     filename = str("Huddle_test_output_" + report_date)
@@ -454,49 +454,69 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.cell(0,10, f"Huddle Test Results: {report_date}", border=1, ln=0, align= 'C')
     pdf.ln() #new line
     pdf.cell(0,10, f"Date: {report_date}",border=1,align= 'C', ln=1)
-    pdf.cell(50,10,"This is a column header", ln=1)
+    pdf.ln()
+    pdf.cell(0,5,"Errors and Warnings", align = 'L', ln=1)
     pdf.set_font('helvetica', size=8)
+    
+    #insert error and warning list into pdf
+    for i, error in enumerate(errors):
+        pdf.cell(12,4, '%s' % errors[i], ln=1)
+    for j, warning in enumerate(warnings):
+        pdf.cell(12,4, '%s' % warnings[j], ln=1)
+    #Format for multiline headers
     pdf_header = []
-    #attempt to get multiline headers
     for index, col in enumerate(pstats_df.columns):
        col_header = [[],[]]
        col_header = col.split() 
        pdf_header.append(col_header)
-    #replace temperature with temp
+    #reduce excessive word sizes
     for word in pdf_header:
         if word[0] == "temperature":
             word[0] = "temp"
-    
+            
+    space = ''
     for i, header in enumerate(pdf_header):
         if len(pdf_header[i]) == 3:
-            pdf_header[i].append('')
+            pdf_header[i].insert(0,space)
         elif len(pdf_header[i]) == 2:
-            pdf_header[i].append('')
-            pdf_header[i].append('')
+            pdf_header[i].insert(0,space)
+            pdf_header[i].insert(1,space)
         elif len(pdf_header[i]) == 1:
-            pdf_header[i].append('')
-            pdf_header[i].append('')
-            pdf_header[i].append('')
+            pdf_header[i].insert(0,space)
+            pdf_header[i].insert(1,space)
+            pdf_header[i].insert(2,space)
         else:
             pass
-    for i, header in enumerate(pdf_header):
+    
+    pdf.set_font('helvetica', 'B', size=8)
+    
+    #Need to add an extra cell to offset the pdf_headers above SN
+    pdf.cell(12,5, '')
+    
+    for j in range(0,4):
         print(pdf_header)
-        for j in range(0,4):
-               pdf.set_font('helvetica', size=8)
-               pdf.cell(12,5, '%s' % pdf_header[i][4])
-       #pdf.ln() 
-       
-    pdf.ln()
+        for i, header in enumerate(pdf_header):
+            pdf.cell(12,5, '%s' % pdf_header[i][j])
+        pdf.ln() 
     
     #print out stats data frame into pdf
+    pdf.set_font('helvetica', size = 10)
     for i in range(0,len(pstats_df)):
+       pdf.cell(8,10, '%s' % SN_list[i])
        for j in range(0,len(pstats_df.columns)): 
            pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
        pdf.ln()
 
-    
+    #print results dataframe into pdf
+# =============================================================================
+#     for i in range(0,len(errors_df)):
+#        for j in range(0,len(errors_df.columns)): 
+#            pdf.cell(12,10, '%s' % errors_df.iloc[i,j], 1, 0, 'C')
+#        pdf.ln()
+# =============================================================================
+       
     pdf.output(f"{filename}.pdf")
-    #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
+    return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
     
  #%%  
     ## Before running the group tests, ensure that we actually have data more than one Gem!
