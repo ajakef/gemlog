@@ -1038,6 +1038,7 @@ def _read_several(fnList, version = 0.9):
             header.loc[i, 'drift_resid_std'] = np.std(resid)
             header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
             header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
+            header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_nonoutliers
             header.loc[i, 'num_gps_nonoutliers'] = num_gps_nonoutliers
         ## end of fn loop
@@ -1327,7 +1328,8 @@ def _make_empty_header(fnList):
                                    'drift_deg3': num_filler,
                                    'drift_resid_std': num_filler,
                                    'drift_resid_MAD': num_filler,
-                                   'num_gps_pts': num_filler
+                                   'num_gps_pts': num_filler,
+                                   'num_data_pts': num_filler
     })
 def _make_empty_gps():
     return pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
