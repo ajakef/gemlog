@@ -11,6 +11,7 @@ import sys
 import pdb
 import shutil
 from fpdf import FPDF
+from matplotlib.backends.backend_pdf import PdfPages
 
 ## TO DO:
 # - graphs for GPS runtime
@@ -252,11 +253,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors_df.loc[SN, "A2 dV/dt nonzero"] = "OKAY" 
       
         #failure_type = "A2"
-        errors_df.loc[SN, "A2"] = np.NaN
+        #errors_df.loc[SN, "A2"] = np.NaN #probably don't need this
         A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
         limit = 0.01
         if A2_check > limit: 
-            errors_df.loc[SN, "A2 dV/dt"] = A2_check
+            errors_df.loc[SN, "A2 dV/dt"] = "ERROR"
             err_message = f"{SN} A2 ERROR: A2 dV/dt constant ratio of {np.round(A2_check,decimals=3)} (limit is {limit})."
             errors.append(err_message)
         if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
@@ -265,7 +266,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors.append(failure_message) 
             print(f"{SN} A2 ERROR: A2 malfunction")
         else:
-            errors_df.loc[SN, "A2 error"] = 0 #no error present(false)
+            errors_df.loc[SN, "A2 error"] = "OKAY" #no error present(false)
         errors_df.loc[SN,"A2 dV/dt nonzero"] = "OKAY"
             
        #Check A2 is within range
@@ -442,18 +443,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     print("\nSerial number tests complete.") 
    
 # ============================================================================= 
-    ## Create a PDF output of plots with the date of report, errors warning and
-    #notes list, and metadata summary dataframes
+    # Create a PDF output of plots with the date of report, errors warning and
+    # notes list, and metadata summary dataframes
+    # Create seperate package to reduce gemlog dependencies for detailed report
 # =============================================================================
     report_date = datetime.datetime.today()
     report_date = report_date.strftime("%Y-%m-%d")
     filename = str("Huddle_test_output_" + report_date)
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font('helvetica', size=12)
-    pdf.cell(0,10, f"Huddle Test Results: {report_date}", border=1, ln=0, align= 'C')
+    pdf.set_font('helvetica', 'B', size=12)
+    pdf.cell(0,10, f"Huddle Test Results: {report_date}", border=0, ln=0, align= 'C')
     pdf.ln() #new line
-    pdf.cell(0,10, f"Date: {report_date}",border=1,align= 'C', ln=1)
+    pdf.cell(0,10, f"Date: {report_date}",border=0,align= 'C', ln=1)
     pdf.ln()
     pdf.cell(0,5,"Errors and Warnings", align = 'L', ln=1)
     pdf.set_font('helvetica', size=8)
@@ -473,6 +475,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     for word in pdf_header:
         if word[0] == "temperature":
             word[0] = "temp"
+        if word[1] == "overruns":
+            word[1] = "overrun"
             
     space = ''
     for i, header in enumerate(pdf_header):
@@ -490,11 +494,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     pdf.set_font('helvetica', 'B', size=8)
     
-    #Need to add an extra cell to offset the pdf_headers above SN
-    pdf.cell(12,5, '')
     
+    # Create headers for summary table
     for j in range(0,4):
-        print(pdf_header)
+        if j == 2:
+            pdf.cell(8,10, 'SN') # Create SN column heading
+        else:
+            pdf.cell(8,10, ' ') #Other lines are blank in SN column heading
         for i, header in enumerate(pdf_header):
             pdf.cell(12,5, '%s' % pdf_header[i][j])
         pdf.ln() 
@@ -507,13 +513,64 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
            pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
        pdf.ln()
 
-    #print results dataframe into pdf
-# =============================================================================
-#     for i in range(0,len(errors_df)):
-#        for j in range(0,len(errors_df.columns)): 
-#            pdf.cell(12,10, '%s' % errors_df.iloc[i,j], 1, 0, 'C')
-#        pdf.ln()
-# =============================================================================
+    pdf.ln()
+    pdf.ln()
+    
+    ## INSERT errors dataframe as status
+    
+    #Format for multiline headers
+    status_header = []
+    for index, col in enumerate(errors_df.columns):
+       col_header = [[],[]]
+       col_header = col.split() 
+       status_header.append(col_header)
+    #reduce excessive word sizes
+    for word in status_header:
+        if word[0] == "temperature":
+            word[0] = "temp"
+        if word[1] == "overruns":
+            word[1] = "overrun"
+            
+    space = ''
+    for i, header in enumerate(status_header):
+        if len(status_header[i]) == 3:
+            status_header[i].insert(0,space)
+        elif len(status_header[i]) == 2:
+            status_header[i].insert(0,space)
+            status_header[i].insert(1,space)
+        elif len(pdf_header[i]) == 1:
+            status_header[i].insert(0,space)
+            status_header[i].insert(1,space)
+            status_header[i].insert(2,space)
+        else:
+            pass
+    
+    
+    # Insert title for summary table
+    pdf.set_font('helvetica', 'BU', size=10)
+    pdf.cell(0,10, 'Gem Sensor Status Summary', align='C')
+    pdf.ln()
+    
+    # Insert headers for summary table
+    pdf.set_font('helvetica', 'B', size=8)
+    for j in range(0,4):
+        if j == 2:
+            pdf.cell(8,10, 'SN') # Create SN column heading
+        else:
+            pdf.cell(8,10, ' ') #Other lines are blank in SN column heading
+        for i, header in enumerate(status_header):
+            pdf.cell(12,5, '%s' % status_header[i][j])
+        pdf.ln() 
+        
+    # print errors data frame into PDF as "status"
+    pdf.set_font('helvetica', 'B', size=6)
+    for i in range(0,len(errors_df)):
+       pdf.cell(8,10, '%s' % SN_list[i])
+       for j in range(0,len(errors_df.columns)): 
+           pdf.cell(12,10, '%s' % errors_df.iloc[i,j], 1, 0, 'C')
+       pdf.ln()
+    
+
        
     pdf.output(f"{filename}.pdf")
     return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
