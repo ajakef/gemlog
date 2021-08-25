@@ -4,7 +4,7 @@ Regardless of whether you are an ordinary user or developer, using a conda envir
 ### For Users
 * First, create and activate a conda environment with dependencies (named "gem" in this example). This environment must always be activated when running `gemconvert`.
 ```
-conda create -y -n gem python=3.8
+conda create -y -n gem python=3.9
 ```
 
 * Then, activate that environment and install gemlog into it using pip:

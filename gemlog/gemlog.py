@@ -413,7 +413,7 @@ def _make_filename_converted(pp, output_format):
 
 ##############################################################
 ##############################################################
-def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False):
+def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False, require_gps = True):
     """
     Read raw Gem files.
 
@@ -469,6 +469,13 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         Two-character location code for this Gem. Leaving this blank is 
         usually fine in subsequent data processing.
 
+    return_debug_output : boolean, default False
+        If True, return extra output to understand the internal state of the function.
+
+    require_gps : boolean, default True
+        If True, read files whether or not they have GPS data. Sample times will not be
+        precise enough for array processing.
+
     Returns
     -------
     dict with keys:
@@ -503,9 +510,9 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         else:
             break
     if version in ['0.85C', '0.9', '0.91']:
-        L = _read_several(fnList)# same function works for all
+        L = _read_several(fnList, require_gps = require_gps)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
-        L = _read_several(fnList, version = version) # same function works for both
+        L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
@@ -986,7 +993,7 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
-def _read_several(fnList, version = 0.9):
+def _read_several(fnList, version = 0.9, require_gps = True):
     ## initialize the output variables
     D = np.ndarray([0,2]) # expected number 7.2e5
     header = _make_empty_header(fnList)
@@ -998,14 +1005,15 @@ def _read_several(fnList, version = 0.9):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            #if str(version) in ['0.9', '0.85C', '0.85', '0.8']: # this should work--instead of the following if block--but it doesn't. why not?
-            #    L = _read_single(fn, startMillis, version = version)
             if str(version) in ['0.91', '0.9', '0.85C']:
-                L = _read_single(fn, startMillis)
+                L = _read_single(fn, startMillis, require_gps = require_gps)
             elif str(version) in ['0.8', '0.85']:
-                L = _read_single(fn, startMillis, version = version)
+                L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
+            header.loc[i, 'num_data_pts'] = L['data'].shape[0]
+            header.loc[i, 'SN'] = _read_SN(fn)
+
         except KeyboardInterrupt:
             raise
         except CorruptRawFileNoGPS:
@@ -1022,25 +1030,24 @@ def _read_several(fnList, version = 0.9):
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
             #_breakpoint()
-            reg, num_gps_nonoutliers, MAD_nonoutliers, resid = _robust_regress(L['gps'].msPPS, L['gps'].t)
-            #resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
-            startMillis = D[-1,0]
-            header.loc[i, 'lat'] = np.median(L['gps']['lat'])
-            header.loc[i, 'lon'] = np.median(L['gps']['lon'])
-            header.loc[i, 'start_ms'] = L['data'][0,0] # save this as a millis first, then convert
-            header.loc[i, 'end_ms'] = L['data'][-1,0]
-            header.loc[i, 'SN'] = _read_SN(fn)
-            header.loc[i, 'drift_deg3'] = reg[0]
-            header.loc[i, 'drift_deg2'] = reg[1]
-            header.loc[i, 'drift_deg1'] = reg[2]
-            header.loc[i, 'drift_deg0'] = reg[3]
-            #header.loc[i, 'drift_slope_stderr'] = np.nan #reg.stderr
-            header.loc[i, 'drift_resid_std'] = np.std(resid)
-            header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
-            header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
-            header.loc[i, 'num_data_pts'] = L['data'].shape[0]
-            header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_nonoutliers
-            header.loc[i, 'num_gps_nonoutliers'] = num_gps_nonoutliers
+            if L['gps'].shape[0] > 0:
+                reg, num_gps_nonoutliers, MAD_nonoutliers, resid = _robust_regress(L['gps'].msPPS, L['gps'].t)
+                #resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
+                startMillis = D[-1,0]
+                header.loc[i, 'lat'] = np.median(L['gps']['lat'])
+                header.loc[i, 'lon'] = np.median(L['gps']['lon'])
+                header.loc[i, 'start_ms'] = L['data'][0,0] # save this as a millis first, then convert
+                header.loc[i, 'end_ms'] = L['data'][-1,0]
+                header.loc[i, 'drift_deg3'] = reg[0]
+                header.loc[i, 'drift_deg2'] = reg[1]
+                header.loc[i, 'drift_deg1'] = reg[2]
+                header.loc[i, 'drift_deg0'] = reg[3]
+                #header.loc[i, 'drift_slope_stderr'] = np.nan #reg.stderr
+                header.loc[i, 'drift_resid_std'] = np.std(resid)
+                header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
+                header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
+                header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_nonoutliers
+                header.loc[i, 'num_gps_nonoutliers'] = num_gps_nonoutliers
         ## end of fn loop
     #_breakpoint()
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
