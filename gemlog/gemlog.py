@@ -204,6 +204,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             continue
         except: # if there's any other problem, raise it
             raise
+    if L['data'].count() == 0:
+        raise MissingRawFiles(f'No non-corrupt raw files found in folder "{rawpath}"')
     p = L['data']
     
     ## if bitweight isn't set, use the default bitweight for the logger version, config, and units
