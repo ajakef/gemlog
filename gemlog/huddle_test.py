@@ -62,14 +62,20 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --results: data frame showing qualitative results for all tests
     """
     
-    # SN_list = ['058','061','065','077']
-    # SN_to_exclude = []
-    # individual_only = False
-    # path = '.'
+    ## Create folder for figures
+    figure_path = os.path.join(path, "figures")
+    file_exists = os.path.exists(figure_path)
+    if file_exists == False:    
+        os.mkdir(figure_path)
+    else:
+        pass
     
+    
+    ## Create blank error and warning lists
     errors = []
     warnings = []
     notes = []
+    
     ## Huddle test performance requirements:
     #### >=3 loggers must have barbs facing each other and all within 15 cm, in a turbulence-suppressed semi-enclosed space, sitting on a shared hard surface on top of padding, with good GPS signal, in a site that is not next to a continuous noise source (duty cycle < 80%). Loggers should all start and stop acquisition within 1 minute of each other, and run for at least one week.
 
@@ -102,11 +108,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     plt.close('all') #close any previous figures  
     
     ## Create a PDF output of plots
+    # maybe delete?
     plot_dir = 'plots'
     
             
     ##Create battery and temperature time series graphs for all SN
-    batt_temp_fig = plt.figure(0)
+    batt_temp_fig = plt.figure(0,figsize = (6.5,5))
     batt_temp_ax = batt_temp_fig.subplots(2)
     batt_temp_ax[0].set_title("Battery Voltage")
     batt_temp_ax[0].set_ylabel("voltage (V)")
@@ -117,7 +124,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     batt_temp_fig.tight_layout()
     
     ##Create A2 and A3 time series graphs for all SN
-    A2_A3_fig = plt.figure(1)
+    A2_A3_fig = plt.figure(1, figsize = (6.5,5))
     A2_A3_ax = A2_A3_fig.subplots(2)
     A2_A3_ax[0].set_title("A2")
     A2_A3_ax[0].set_ylabel("Voltage (V)")
@@ -127,11 +134,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     A2_A3_ax[1].set_xlabel("month-date hour")
     A2_A3_fig.tight_layout()
     
-    ##Create GPS runtime histogram plots for all SN 
-    #gps_fig = plt.figure(2)
-  #  gps_ax = gps_fig.subplots(len(SN_list))
-  #  gps_ax[0].set_title("GPS Runtime")
-  #  gps_fig.tight_layout()
+    #Create GPS runtime histogram plots for all SN 
+    gps_fig = plt.figure(2, figsize = (6.5,5))
+    gps_ax = gps_fig.subplots(len(SN_list))
+    gps_ax[0].set_title("GPS Runtime")
+    gps_fig.tight_layout()
     
         ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
@@ -223,12 +230,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Plot battery voltage
         batt_temp_ax[0].plot(time_datestamp_dec, batt_dec)
         batt_temp_ax[0].legend(SN_list)
-        
+    
         #Plot temperature
         batt_temp_ax[1].plot(time_datestamp_dec, temp_dec)
         batt_temp_ax[1].legend(SN_list)
         
-    
+        batt_temp_fig_path = f"{path}/figures/batt_temp.png"
+        batt_temp_fig.savefig(batt_temp_fig_path)
                   
     ##%%%%%##         
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
@@ -329,6 +337,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         A2_A3_ax[1].plot(time_datestamp_dec, A3_dec)
         A2_A3_ax[1].legend(SN_list)
         
+        fig_name = f"{path}/figures/A2_A3.png"
+        A2_A3_fig.savefig(fig_name)
+        
     ##%%%%%##            
         #### minFifoFree and maxFifoUsed should always add to 75
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
@@ -402,15 +413,16 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         time_filt = time_check[time_check > 12]
         time_filt[time_filt > 180] = 180
         binsize = np.arange(10,180,10)
-        # gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
-        # gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
-        # gps_ax[SN_index].axes.xaxis.set_ticklabels([])
-        # gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
-        # gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
-        # if SN == SN_list[-1]:    
-        #     gps_ax[SN_index].set_xlabel('seconds')
-        #     gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
-        
+        gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
+        gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
+        gps_ax[SN_index].axes.xaxis.set_ticklabels([])
+        gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
+        gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
+        if SN == SN_list[-1]:    
+            gps_ax[SN_index].set_xlabel('seconds')
+            gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
+        fig_name = f"{path}/figures/gps_runtime.png"
+        gps_fig.savefig(fig_name)
            
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
@@ -450,6 +462,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # notes list, and metadata summary dataframes
     # Create seperate package to reduce gemlog dependencies for detailed report
 # =============================================================================
+    report_path = os.path.join(path, "reports")
+    file_exists = os.path.exists(report_path)
+    if file_exists == False:    
+        os.mkdir(report_path)
+    else:
+        pass
+## Set up report pages and headings    
     report_date = datetime.datetime.today()
     report_date = report_date.strftime("%Y-%m-%d")
     filename = str("Huddle_test_output_" + report_date)
@@ -463,64 +482,15 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.cell(0,5,"Errors and Warnings", align = 'L', ln=1)
     pdf.set_font('helvetica', size=8)
     
-    #insert error and warning list into pdf
+## Insert error and warning list into pdf
     for i, error in enumerate(errors):
         pdf.cell(12,4, '%s' % errors[i], ln=1)
     for j, warning in enumerate(warnings):
         pdf.cell(12,4, '%s' % warnings[j], ln=1)
-    #Format for multiline headers
-    pdf_header = []
-    for index, col in enumerate(pstats_df.columns):
-       col_header = [[],[]]
-       col_header = col.split() 
-       pdf_header.append(col_header)
-    #reduce excessive word sizes
-    for word in pdf_header:
-        if word[0] == "temperature":
-            word[0] = "temp"
-        if word[1] == "overruns":
-            word[1] = "overrun"
-            
-    space = ''
-    for i, header in enumerate(pdf_header):
-        if len(pdf_header[i]) == 3:
-            pdf_header[i].insert(0,space)
-        elif len(pdf_header[i]) == 2:
-            pdf_header[i].insert(0,space)
-            pdf_header[i].insert(1,space)
-        elif len(pdf_header[i]) == 1:
-            pdf_header[i].insert(0,space)
-            pdf_header[i].insert(1,space)
-            pdf_header[i].insert(2,space)
-        else:
-            pass
-    
-    pdf.set_font('helvetica', 'B', size=8)
-    
-    
-    # Create headers for summary table
-    for j in range(0,4):
-        if j == 2:
-            pdf.cell(8,10, 'SN') # Create SN column heading
-        else:
-            pdf.cell(8,10, ' ') #Other lines are blank in SN column heading
-        for i, header in enumerate(pdf_header):
-            pdf.cell(12,5, '%s' % pdf_header[i][j])
-        pdf.ln() 
-    
-    #print out stats data frame into pdf
-    pdf.set_font('helvetica', size = 10)
-    for i in range(0,len(pstats_df)):
-       pdf.cell(8,10, '%s' % SN_list[i])
-       for j in range(0,len(pstats_df.columns)): 
-           pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
-       pdf.ln()
+    pdf.ln()    
 
-    pdf.ln()
-    pdf.ln()
     
-    ## INSERT errors dataframe as status
-    
+## Insert errors dataframe as status
     #Format for multiline headers
     status_header = []
     for index, col in enumerate(errors_df.columns):
@@ -541,7 +511,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         elif len(status_header[i]) == 2:
             status_header[i].insert(0,space)
             status_header[i].insert(1,space)
-        elif len(pdf_header[i]) == 1:
+        elif len(status_header[i]) == 1:
             status_header[i].insert(0,space)
             status_header[i].insert(1,space)
             status_header[i].insert(2,space)
@@ -572,10 +542,68 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
        for j in range(0,len(errors_df.columns)): 
            pdf.cell(12,10, '%s' % errors_df.iloc[i,j], 1, 0, 'C')
        pdf.ln()
-    
-
        
-    pdf.output(f"{filename}.pdf")
+    
+## Insert pstats_df as details        
+    #Format for multiline headers
+    pdf_header = []
+    for index, col in enumerate(pstats_df.columns):
+       col_header = [[],[]]
+       col_header = col.split() 
+       pdf_header.append(col_header)
+    #reduce excessive word sizes
+    for word in pdf_header:
+        if word[0] == "temperature":
+            word[0] = "temp"
+        if word[1] == "overruns":
+            word[1] = "overrun"
+            
+    space = ''
+    for i, header in enumerate(pdf_header):
+        if len(pdf_header[i]) == 3:
+            pdf_header[i].insert(0,space)
+        elif len(pdf_header[i]) == 2:
+            pdf_header[i].insert(0,space)
+            pdf_header[i].insert(1,space)
+        elif len(pdf_header[i]) == 1:
+            pdf_header[i].insert(0,space)
+            pdf_header[i].insert(1,space)
+            pdf_header[i].insert(2,space)
+        else:
+            pass
+    # Insert title for details table
+    pdf.ln()
+    pdf.set_font('helvetica', 'BU', size=10)
+    pdf.cell(0,10, 'Gem Sensor Metadata Details', align='C')
+    pdf.ln()
+    
+    pdf.set_font('helvetica', 'B', size=8)
+    
+    
+    # Create headers for details table
+    for j in range(0,4):
+        if j == 2:
+            pdf.cell(8,10, 'SN') # Create SN column heading
+        else:
+            pdf.cell(8,10, ' ') #Other lines are blank in SN column heading
+        for i, header in enumerate(pdf_header):
+            pdf.cell(12,5, '%s' % pdf_header[i][j])
+        pdf.ln() 
+    
+    #print out pstats_df into pdf
+    pdf.set_font('helvetica', size = 8)
+    for i in range(0,len(pstats_df)):
+       pdf.cell(8,10, '%s' % SN_list[i])
+       for j in range(0,len(pstats_df.columns)): 
+           pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
+       pdf.ln()
+      
+    ## Add figures into report
+    pdf.image(batt_temp_fig_path, type="png") #does not work
+
+    pdf.ln()
+    pdf.ln()  
+    pdf.output(f"{report_path}/{filename}.pdf")
     return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
     
  #%%  
