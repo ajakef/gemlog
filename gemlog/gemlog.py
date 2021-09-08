@@ -304,6 +304,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 for i in w:
                     print('Problem with files, skipping: ' + L['header'].file[i])
 
+            #breakpoint()
             if(len(L['data']) > 0):
                 if (L['data'][0].stats.starttime - p[-1].stats.endtime) <= 0.031: # interpolate a gap up to 3 samples
                     L['data'] += p[-1]
@@ -330,6 +331,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         p.trim(hour_to_write, t2)
         t1 = _trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
+    #breakpoint()
     while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
         hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
         p.trim(hour_to_write, t2)

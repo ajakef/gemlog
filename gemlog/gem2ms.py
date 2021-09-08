@@ -3,8 +3,7 @@
 import sys # should always be available, doesn't need to be in "try"
 try:
     import numpy as np
-    import os, glob, getopt, requests
-    import logging, traceback
+    import os, glob, getopt, requests, logging, traceback, platform
     import gemlog
     from concurrent.futures import ProcessPoolExecutor
 except Exception as e:
@@ -34,11 +33,11 @@ def unique(list1): # thanks Kevin!
 
 def convert_single_SN(arg_list):
     inputdir, SN, outputdir, output_format, output_length = arg_list
-    logging.info('Beginning ' + SN)
+    logging.info(f'Beginning {SN}')
     try:
         #print([inputdir, SN, outputdir, output_format, output_length])
         gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
-        print(SN + ' done')
+        print(f'{SN} done')
     except KeyboardInterrupt:
         logging.info('Interrupted by user')
         print('Interrupted')
@@ -160,11 +159,15 @@ def main(argv = None):
 
     SN_list = [i for i in SN_list if i not in exclude]
     
+    print(f'gemlog version {gemlog.__version__}')
     print('inputdir ', inputdir)
     print('serial numbers ', SN_list)
     print('outputdir ', outputdir)
     if not test:
-        logging.info('***Starting conversion (gemlog version ' + gemlog.__version__ + ')***')
+        logging.info(f'***Starting conversion (gemlog version {gemlog.__version__})***')
+        p = platform.uname()
+        logging.info(f'python version {platform.python_version()}')
+        logging.info(f'platform.uname(): {p.system}, {p.release}, {p.version}, {p.machine}, {p.processor}')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
         #for SN in SN_list:
         with ProcessPoolExecutor(max_workers=num_processes) as pool:
