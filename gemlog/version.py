@@ -1,4 +1,5 @@
-__version__ = '1.4.3' # removed overlapping samples in output mseed files 
+__version__ = '1.5.0' # added more version/platform info to gemconvert output, and improved handling of elevation in metadata handling 
+#__version__ = '1.4.3' # removed overlapping samples in output mseed files 
 #__version__ = '1.4.2' # 'more flexibility in station_info.txt format' 
 #__version__ = '1.4.1' # now uses default 24-hour miniSEED output files 
 #__version__ = '1.4.0' # implemented timing corrections 
@@ -36,4 +37,4 @@ __version__ = '1.4.3' # removed overlapping samples in output mseed files
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive###########################
+## List of old versions is not yet comprehensive############################
