@@ -17,6 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # - graphs for GPS runtime
 # - output to pdf (https://matplotlib.org/stable/gallery/misc/multipage_pdf.html#sphx-glr-gallery-misc-multipage-pdf-py)
 # - one plot for each Sn with three axis (normalize GPS and plot with battery voltage)
+# - average voltage decay rate
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -127,10 +128,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     A2_A3_fig.tight_layout()
     
     ##Create GPS runtime histogram plots for all SN 
-    gps_fig = plt.figure(2)
-    gps_ax = gps_fig.subplots(len(SN_list))
-    gps_ax[0].set_title("GPS Runtime")
-    gps_fig.tight_layout()
+    #gps_fig = plt.figure(2)
+  #  gps_ax = gps_fig.subplots(len(SN_list))
+  #  gps_ax[0].set_title("GPS Runtime")
+  #  gps_fig.tight_layout()
     
         ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
@@ -167,6 +168,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             warnings.append(warn_message)
         else:
             errors_df.loc[SN, "battery max"] = "OKAY"  
+            
+        #slope of voltage decay
         
     ##%%%%%##
         ####temperature must be within reasonable range (-20 t0 60 C)    
@@ -399,14 +402,14 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         time_filt = time_check[time_check > 12]
         time_filt[time_filt > 180] = 180
         binsize = np.arange(10,180,10)
-        gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
-        gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
-        gps_ax[SN_index].axes.xaxis.set_ticklabels([])
-        gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
-        gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
-        if SN == SN_list[-1]:    
-            gps_ax[SN_index].set_xlabel('seconds')
-            gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
+        # gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
+        # gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
+        # gps_ax[SN_index].axes.xaxis.set_ticklabels([])
+        # gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
+        # gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
+        # if SN == SN_list[-1]:    
+        #     gps_ax[SN_index].set_xlabel('seconds')
+        #     gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
         
            
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
