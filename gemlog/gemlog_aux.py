@@ -241,7 +241,7 @@ def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None,
     # 2: wants output frequencies and spectrum with no frequency input
     # in order to permit 2, we need to return frequencies and spectrum
     if(float(version) >= 0.97):
-        noise_spec = pd.read_csv(gemlog.__path__[0] + '/../data/Gem_v0.98_Noise_spec.txt')
+        noise_spec = pd.read_csv(gemlog.__path__[0] + '/data/noise/Gem_v0.98_Noise_spec.txt')
     else:
         raise Exception('version %s not supported' % version)
     freq_in = noise_spec['f']
@@ -288,7 +288,7 @@ def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, f
     # 1: wants output spectrum for given frequency vector
     # 2: wants output frequencies and spectrum with no frequency input
     # in order to permit 2, we need to return frequencies and spectrum
-    noise_spec = pd.read_csv('/home/jake/Work/gemlog_python/data/IMSNOISE_MIN_MED_MAX.txt',
+    noise_spec = pd.read_csv(gemlog.__path__[0] + '/data/noise/IMSNOISE_MIN_MED_MAX.txt',
                              names = ['f', 'min', 'med', 'max'], sep = '\s+')
     freq_in = noise_spec['f']
     if model.lower() in ['low', 'min']:
