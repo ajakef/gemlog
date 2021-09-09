@@ -101,12 +101,12 @@ def get_gem_response(gain = 'high'):
     tr.remove_response()
     
     """
-    response_path = gemlog.__path__[0] + '/data/response/'
-    sensor_resp = _read_response(response_path + 'sensor/RESP.XX.IS025..BDF.GEMV1.26.0_0022')
+    response_path = os.path.join(os.path.dirname(gemlog.__file__), 'data', 'response')
+    sensor_resp = _read_response(os.path.join(response_path, 'sensor', 'RESP.XX.IS025..BDF.GEMV1.26.0_0022'))
     if gain.lower() == 'high':
-        response = _read_response(response_path + 'datalogger/RESP.XX.GM002..HHZ.GEMINFRAV1.0.100')
+        response = _read_response(os.path.join(response_path, 'datalogger','RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'))
     elif gain.lower() == 'low':
-        response = _read_response(response_path + 'datalogger/RESP.XX.GM002..HHZ.GEMINFRAV1.0.100')
+        response = _read_response(os.path.join(response_path, 'datalogger', 'RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'))
     else:
         raise ValueError(f'invalid gain: {gain}')
 

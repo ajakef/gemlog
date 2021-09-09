@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import obspy, glob, gemlog
+import obspy, glob, gemlog, os
 import scipy.integrate
 import scipy.interpolate
 #from gemlog import *
@@ -199,6 +199,8 @@ def calc_channel_stats(DB, t1, t2):
     out = pd.concat(out)
     return(out)
 
+_noise_path = os.path.join(os.path.dirname(__file__), "data", "noise")
+
 def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None, freq_max = 50):
     """Calculate Gem self-noise as a one-sided spectrum, and integrated over 
     a defined frequency band
@@ -241,7 +243,7 @@ def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None,
     # 2: wants output frequencies and spectrum with no frequency input
     # in order to permit 2, we need to return frequencies and spectrum
     if(float(version) >= 0.97):
-        noise_spec = pd.read_csv(gemlog.__path__[0] + '/data/noise/Gem_v0.98_Noise_spec.txt')
+        noise_spec = pd.read_csv(os.path.join(_noise_path, 'Gem_v0.98_Noise_spec.txt'))
     else:
         raise Exception('version %s not supported' % version)
     freq_in = noise_spec['f']
@@ -288,7 +290,7 @@ def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, f
     # 1: wants output spectrum for given frequency vector
     # 2: wants output frequencies and spectrum with no frequency input
     # in order to permit 2, we need to return frequencies and spectrum
-    noise_spec = pd.read_csv(gemlog.__path__[0] + '/data/noise/IMSNOISE_MIN_MED_MAX.txt',
+    noise_spec = pd.read_csv(os.path.join(_noise_path, 'IMSNOISE_MIN_MED_MAX.txt'),
                              names = ['f', 'min', 'med', 'max'], sep = '\s+')
     freq_in = noise_spec['f']
     if model.lower() in ['low', 'min']:
