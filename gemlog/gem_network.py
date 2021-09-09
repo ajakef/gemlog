@@ -1,9 +1,132 @@
 import numpy as np
 import pandas as pd
-import glob, obspy, os
+import glob, obspy, os, warnings, gemlog
+#from obspy.clients.nrl import NRL
+#from contextlib import contextmanager,redirect_stderr,redirect_stdout
+#from os import devnull
+#nrl = NRL()
 
 #response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'], datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0', '0 - 128000 counts/V'])
 
+#@contextmanager
+#def _suppress_stdout_stderr():
+#    """A context manager that redirects stdout and stderr to devnull"""
+#    with open(devnull, 'w') as fnull:
+#        with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
+#            yield (err, out)
+
+def deconvolve_gem_response(data, gain = 'high'):
+    """
+    Remove the Gem's instrument response
+    
+    Parameters:
+    -----------
+    data : either obspy.Stream or obspy.Trace
+    Input data to remove response from. Note that if a stream is provided, the Gem response will be 
+    deconvolved from all traces, even if some traces were not recorded by Gems!
+
+    gain : str, default 'high'
+    If a configuration file was used to set the Gem's programmable gain to half-gain, use 'low'.
+
+    Returns:
+    --------
+    The input data (either trace or stream) with response removed
+    
+    Example:
+    --------
+    import obspy, gemlog
+    ## read sample data--this isn't from a Gem, but it works
+    tr = obspy.read()[0] 
+    tr_deconvolved = gemlog.deconvolve_gem_response(tr)
+    """
+    ## obspy's tool to read instrument responses always triggers a warning for infrasound sensors
+    ## use the warnings package to suppress warnings in this function only
+    if type(data) == obspy.Stream:
+        for tr in data:
+            tr.stats.response = get_gem_response(gain)
+    elif type(data) == obspy.Trace:
+        data.stats.response = get_gem_response(gain)
+    else:
+        raise TypeError(f'data is type {type(data)}; must be obspy.Stream or obspy.Trace')
+
+    ## By now, the response has been attached to all traces. Remove the response and return the data.
+    data.remove_response()
+    return data
+
+## Create response variables. Do this once on package import so it doesn't have to be run repeatedly.
+## obspy's tool to read instrument responses always triggers a warning for infrasound sensors
+## use the warnings package to suppress warnings in this function only
+#with warnings.catch_warnings():
+#    warnings.simplefilter("ignore")
+#_response_high_gain_1_0 = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
+#                                           datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
+#                                                              '0 - 128000 counts/V']) # may cause warning--ok to ignore
+#_response_low_gain_1_0 =  nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
+#                                           datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
+#                                                              '1 - 64000 counts/V']) # may cause warning--ok to ignore
+
+def _read_response(filename):
+    return obspy.read_inventory(filename)[0][0][0].response
+
+def get_gem_response(gain = 'high'):
+    """
+    Return the Gem's instrument response
+    
+    Parameters:
+    -----------
+    gain : str, default 'high'
+    If a configuration file was used to set the Gem's programmable gain to half-gain, use 'low'.
+    High gain is normal.
+
+    Returns:
+    --------
+    The Gem's instrument response as obspy.core.inventory.response.Response
+
+    Example:
+    --------
+    import obspy, gemlog
+    ## read sample data--this isn't from a Gem, but it works as a demo
+    tr = obspy.read()[0] 
+
+    ## note that the remainder of this example can be done more directly using 
+    gemlog.deconvolve_gem_response
+
+    ## find the Gem's response
+    response = gemlog.get_gem_response()
+
+    ## attach the response to the trace. 
+    tr.stats.response = response
+
+    ## remove the response from the trace in place
+    tr.remove_response()
+    
+    """
+    response_path = gemlog.__path__[0] + '/response_data/'
+    sensor_resp = _read_response(response_path + 'sensor/RESP.XX.IS025..BDF.GEMV1.26.0_0022')
+    if gain.lower() == 'high':
+        response = _read_response(response_path + 'datalogger/RESP.XX.GM002..HHZ.GEMINFRAV1.0.100')
+    elif gain.lower() == 'low':
+        response = _read_response(response_path + 'datalogger/RESP.XX.GM002..HHZ.GEMINFRAV1.0.100')
+    else:
+        raise ValueError(f'invalid gain: {gain}')
+
+    ## code copied from obspy's nrl.get_response() to merge sensor and logger responses
+    response.response_stages.pop(0)
+    sensor_stage0 = sensor_resp.response_stages[0]
+    response.response_stages.insert(0, sensor_stage0)
+    response.instrument_sensitivity.input_units = sensor_stage0.input_units
+    response.instrument_sensitivity.input_units_description = sensor_stage0.input_units_description
+    
+    ## Obspy's get_response method fails to set the overall sensitivity correctly for infrasound
+    ## responses, so we have to do this manually. If this isn't done, we'll get a warning later.
+    ## We have to do this at freq 0.05 Hz for compatibility with the datalogger's nominal gain freq.
+    filter_gain_0_05 = np.abs(1-1/(1+0.05j/0.039))
+    response.instrument_sensitivity.value = response.response_stages[0].stage_gain * response.response_stages[2].stage_gain * filter_gain_0_05
+    return response
+
+## Two issues with obspy warnings with instrument responses:
+## issue 1: verifying the response with nrl.get_response. After the sensor and datalogger responses are combined, it runs dl_resp.recalculate_overall_sensitivity() as a sanity check. Unfortunately, this method is unaware of pressure and pascals, and fails if given any option other than displacement, velocity, or acceleration. This can be suppressed with the warnings package, or avoided by just not using nrl.get_response().
+## issue 2: removing the response, which ultimately calls response._call_eval_resp_for_frequencies(). This calls compiled C code, and the C code complains because it can't verify the sensitivity. This cannot be suppressed by either the warnings package or the io suppression. However, it can be suppressed by MANUALLY changing the overall instrument gain for the gem response, which is now done at the end of get_gem_response. Warnings should be expected for any other means of getting the gem response.
 def _get_station_info(station_info):
     required_keys = ['SN', 'network', 'station', 'location']
     if type(station_info) == str:
