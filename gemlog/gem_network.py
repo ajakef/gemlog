@@ -127,24 +127,38 @@ def get_gem_response(gain = 'high'):
 ## Two issues with obspy warnings with instrument responses:
 ## issue 1: verifying the response with nrl.get_response. After the sensor and datalogger responses are combined, it runs dl_resp.recalculate_overall_sensitivity() as a sanity check. Unfortunately, this method is unaware of pressure and pascals, and fails if given any option other than displacement, velocity, or acceleration. This can be suppressed with the warnings package, or avoided by just not using nrl.get_response().
 ## issue 2: removing the response, which ultimately calls response._call_eval_resp_for_frequencies(). This calls compiled C code, and the C code complains because it can't verify the sensitivity. This cannot be suppressed by either the warnings package or the io suppression. However, it can be suppressed by MANUALLY changing the overall instrument gain for the gem response, which is now done at the end of get_gem_response. Warnings should be expected for any other means of getting the gem response.
+def _fix_station_info_keys(d):
+    ## after reading a station_info file, standardize the key capitalization
+    ## this saves the user from having to be picky about capitalizing the header right
+    allowed_keys = ['SN', 'network', 'station', 'location', 'elevation']
+    for key in allowed_keys:
+        ## for the given allowed key, find the existing key that matches it
+        w = [test_key.lower()[:2] == key.lower()[:2] for test_key in d.keys()]
+        if any(w):
+            ## rename that key to the standard name
+            d[key] = d.pop(list(d.keys())[np.where(w)[0][0]])
+    return d
+
 def _get_station_info(station_info):
-    required_keys = ['SN', 'network', 'station', 'location']
+    required_keys = ['sn', 'network', 'station', 'location']
     if type(station_info) == str:
         print('Reading file %s' % station_info)
         header_df = pd.read_csv(station_info, nrows = 1, header = None, index_col = False)
         header_list = [header_df[key][0] for key in header_df.keys()]
-        if all([i in (required_keys + ['elevation']) for i in header_list]): # file has header line
+        if all([i.lower() in (required_keys + ['elevation']) for i in header_list]): # file has header line
             print('File has valid header, using that for column names')
-            station_info = pd.read_csv(station_info, dtype = {key:'str' for key in required_keys}, keep_default_na = False)
+            station_info = pd.read_csv(station_info, dtype = {key:'str' for key in header_list}, keep_default_na = False)
         else:
             if len(header_list) == 4:
                 print('File does not have a valid header, using default columns [SN, network, station, location]')
-                station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
+                station_info = pd.read_csv(station_info, names = required_keys, dtype = {key:'str' for key in header_list}, keep_default_na = False, index_col = False)
             elif len(header_list) == 5:
                 print('File does not have a valid header, using default columns [SN, network, station, location, elevation]')
-                station_info = pd.read_csv(station_info, names = required_keys + ['elevation'], dtype = {key:'str' for key in required_keys}, keep_default_na = False, index_col = False)
+                station_info = pd.read_csv(station_info, names = required_keys + ['elevation'], dtype = {key:'str' for key in header_list}, keep_default_na = False, index_col = False)
             else:
                 raise Exception('invalid station_info file; must have 4 or 5 columns or valid header')
+        ## if any keys are capitalized or abbreviated wrong, correct them
+        station_info = _fix_station_info_keys(station_info)
     elif (type(station_info) is not pd.DataFrame) or any([key not in station_info.keys() for key in required_keys]):
         raise Exception('invalid station_info input')
     # if location and network fields are blank in file, they are interpreted as NaN and must be
@@ -443,6 +457,7 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
             coords = coords.append(pd.DataFrame(
                 [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
                 columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples']), ignore_index = True)
+    breakpoint()
     if station_info is not None:
         station_info = _get_station_info(station_info)
         network = []

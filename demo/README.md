@@ -44,12 +44,42 @@ By now, all the useful information has been extracted from the raw files; there 
 ##### Multiple conversion attempts
 If the conversion is run multiple times, `gemconvert` will overwrite pre-existing miniSEED files. However, gps and metadata files are tagged with a conversion number at the end of their file name, so they are not overwritten. For a given Gem serial number, the file with the highest conversion number was created most recently. `gemconvert_logfile.txt `is appended to on each conversion attempt, so it is also not overwritten.
 
+### Inspect the Data
+The following workflow can be used to read the mseed data and deconvolve the instrument response.
+Because wind noise is severe at lower frequencies, it is generally necessary to apply a high-pass filter to obtain good data; 1 Hz is a good corner frequency to start with. Obspy's plot functions do not handle long plotting periods well; a program like PASSCAL's PQL is probably better for perusing the data.
+```
+import obspy, gemlog
+
+## read the data
+data = obspy.read('mseed/*')
+print(data)
+
+## combine traces so that each station has one trace
+data.merge()
+print(data)
+
+## deconvolve the instrument response
+## if you used a config file to set the Gem's gain to low, change the gain setting below
+data = gemlog.deconvolve_gem_response(data, gain='high') 
+
+## filter data above 1 Hz (lower frequencies are often wind noise)
+data.filter("highpass", freq=1.0)
+
+## trim the data around a known event
+t1 = obspy.UTCDateTime('2020-05-10T12:14:00')
+t2 = obspy.UTCDateTime('2020-05-10T12:15:00')
+data.trim(t1, t2)
+
+## plot the results
+data.plot()
+```
 ### Organizing the data
 If your dataset is from an array or network, you probably want to create a station map and assign network, station, and location codes to your miniSEED files. You can do this using python functions from gemlog. Before starting python, you need a csv file assigning Gem serial numbers to network, station, and location codes.
 
-In this example, `station_info.txt` describes a network (NM) containing two stations (LADR and MANZ), each containing three locations; each of the six Gem serial numbers is assigned to a network and station. We follow the convention that location codes are to be used for different sub-sites belonging to a single data logger, meaning that each Gem counts as its own station and does not receive a location code (hence the blanks after the last commas in each line). For more information on SEED codes, see [this IRIS page](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/).
+In this example, `station_info.txt` describes a network (NM) containing two arrays (LADR and MANZ), each containing three stations; each of the six Gem serial numbers is assigned to a network and station. We follow the convention that location codes are to be used for different sub-sites belonging to a single data logger, meaning that each Gem counts as its own station and does not receive a location code (hence the blanks after the last commas in each line). For more information on SEED codes, see [this IRIS page](https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/).
 ```
 $ cat station_info.txt
+SN,Network,Station,Location
 077,NM,LADR1,
 088,NM,LADR2,
 103,NM,LADR3,
@@ -88,17 +118,15 @@ plt.plot(coords.lon, coords.lat, 'k.') # plot the lon and lat as black dots
 ```
 Finally, you can create an obspy 'Inventory' object and write it as a stationXML file using this code:
 ```
-import obspy
-from obspy.clients.nrl import NRL
+import obspy, gemlog
 
-## download the instrument response from the IRIS Nominal Response Library
-nrl = NRL()
-response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
-	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
-			    '0 - 128000 counts/V']) # may cause warning--ok to ignore
+## define the Gem instrument response; this is the same one posted on IRIS Nominal Response Library
+## if you used a configuration file to set low gain (unusual), change the gain setting here
+response = gemlog.get_gem_response(gain = 'high') 
 
 ## manually add elevation to 'coords'. raise an issue on github if you know an
 ## easy-to-install, cross-platform way to automate this!
+coords = gemlog.summarize_gps('gps', station_info = 'station_info.txt', output_file = 'project_coords.csv')
 coords['elevation'] = [1983, 1983, 1988, 1983, 1986, 1987] # from google earth
 
 ## create an inventory of all sensors used in this project--may cause warnings
@@ -111,32 +139,3 @@ inv.write('NM_inventory.kml', format = 'KML')
 ```
 When validating the stationXML file using the [IRIS stationXML Validator](https://github.com/iris-edu/StationXML-Validator/), it should pass with no errors but probably with common warnings related to response units case.
 
-### Inspect the Data
-The following workflow can be used to read the renamed mseed data and deconvolve the instrument response.
-Because wind noise is severe at lower frequencies, it is generally necessary to apply a high-pass filter to obtain good data; 1 Hz is a good corner frequency to start with. Obspy's plot functions do not handle long plotting periods well; a program like PASSCAL's PQL is probably better for perusing the data.
-```
-import obspy
-
-## read the data
-data = obspy.read('renamed_mseed/*')
-print(data)
-
-## combine traces so that each station has one trace
-data.merge()
-print(data)
-
-## deconvolve the instrument responses using the inventory already created
-inv = obspy.read_inventory('NM_inventory.xml')
-data.remove_response(inv) # may cause warnings--ok to ignore
-
-## filter data above 1 Hz (lower frequencies are often wind noise)
-data.filter("highpass", freq=1.0)
-
-## trim the data around a known event
-t1 = obspy.UTCDateTime('2020-05-10T12:14:00')
-t2 = obspy.UTCDateTime('2020-05-10T12:15:00')
-data.trim(t1, t2)
-
-## plot the results
-data.plot()
-```
