@@ -236,7 +236,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         batt_temp_ax[1].legend(SN_list)
         
         batt_temp_fig_path = f"{path}/figures/batt_temp.png"
-        batt_temp_fig.savefig(batt_temp_fig_path)
+        batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
                   
     ##%%%%%##         
         #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
@@ -337,8 +337,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         A2_A3_ax[1].plot(time_datestamp_dec, A3_dec)
         A2_A3_ax[1].legend(SN_list)
         
-        fig_name = f"{path}/figures/A2_A3.png"
-        A2_A3_fig.savefig(fig_name)
+        A2_A3_fig_path = f"{path}/figures/A2_A3.png"
+        A2_A3_fig.savefig(A2_A3_fig_path, dpi = 300)
         
     ##%%%%%##            
         #### minFifoFree and maxFifoUsed should always add to 75
@@ -404,6 +404,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             warn_message = f"{SN} GPS WARNING: GPS runtime is {max(time_check)}."
             print(warn_message)
             warnings.append(warn_message)
+            
         ## individual GPS:
             #plot GPS histogram for runtime
             #change plotting options 
@@ -421,8 +422,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if SN == SN_list[-1]:    
             gps_ax[SN_index].set_xlabel('seconds')
             gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
-        fig_name = f"{path}/figures/gps_runtime.png"
-        gps_fig.savefig(fig_name)
+        gps_fig_path = f"{path}/figures/gps_runtime.png"
+        gps_fig.savefig(gps_fig_path, dpi=300)
            
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
@@ -475,7 +476,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font('helvetica', 'B', size=12)
-    pdf.cell(0,10, f"Huddle Test Results: {report_date}", border=0, ln=0, align= 'C')
+    pdf.cell(0,10, f"Huddle Test Results", border=0, ln=0, align= 'C')
     pdf.ln() #new line
     pdf.cell(0,10, f"Date: {report_date}",border=0,align= 'C', ln=1)
     pdf.ln()
@@ -597,11 +598,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
        for j in range(0,len(pstats_df.columns)): 
            pdf.cell(12,10, '%s' % np.round((pstats_df.iloc[i,j]),3), 1, 0, 'C')
        pdf.ln()
-      
+       
+    
+    
     ## Add figures into report
-    pdf.image(batt_temp_fig_path, type="png") #does not work
-
+    img_height = 120
+    img_width = 176
+    
+    pdf.image(batt_temp_fig_path, w = img_width , h = img_height) 
     pdf.ln()
+    pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
+    pdf.ln()
+    pdf.image(gps_fig_path, w = 176, h = 135)
     pdf.ln()  
     pdf.output(f"{report_path}/{filename}.pdf")
     return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
