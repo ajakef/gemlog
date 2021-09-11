@@ -9,6 +9,7 @@ with warnings.catch_warnings():
 import obspy
 import sys
 from scipy.io import wavfile
+import matplotlib.pyplot as plt
 
 _debug = False
 
@@ -1056,7 +1057,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     #_breakpoint()
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
-def _robust_regress(x, y, z=3, recursive_depth = np.inf, verbose = False):
+def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
     # goal: a quadratic regression that is robust to RARE outliers, especially for GPS data
     # scipy.stats.theilslopes (median-based) looks problematic because the median is only affected
     # by the central data point and doesn't benefit from the other samples' information. Also, GPS
@@ -1081,7 +1082,7 @@ def _robust_regress(x, y, z=3, recursive_depth = np.inf, verbose = False):
     else:
         return (reg, len(x), np.max(np.abs(resid)), resid, x, y)
 
-def _plot_drift(filename, z = 3, recursive_depth = np.inf):
+def _plot_drift(filename, z = 4, recursive_depth = np.inf):
     output = _read_several([filename])
     g = output['gps']
     x = g['msPPS'] # Gem's internal clock time
