@@ -46,4 +46,4 @@ def test_Convert_good_data():
     output.trim(t1, t2)
     reference.trim(t1, t2)
     #assert output.__eq__(reference)
-    assert np.std(output.data - reference.data) < 0.01 # counts
+    assert np.std(output.data - reference.data) < 0.1 # counts

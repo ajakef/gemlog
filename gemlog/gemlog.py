@@ -1035,7 +1035,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             D = np.vstack((D, L['data']))
             #_breakpoint()
             if L['gps'].shape[0] > 0:
-                reg, num_gps_nonoutliers, MAD_nonoutliers, resid = _robust_regress(L['gps'].msPPS, L['gps'].t)
+                reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
                 #resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
                 startMillis = D[-1,0]
                 header.loc[i, 'lat'] = np.median(L['gps']['lat'])
@@ -1056,25 +1056,46 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     #_breakpoint()
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
-def _robust_regress(x, y, z=2):
+def _robust_regress(x, y, z=3, recursive_depth = np.inf, verbose = False):
     # goal: a quadratic regression that is robust to RARE outliers, especially for GPS data
     # scipy.stats.theilslopes (median-based) looks problematic because the median is only affected
     # by the central data point and doesn't benefit from the other samples' information. Also, GPS
     # data slopes are weirdly distributed.
     # In this function, z is the z-score (number of standard deviations) for defining outliers.
 
+    ### z < 3 has an off-chance of repeated trimming with few data points remaining! don't do that.
+
     ## Calculate regression line and residuals.
     #linreg = scipy.stats.linregress(x, y)
     #resid = y - (linreg.intercept + x * linreg.slope)
-    reg = np.polyfit(x, y, 3)
+    #reg = np.polyfit(x, y, 3)
+    reg = np.polynomial.polynomial.polyfit(x, y, 3)[::-1]
     resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
 
     ## If any are found to be outliers, remove them and recalculate recursively.
     outliers = np.abs(resid) > (z*np.std(resid))
-    if any(outliers):
-        return _robust_regress(x[~outliers], y[~outliers], z)
+    if any(outliers) and (recursive_depth > 0):
+        if verbose:
+            print(f'depth {recursive_depth}, num_outliers {np.sum(outliers)}')
+        return _robust_regress(x[~outliers], y[~outliers], z, recursive_depth = recursive_depth - 1, verbose = verbose)
     else:
-        return (reg, len(x), np.max(np.abs(resid)), resid)
+        return (reg, len(x), np.max(np.abs(resid)), resid, x, y)
+
+def _plot_drift(filename, z = 3, recursive_depth = np.inf):
+    output = _read_several([filename])
+    g = output['gps']
+    x = g['msPPS'] # Gem's internal clock time
+    y = g['t'] # GPS time
+    reg, num_non_outliers, MAD_resid, resid, x_nonoutlier, y_nonoutlier = _robust_regress(x, y, z = z, recursive_depth = recursive_depth, verbose = True)
+    plt.subplot(2,1,1)
+    plt.plot(x, y-y[0] - 0.001024*(x-x[0]), 'k.')
+    #plt.plot(x_nonoutlier, y_nonoutlier, 'rx')
+    p = np.poly1d(reg)
+    plt.plot(x, p(x) - 0.001024*(x-x[0]) - y[0])
+    plt.subplot(2,1,2)
+    plt.plot(x_nonoutlier, resid, 'k.')
+    plt.axhline(z * np.std(resid))
+    plt.axhline(-z * np.std(resid))
 
 def _apply_segments(x, model):
     y = np.zeros(len(x))
