@@ -1016,6 +1016,14 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
+            if(L['data'][0,0] < startMillis):
+                L['metadata'].millis += 2**13
+                L['gps'].msPPS += 2**13
+                L['data'][:,0] += 2**13
+            try:
+                reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            except:
+                raise CorruptRawFileNoGPS('No useful GPS data in ' + fn + ', skipping')
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
 
@@ -1027,17 +1035,12 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             print('Failed to read ' + fn + ', skipping')
             _breakpoint()
         else:
-            if(L['data'][0,0] < startMillis):
-                L['metadata'].millis += 2**13
-                L['gps'].msPPS += 2**13
-                L['data'][:,0] += 2**13
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
             #_breakpoint()
             if L['gps'].shape[0] > 0:
-                reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
-                #resid = L['gps'].t - (linreg.intercept + linreg.slope * L['gps'].msPPS)
+                ## this can result in an error if there aren't enough good GPS data points
                 startMillis = D[-1,0]
                 header.loc[i, 'lat'] = np.median(L['gps']['lat'])
                 header.loc[i, 'lon'] = np.median(L['gps']['lon'])
@@ -1047,7 +1050,6 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 header.loc[i, 'drift_deg2'] = reg[1]
                 header.loc[i, 'drift_deg1'] = reg[2]
                 header.loc[i, 'drift_deg0'] = reg[3]
-                #header.loc[i, 'drift_slope_stderr'] = np.nan #reg.stderr
                 header.loc[i, 'drift_resid_std'] = np.std(resid)
                 header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
                 header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
@@ -1067,10 +1069,12 @@ def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
     ### z < 3 has an off-chance of repeated trimming with few data points remaining! don't do that.
 
     ## Calculate regression line and residuals.
-    #linreg = scipy.stats.linregress(x, y)
-    #resid = y - (linreg.intercept + x * linreg.slope)
-    #reg = np.polyfit(x, y, 3)
-    reg = np.polynomial.polynomial.polyfit(x, y, 3)[::-1]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        reg = np.polynomial.polynomial.polyfit(x, y, 3)[::-1]
+        #linreg = scipy.stats.linregress(x, y)
+        #resid = y - (linreg.intercept + x * linreg.slope)
+        #reg = np.polyfit(x, y, 3)
     resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
 
     ## If any are found to be outliers, remove them and recalculate recursively.
