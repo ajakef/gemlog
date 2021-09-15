@@ -135,6 +135,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     A2_A3_fig.tight_layout()
     
     #Create GPS runtime histogram plots for all SN 
+    # will not plot for single SN
+    # get list of axis even if there is only one in SN_list
     gps_fig = plt.figure(2, figsize = (6.5,5))
     gps_ax = gps_fig.subplots(len(SN_list))
     gps_ax[0].set_title("GPS Runtime")
