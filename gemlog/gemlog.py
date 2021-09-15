@@ -350,7 +350,9 @@ def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, converte
     if(np.isnan(hour_end)):
         hour_end = _trunc_UTCDateTime(hour_to_write, file_length_sec) + file_length_sec
     pp = p.slice(hour_to_write, hour_end - eps, nearest_sample = False) # nearest sample and eps avoid overlapping samples between files
-    pp = pp.split() ## in case of data gaps ("masked arrays", which fail to write)
+    # Ideally, this would write mseed files with data gaps (masked arrays) if the stream here has
+    # a gap. Unfortunately, those fail to write, so we have to write multiple files instead.
+    pp = pp.split() 
     for tr in pp:
         tr.stats.calib = bitweight
         fn = _make_filename_converted(tr, output_format)
@@ -1129,7 +1131,8 @@ def _assign_times(L):
     header['t2'] = _apply_segments(header.end_ms, piecewiseTimeFit)
     L['header'] = header
     
-    ## interpolate data to equal spacing to make obspy trace
+    ## Interpolate data to equal spacing to make obspy trace.
+    ## Note that data gaps just get interpolated through as a straight line. Not ideal.
     D = L['data']
     D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
