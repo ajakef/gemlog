@@ -24,6 +24,10 @@ class CorruptRawFileNoGPS(CorruptRawFile):
     """Raised when the input file does not contain any GPS data"""
     pass
 
+class CorruptRawFileInadequateGPS(CorruptRawFile):
+    """Raised when the input file does not contain any GPS data"""
+    pass
+
 class MissingRawFiles(Exception):
     """Raised when no input files are readable"""
     pass
@@ -1022,7 +1026,13 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 L['metadata'].millis += 2**13
                 L['gps'].msPPS += 2**13
                 L['data'][:,0] += 2**13
+            ## make sure that the available GPS spans a significant fraction of the available
+            ## data samples; otherwise the time interpolation will be unreliable
+            ## the ratio threshold of 4 can be tuned; it may be on the stringent side (gps span of 30 minutes for a full file)
+            if (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) > 4:
+                raise CorruptRawFileInadequateGPS(f'Insufficient GPS data in {fn}, skipping')
             try:
+                ## run the GPS time vs millis regression
                 reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
             except:
                 raise CorruptRawFileNoGPS('No useful GPS data in ' + fn + ', skipping')
@@ -1031,6 +1041,8 @@ def _read_several(fnList, version = 0.9, require_gps = True):
 
         except KeyboardInterrupt:
             raise
+        except CorruptRawFileInadequateGPS:
+            print('Insufficient GPS data in ' + fn + ', skipping')
         except CorruptRawFileNoGPS:
             print('No GPS data in ' + fn + ', skipping')
         except:
