@@ -19,15 +19,23 @@ def test_read_gem_missing():
     with pytest.raises(MissingRawFiles):
         read_gem(nums = np.arange(10, 20), path = '../data', SN = '000') # test missing files
 
-def test_read_gem_missing():
+def test_read_gem_empty():
     with pytest.raises(MissingRawFiles):
         read_gem(nums = np.arange(5), path = '../data', SN = '000') # test purely empty files
 
 def test_read_gem_edge_cases():
-    print(os.getcwd())
+    #print(os.getcwd())
+    # test a malformed file
     with pytest.raises(CorruptRawFile):
-        read_gem(nums = np.array([23]), path = '../data', SN = '096') # test a malformed file
+        read_gem(nums = np.array([23]), path = '../data', SN = '096') 
 
+    # test a mix of files with no gps, one gps line (that used to trigger a divide by zero warning), inadequate gps data, and normal gps data
+    L = read_gem('../data/incomplete_gps_test_data/', SN = '179')
+    assert all((L['header'].drift_deg0 > 0) == np.array([False, False, True, False, True, False]))
+    assert len(L['data']) == 2
+
+    
+    
 def test_read_gem_good_data():
     ## read_gem always reads files in one block, so no sense in testing 25 files
     read_gem(nums = np.arange(3), path =  '../demo_missing_gps/raw_with_gps', SN = '077') # test good data

@@ -1026,16 +1026,24 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 L['metadata'].millis += 2**13
                 L['gps'].msPPS += 2**13
                 L['data'][:,0] += 2**13
+
+            if len(L['gps'].t) == 0:
+                raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping')
+
             ## make sure that the available GPS spans a significant fraction of the available
             ## data samples; otherwise the time interpolation will be unreliable
-            ## the ratio threshold of 4 can be tuned; it may be on the stringent side (gps span of 30 minutes for a full file)
-            if (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) > 4:
+            ## the ratio threshold of 2 can be tuned. A threshold of 4 was too lax when tested on
+            ## 2021 Fuego data (SN 179), resulting in artificial discontinuities between files of
+            ## around 10-20 samples. A threshold less than 2 could make gemconvert refuse to convert
+            ## a short recording period just under 30 minutes (stops recording just before the 
+            ## second gps cycle)
+            if (len(L['gps']) == 1) or (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) > 2:
                 raise CorruptRawFileInadequateGPS(f'Insufficient GPS data in {fn}, skipping')
             try:
                 ## run the GPS time vs millis regression
                 reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
             except:
-                raise CorruptRawFileNoGPS('No useful GPS data in ' + fn + ', skipping')
+                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping')
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
 
