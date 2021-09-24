@@ -29,6 +29,10 @@ def test_read_gem_edge_cases():
     with pytest.raises(CorruptRawFile):
         read_gem(nums = np.array([23]), path = '../data', SN = '096') 
 
+    # test a differently-malformed file
+    with pytest.raises(CorruptRawFileNoGPS):
+        read_gem(nums = np.array([7]), path = '../data/test_data', SN = '138') 
+
     # test a mix of files with no gps, one gps line (that used to trigger a divide by zero warning), inadequate gps data, and normal gps data
     L = read_gem('../data/incomplete_gps_test_data/', SN = '179')
     assert all((L['header'].drift_deg0 > 0) == np.array([False, False, True, False, True, False]))

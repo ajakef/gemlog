@@ -1026,7 +1026,10 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 L['metadata'].millis += 2**13
                 L['gps'].msPPS += 2**13
                 L['data'][:,0] += 2**13
-
+            dMillis = np.diff(L['data'][:,0])
+            ## if the millis series is discontinuous, reject the file
+            if any(dMillis < 0) or any(dMillis > 1000):
+                raise CorruptRawFile(f'{fn} samples times are discontinuous')
             if len(L['gps'].t) == 0:
                 raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping')
 
@@ -1043,6 +1046,10 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 ## run the GPS time vs millis regression
                 reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
             except:
+                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping')
+            if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
+               or (num_gps_nonoutliers < 10) \
+               or MAD_nonoutliers > 0.01:
                 raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping')
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
