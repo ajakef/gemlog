@@ -1,4 +1,5 @@
-__version__ = '1.5.4' # 'new checks for malformed files, added response files for older gems, test improvements' 
+__version__ = '1.5.5' # allow deconvolve_gem_response to use non-standard response files, just like get_gem_response 
+#__version__ = '1.5.4' # 'new checks for malformed files, added response files for older gems, test improvements' 
 #__version__ = '1.5.3' # avoids timing problems caused by insufficient GPS lines in a file 
 #__version__ = '1.5.2' # improved user interface to responses and noise specs 
 #__version__ = '1.5.1' # added new version/platform info to gemconvert output and logs; improved elevation handling in metadata 
@@ -40,4 +41,4 @@ __version__ = '1.5.4' # 'new checks for malformed files, added response files fo
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive################################
+## List of old versions is not yet comprehensive#################################
