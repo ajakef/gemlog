@@ -68,7 +68,7 @@ def deconvolve_gem_response(data, gain = 'high'):
 def _read_response(filename):
     return obspy.read_inventory(filename)[0][0][0].response
 
-def get_gem_response(gain = 'high'):
+def get_gem_response(gain = 'high', sensor_file = '', logger_file = ''):
     """
     Return the Gem's instrument response
     
@@ -77,6 +77,12 @@ def get_gem_response(gain = 'high'):
     gain : str, default 'high'
     If a configuration file was used to set the Gem's programmable gain to half-gain, use 'low'.
     High gain is normal.
+
+    sensor_file : str
+    Not normally used; allows user to select a non-standard response (uncommon)
+
+    logger_file : str
+    Not normally used; allows user to select a non-standard response (uncommon)
 
     Returns:
     --------
@@ -102,13 +108,18 @@ def get_gem_response(gain = 'high'):
     
     """
     response_path = os.path.join(os.path.dirname(gemlog.__file__), 'data', 'response')
-    sensor_resp = _read_response(os.path.join(response_path, 'sensor', 'RESP.XX.IS025..BDF.GEMV1.26.0_0022'))
-    if gain.lower() == 'high':
-        response = _read_response(os.path.join(response_path, 'datalogger','RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'))
-    elif gain.lower() == 'low':
-        response = _read_response(os.path.join(response_path, 'datalogger', 'RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'))
-    else:
-        raise ValueError(f'invalid gain: {gain}')
+    if sensor_file == '':
+        sensor_file = 'RESP.XX.IS025..BDF.GEMV1.26.0_0022'
+    sensor_resp = _read_response(os.path.join(response_path, 'sensor', sensor_file))
+
+    if logger_file == '':
+        if gain.lower() == 'high':
+            logger_file = 'RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'
+        elif gain.lower() == 'low':
+            logger_file = 'RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'
+        else:
+            raise ValueError(f'invalid gain: {gain}')
+    response = _read_response(os.path.join(response_path, 'datalogger', logger_file))
 
     ## code copied from obspy's nrl.get_response() to merge sensor and logger responses
     response.response_stages.pop(0)
