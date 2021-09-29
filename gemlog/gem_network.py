@@ -15,7 +15,7 @@ import glob, obspy, os, warnings, gemlog
 #        with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
 #            yield (err, out)
 
-def deconvolve_gem_response(data, gain = 'high'):
+def deconvolve_gem_response(data, gain = 'high', sensor_file = '', logger_file = ''):
     """
     Remove the Gem's instrument response
     
@@ -43,9 +43,9 @@ def deconvolve_gem_response(data, gain = 'high'):
     ## use the warnings package to suppress warnings in this function only
     if type(data) == obspy.Stream:
         for tr in data:
-            tr.stats.response = get_gem_response(gain)
+            tr.stats.response = get_gem_response(gain, sensor_file, logger_file)
     elif type(data) == obspy.Trace:
-        data.stats.response = get_gem_response(gain)
+        data.stats.response = get_gem_response(gain, sensor_file, logger_file)
     else:
         raise TypeError(f'data is type {type(data)}; must be obspy.Stream or obspy.Trace')
 
