@@ -30,11 +30,11 @@ def test_demo():
     ##########################
     coords = gemlog.summarize_gps('gps', output_file = 'project_coords.csv', station_info = '../demo/demo/station_info.txt')
     gemlog.rename_files('mseed/*', station_info = '../demo/demo/station_info.txt', output_dir = 'renamed_mseed')
-    nrl = NRL()
-    response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
-	   		    datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
-			    '0 - 128000 counts/V']) # may cause warning--ok to ignore
-
+    #nrl = NRL()
+    #response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
+    #datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
+    #'0 - 128000 counts/V']) # may cause warning--ok to ignore
+    response = gemlog.get_gem_response()
     ## manually add elevation to 'coords'. raise an issue on github if you know an
     ## easy-to-install, cross-platform way to automate this!
     coords['elevation'] = [1983, 1983, 1988, 1983, 1986, 1987] # from google earth
