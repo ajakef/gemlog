@@ -89,7 +89,7 @@ def main(argv = None):
     output_format = 'MSEED'
     output_length = 24 # hours
     num_processes = 1
-    gemlog._debug = False
+    gemlog._debug = True
     try:
         opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:p:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
@@ -166,7 +166,7 @@ def main(argv = None):
     if not test:
         logging.info(f'***Starting conversion (gemlog version {gemlog.__version__})***')
         p = platform.uname()
-        logging.info(f'python version {platform.python_version()}')
+        logging.info(f'Dependencies: Python {platform.python_version()}, obspy {gemlog.gemlog.obspy.__version__}, pandas {gemlog.gemlog.pd.__version__}, scipy {gemlog.gemlog.scipy.__version__}, numpy {gemlog.gemlog.np.__version__}')
         logging.info(f'platform.uname(): {p.system}, {p.release}, {p.version}, {p.machine}, {p.processor}')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
         #for SN in SN_list:
