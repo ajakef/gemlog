@@ -15,15 +15,15 @@ jobs:
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9]
-      env: [
-        '-r requirements-min.txt .[test]',
-        '--upgrade --upgrade-strategy=eager .[test]'
-      ]
-      exclude:
-        - python-version: 3.8
-          env: '-r requirements-min.txt .[test]'
-        - python-version: 3.9
-          env: '-r requirements-min.txt .[test]'
+      	env: [
+          '-r requirements-min.txt .[test]',
+          '--upgrade --upgrade-strategy=eager .[test]'
+      	]
+      	exclude:
+          - python-version: 3.8
+            env: '-r requirements-min.txt .[test]'
+          - python-version: 3.9
+            env: '-r requirements-min.txt .[test]'
 
     steps:
     - uses: actions/checkout@v2
