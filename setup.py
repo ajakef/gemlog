@@ -58,11 +58,11 @@ with open(version_path) as version_file:
 VERSION = version_dict['__version__']
 
 INSTALL_REQUIRES = [
-    'obspy',
-    'numpy>=1.15.0',
-    'pandas>=1.0.0',
-    'scipy>=1.0.0',
-    'matplotlib>=3.2.0',
+    'obspy>=1.2.2', # June 2020
+    'numpy>=1.17.3', # Oct 2019, required for pandas 1.3.0
+    'pandas>=1.3.0', # July 2021, earlier versions are incompatible with gemlog
+    'scipy>=1.3.0', # May 2019
+    'matplotlib>=3.2.0', # March 2020
     'lxml',
     'setuptools',
     'sqlalchemy',
