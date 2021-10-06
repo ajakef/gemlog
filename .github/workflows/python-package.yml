@@ -15,6 +15,15 @@ jobs:
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9]
+      env: [
+        '-r requirements-min.txt .[test]',
+        '--upgrade --upgrade-strategy=eager .[test]'
+      ]
+      exclude:
+        - python-version: 3.8
+          env: '-r requirements-min.txt .[test]'
+        - python-version: 3.9
+          env: '-r requirements-min.txt .[test]'
 
     steps:
     - uses: actions/checkout@v2
@@ -32,7 +41,8 @@ jobs:
         # system path...
         python setup.py build_ext --inplace
         pip install pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install ${{ matrix.env }}
     - name: Test with pytest
       run: |
         pytest tests
