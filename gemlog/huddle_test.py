@@ -61,6 +61,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --stats: data frame showing quantitative results for all tests
     --results: data frame showing qualitative results for all tests
     """
+#%%  
+    path = '/home/tamara/gemlog/demo_QC'
+    SN_list = ['058','061','065','077']
+    SN_to_exclude = []
+    individual_only = False
     
     ## Create folder for figures
     figure_path = os.path.join(path, "figures")
@@ -96,7 +101,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
    
     pstats_df = pd.DataFrame(index = SN_list) #create dataframe for parameter statistics
     errors_df = pd.DataFrame(index = SN_list) #create dataframe for errors by category
-    gps_dict = {}
+    group_df = pd.DataFrame(index = SN_list) #create dataframe for group gps test
+    
+    gps_dict = {} 
     metadata_dict = {}
     
     errors = []
@@ -614,29 +621,69 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.image(gps_fig_path, w = 176, h = 135)
     pdf.ln()  
     pdf.output(f"{report_path}/{filename}.pdf")
-    return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
+    #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
     
- #%%  
+   
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
+    print("\n\nRunning group GPS tests")
     if (len(SN_list) == 1) or individual_only:
-        warnings.append('Test only includes one logger; cannot run comparison tests')
-        return {'errors':errors, 'warnings':warnings, 'notes':notes}
+        warn_message = 'Test only includes one logger; cannot run comparison tests'
+        warnings.append(warn_message)
+        #return {'errors':errors, 'warnings':warnings, 'notes':notes}
 
     ## If we're at this point, we have data from multiple loggers and are clear to run group tests.
     ## Group metadata:
     #### all loggers' first and last times should agree within 20 minutes
-    start_time = metadata_dict[SN_list[0]].t.min()
-    stop_time = metadata_dict[SN_list[0]].t.max()
-    failure_type = "time sync"
+    # start_time = metadata_dict[SN_list[0]].t.min()
+    # stop_time = metadata_dict[SN_list[0]].t.max()
+    # failure_type = "time sync"
+    group_err = []
+    max_mins = 20
+    max_secs = max_mins * 60
+    
+    # Record all start and stop times in group test dataframe
+    for SN in SN_list:
+        start_time = min(metadata.t)
+        end_time = max(metadata.t)
+        group_df.loc[SN, "start time"] = start_time
+        group_df.loc[SN, "end time"] = end_time
+    
+    # Find the median and create a range within the max time distance for start and stop times
+    gps_start_med = np.median(group_df.iloc[:,0]) # find the median of start times
+    gps_stop_med = np.median(group_df.iloc[:,1]) # find the median of stop times
+    upper_start = gps_start_med + max_secs/2 # create an upper bound for start times
+    lower_start = gps_start_med - max_secs/2 # create a lower bound for start times
+    upper_stop = gps_stop_med + max_secs/2 # create an upper bound for stop times
+    lower_stop = gps_stop_med - max_secs/2 # create a lower bound for stop times
+    
+    # Check all SN start and stop times to ensure they are within range
+    for SN_index, SN in enumerate(SN_list):
+        if not lower_start <= group_df.iloc[SN_index,0] <= upper_start:
+            err_message = (f"{SN} GROUP GPS ERROR: The start times are not within {max_mins} minutes of the median.")
+            group_err.append(err_message)
+            print(err_message)
+        else: print(f"{SN}: metadata start times agree")
+        if not lower_stop <= group_df.iloc[SN_index,1] < upper_stop:
+            err_message = (f"{SN} GROUP GPS ERROR: The stop times are not within {max_mins} minutes of the median.")
+            group_err.append(err_message)
+            print(err_message)
+        else: print(f"{SN}: metadata stop times agree")   
+    
+#%%
+
+    
     for SN in SN_list[1:]:
-        if np.abs(metadata_dict[SN].t.min() - start_time) > (20*60):
+        
+        
+        
+        if np.abs(metadata_dict[SN].t.min() - start_time) > (max_secs):
             failure_message = SN + ': metadata start times disagree excessively'
             print(failure_message)
             errors.append(failure_message)
         else:
             print(SN + ': metadata start times agree')
-        if np.abs(metadata_dict[SN].t.max() - stop_time) > (20*60):
+        if np.abs(metadata_dict[SN].t.max() - stop_time) > (max_secs):
             failure_message = 'metadata stop times disagree excessively'
             print(failure_message)
             errors.append(failure_message)
