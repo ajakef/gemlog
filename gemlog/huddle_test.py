@@ -623,17 +623,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.output(f"{report_path}/{filename}.pdf")
     #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
     
-   
-    ## Before running the group tests, ensure that we actually have data more than one Gem!
-    ## If not, add a warning, and return without conducting group tests.
+# ============================================================================= 
+    ## If we're at this point, we have data from multiple loggers and are clear 
+    # to run group tests.
+    ## Group metadata:
+# =============================================================================
+   ## Before running the group tests, ensure that we actually have data more than one Gem!
+   ## If not, add a warning, and return without conducting group tests.
     print("\n\nRunning group GPS tests")
     if (len(SN_list) == 1) or individual_only:
         warn_message = 'Test only includes one logger; cannot run comparison tests'
         warnings.append(warn_message)
         #return {'errors':errors, 'warnings':warnings, 'notes':notes}
-
-    ## If we're at this point, we have data from multiple loggers and are clear to run group tests.
-    ## Group metadata:
     #### all loggers' first and last times should agree within 20 minutes
     # start_time = metadata_dict[SN_list[0]].t.min()
     # stop_time = metadata_dict[SN_list[0]].t.max()
@@ -669,31 +670,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             group_err.append(err_message)
             print(err_message)
         else: print(f"{SN}: metadata stop times agree")   
+   
     
 #%%
-
-    
-    for SN in SN_list[1:]:
-        
-        
-        
-        if np.abs(metadata_dict[SN].t.min() - start_time) > (max_secs):
-            failure_message = SN + ': metadata start times disagree excessively'
-            print(failure_message)
-            errors.append(failure_message)
-        else:
-            print(SN + ': metadata start times agree')
-        if np.abs(metadata_dict[SN].t.max() - stop_time) > (max_secs):
-            failure_message = 'metadata stop times disagree excessively'
-            print(failure_message)
-            errors.append(failure_message)
-        else:
-            print(SN + ': metadata stop times agree')
-        start_time = max(start_time, metadata_dict[SN].t.min())
-        stop_time = min(stop_time, metadata_dict[SN].t.max())
+   
         
     #### at every given time, temperature must agree within 2C for all loggers
-    times_to_check = np.arange(start_time, stop_time)
     #average_temperatures = 0
     all_temperatures = np.zeros((len(SN_list), len(times_to_check)))
     temperatures = {}
