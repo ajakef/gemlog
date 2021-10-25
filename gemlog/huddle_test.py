@@ -638,17 +638,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #### all loggers' first and last times should agree within 20 minutes
     # start_time = metadata_dict[SN_list[0]].t.min()
     # stop_time = metadata_dict[SN_list[0]].t.max()
+    # end_time
     # failure_type = "time sync"
     group_err = []
     max_mins = 20
     max_secs = max_mins * 60
-    
     # Record all start and stop times in group test dataframe
-    for SN in SN_list:
+    for SN_index, SN in enumerate(SN_list):
         start_time = min(metadata.t)
-        end_time = max(metadata.t)
+        stop_time = max(metadata.t)
         group_df.loc[SN, "start time"] = start_time
-        group_df.loc[SN, "end time"] = end_time
+        group_df.loc[SN, "end time"] = stop_time
     
     # Find the median and create a range within the max time distance for start and stop times
     gps_start_med = np.median(group_df.iloc[:,0]) # find the median of start times
@@ -664,19 +664,49 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             err_message = (f"{SN} GROUP GPS ERROR: The start times are not within {max_mins} minutes of the median.")
             group_err.append(err_message)
             print(err_message)
-        else: print(f"{SN}: metadata start times agree")
         if not lower_stop <= group_df.iloc[SN_index,1] < upper_stop:
             err_message = (f"{SN} GROUP GPS ERROR: The stop times are not within {max_mins} minutes of the median.")
             group_err.append(err_message)
             print(err_message)
-        else: print(f"{SN}: metadata stop times agree")   
-   
-    
-#%%
-   
-        
+    if len(group_err) == 0:
+        print("The start and stop times for all loggers agree.")
+
     #### at every given time, temperature must agree within 2C for all loggers
-    #average_temperatures = 0
+    
+    temp_start = np.round(upper_start, -2)
+    temp_end = np.round(upper_stop, -2)
+    mod = temp_start % 60
+    temp_start = temp_start - mod
+    temp_end = temp_end - mod
+    column_index = np.arange(0,int((upper_stop-temp_start)/60)+1,1)
+    group_temp_df = pd.DataFrame(index = SN_list, columns = column_index )
+    
+    
+    for SN_index, SN in enumerate(SN_list):
+        argstart_list = []
+        argend_list = []
+        times = metadata.t
+        for time in times:
+            argstart_list.append(np.abs(temp_start - time)) # create a list of absolute value of start and time values
+            argend_list.append(np.abs(temp_end - time))
+                               
+        start_index = np.argmin(argstart_list) # find index for closest minute time for start
+        #format to not include nans from metadata
+        end_index = np.argmin(argend_list) # find index for last time value
+        
+        times_to_check_index = np.arange(start_index, end_index, 60) # create evenly spaced array of even minutes
+        
+        # must create index based on mutally agreed start time
+        for df_index, index in enumerate(times_to_check_index):
+            group_temp_df.iloc[SN_index,df_index] = metadata.temp[index]
+
+    for column in column_index:
+        temp_range = group_temp_df[column].max() - group_temp_df[column].min()
+        if temp_range > 2:
+            err_message = "Logger temperatures do not agree within 2 degrees Celsius. "
+            print(err_message)
+        else:
+#%%        
     all_temperatures = np.zeros((len(SN_list), len(times_to_check)))
     temperatures = {}
     for i, SN in enumerate(SN_list):
@@ -693,7 +723,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors.append(failure_message)
         else:
             print(SN + ': Temperatures agree')
-    
+#%%    
     ## Group GPS
     #### all loggers' average lat and lon should agree within 1 m
     #### all loggers' first and last GPS times should agree within 20 minutes
