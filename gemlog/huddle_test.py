@@ -108,8 +108,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     errors = []
     warnings = []
-    info = []
     
+    info = []
+    trouble = []
+    
+    ## Test info and trouble shooting ##
+    info.append("""BATTERY TEST INFO: This test is designed to ensure the voltage of each gem is within 1.7 to 15 Volts at each recorded instance. Gems within this specified range, but outside a range 3.0-14.95 Volts will result in a warning message.""")
+    trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery warning, it is likely the gem was not able to record any waveform data. This can usually be fixed by changing the batteries. If you received a battery error [INSERT PROBLEM]
+        [INSERT TROUBLESHOOT]
+        """)
+    info.append("""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable range.
+        This range is set at -20 to 60 Celsius or -4 to 140 Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.
+        """)
+    trouble.append("""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching the limit of the temperature range operation 
+        for the gemlogger (-20 to 60 C). If this value does not reflect an accurate ambient air temperature, [INSERT TROUBLESHOOTING]
+        """)
     #### Individual Metadata: 
     ### Initialize plots
     plt.close('all') #close any previous figures  
@@ -153,8 +166,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     for SN_index, SN in enumerate(SN_list):
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
-        
+        metadata_dict[SN] = metadata
         #### battery voltage must be in reasonable range (1.7 to 15 V)
+        
         pstats_df.loc[SN, "battery min"] = min(metadata.batt)
         pstats_df.loc[SN,"battery max"] = max(metadata.batt)
         #battery voltage minimum tests
@@ -165,7 +179,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors.append(err_message)
         elif pstats_df.loc[SN, "battery min"] < 3.0:
             errors_df.loc[SN, "battery min"] = "WARNING"
-            warn_message = f"{SN} BATTERY WARNING: battery level within {np.round(min(metadata.batt-1.7),decimals=2)} Volts of minimum threshold (1.7V)."
+            warn_message = f"{SN} BATTERY WARNING: low battery level within {np.round(min(metadata.batt-1.7),decimals=2)} Volts of minimum threshold (1.7V)."
             print(warn_message)
             warnings.append(warn_message)
         else:
@@ -188,7 +202,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #slope of voltage decay
         
     ##%%%%%##
-        ####temperature must be within reasonable range (-20 t0 60 C)    
+        ####temperature must be within reasonable range (-20 t0 60 C)  
         pstats_df.loc[SN, "temperature min"] = min(metadata.temp)
         pstats_df.loc[SN, "temperature max"] = max(metadata.temp)
         pstats_df.loc[SN, "temperature average"] = np.mean(metadata.temp)
@@ -406,11 +420,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     ##%%%%%##             
         #### find time differences among samples with gps off that are > 180 sec
-        time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])[10:] # skip the first ten seconds and first GPS cycle, which is very long by design
-        pstats_df.loc[SN, "gps run time"] = max(time_check)
-        if any(time_check > 180): 
+        gps_time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])[10:] # skip the first ten seconds and first GPS cycle, which is very long by design
+        pstats_df.loc[SN, "gps run time"] = max(gps_time_check)
+        if any(gps_time_check > 180): 
             errors_df.loc[SN, "gps run time"] = "WARNING"
-            warn_message = f"{SN} GPS WARNING: GPS runtime is {max(time_check)}."
+            warn_message = f"{SN} GPS WARNING: GPS runtime is {max(gps_time_check)}."
             print(warn_message)
             warnings.append(warn_message)
             
@@ -420,7 +434,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         #IDEAS - change to stacked bar chart with different colors for serial numbers
         # how to select colors automatically?
-        time_filt = time_check[time_check > 12]
+        time_filt = gps_time_check[gps_time_check > 12]
         time_filt[time_filt > 180] = 180
         binsize = np.arange(10,180,10)
         gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
@@ -466,6 +480,157 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     
     print("\nSerial number tests complete.") 
+    
+# ============================================================================= 
+    ## Group metadata tests:    
+    ## If we're at this point, we have data from multiple loggers and are clear 
+    # to run group tests.
+# =============================================================================
+    ## Before running the group tests, ensure that we actually have data more than one Gem!
+    ## If not, add a warning, and return without conducting group tests.
+    group_err = []
+    group_warnings = []
+    group_notes = []
+    
+    print("\n\nRunning group GPS tests")
+    if (len(SN_list) == 1) or individual_only:
+        warn_message = 'Test only includes one logger; cannot run comparison tests'
+        group_err.append(warn_message)
+        #return {'errors':errors, 'warnings':warnings, 'notes':notes}
+        
+#### all loggers' first and last times should agree within 20 minutes
+    max_mins = 20
+    max_secs = max_mins * 60
+    # Record all start and stop times in group test dataframe
+    for SN_index, SN in enumerate(SN_list):
+        start_time = min(metadata.t)
+        stop_time = max(metadata.t)
+        group_df.loc[SN, "start time"] = start_time
+        group_df.loc[SN, "end time"] = stop_time
+    
+    # Find the median and create a range within the max time distance for start and stop times
+    gps_start_med = np.median(group_df.iloc[:,0]) # find the median of start times
+    gps_stop_med = np.median(group_df.iloc[:,1]) # find the median of stop times
+    upper_start = gps_start_med + max_secs/2 # create an upper bound for start times
+    lower_start = gps_start_med - max_secs/2 # create a lower bound for start times
+    upper_stop = gps_stop_med + max_secs/2 # create an upper bound for stop times
+    lower_stop = gps_stop_med - max_secs/2 # create a lower bound for stop times
+    
+    # Check all SN start and stop times to ensure they are within range
+    for SN_index, SN in enumerate(SN_list):
+        if not lower_start <= group_df.iloc[SN_index,0] <= upper_start:
+            err_message = (f"{SN} GROUP GPS ERROR: The start times are not within {max_mins} minutes of the median.")
+            group_err.append(err_message)
+            print(err_message)
+        if not lower_stop <= group_df.iloc[SN_index,1] < upper_stop:
+            err_message = (f"{SN} GROUP GPS ERROR: The stop times are not within {max_mins} minutes of the median.")
+            group_err.append(err_message)
+            print(err_message)
+    if len(group_err) == 0:
+        note = "The start and stop times for all loggers agree."
+        group_notes.append(note)
+        print(note)
+
+#### at every given time, temperature must agree within 2C for all loggers
+    ## TROUBLESHOOT: why are all temperatures the same value when the graph shows a difference of >2?    
+    interval = 60 #seconds (time between checks)
+    
+    # Determine start and stop times (Unix time)
+    temp_start = np.round(upper_start, -2) # time at which to start checking temperatures on all logers
+    temp_end = np.round(upper_stop, -2)
+    mod = temp_start % interval # modulus remainder to round start time to even minute
+    temp_start = temp_start - mod # start time on an even minute
+    temp_end = temp_end - mod # stop time on an even minute
+    
+    # Create dataframe to house temperatures to check
+    column_index = np.arange(0,int((temp_end-temp_start)/interval)+1,1) 
+    
+    group_temp_df = pd.DataFrame(index = SN_list, columns = column_index ) # create dataframe to house temperatures at each minute for each SN
+    diff = [] # contain difference calculations
+    times_checked = np.zeros((1,max(column_index)))
+    
+    for SN_index, SN in enumerate(SN_list):
+        metadata = metadata_dict[SN]
+        argstart_list = [] # reset closest start list
+        argend_list = [] # reset closest end list
+        times = metadata.t # call all the time metadata
+        for time in times: # for each time value in time metadata
+            argstart_list.append(np.abs(temp_start - time)) # create a list of time values minus start time (find closest to start)
+            argend_list.append(np.abs(temp_end - time)) # create list of time values minus end time (find closest index to end)
+        
+        start_index = np.argmin(argstart_list) # find index for closest minute time for start
+        #format to not include nans from metadata
+        stop_index = np.argmin(argend_list) # find index for last time value
+        
+        temp_start = times[start_index]
+        temp_end = times[stop_index]
+        temp_times = np.arange(temp_start, temp_end, 60)
+        
+        times_to_check_index = np.arange(start_index, stop_index, 60) # create evenly spaced array of even minutes
+        # must create index based on mutally agreed start time
+        for df_index, index in enumerate(times_to_check_index):
+            group_temp_df.iloc[SN_index,df_index] = metadata.temp[index] # save minute temperature reading into dataframe
+            times_checked[0, df_index] = (metadata.t[index]) # ***not efficient***
+    
+    # DO NOT DELETE BELOW CODE!!!
+    # error = False
+    # for column in column_index: # column represents temperature data for each time that will be checked 
+    #     # might be operating dataframe functions on entire set, not by columns...
+    #     temp_median = np.round(group_temp_df[column].median(),2)
+    #     temp_range = np.round(group_temp_df[column].max() - group_temp_df[column].min(),2)
+    #     outliers = (np.where(any(group_temp_df[column]) > temp_median + 1 or any(group_temp_df[column] < temp_median - 1))[0])
+    #     # Find offending serial numbers outside of temperature range
+    #     x = (group_temp_df.index[group_temp_df[column] > temp_median + 1].tolist())       
+    #     if len(x) > 0:
+    #         error = True
+    #         ts = int(times_checked[0,column])
+    #         time_lookup = datetime.datetime.utcfromtimestamp(ts)
+    #         print(f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median} on {time_lookup}. Recorded temperature range = {temp_range}")
+    # if error == False:
+    #     print("The recorded temperatures are within two degrees Celcius")  
+     
+            
+#%%  Relict temperature check (KeyError: 'SN')      
+    # all_temperatures = np.zeros((len(SN_list), len(times_to_check_index)))
+    # temperatures = {}
+    # for i, SN in enumerate(SN_list):
+    #     temperatures[SN] = scipy.signal.lfilter(np.ones(100)/100, [1],
+    #         scipy.interpolate.interp1d(metadata_dict[SN].t, metadata_dict[SN].temp)(times_to_check_index))
+    #     # to do: use the median instead
+    #     # average_temperatures += temperatures[SN]/ len(SN_list)
+    #     all_temperatures[i,:] =  temperatures[SN]
+    # med_temperatures = np.median(all_temperatures, 0)
+    # for SN in SN_list:
+    #     if np.sum(np.abs(temperatures[SN] - med_temperatures) > 2)/len(times_to_check_index) > 0.1:
+    #         failure_message = SN + ': disagrees excessively with average temperature'
+    #         print(failure_message)
+    #         errors.append(failure_message)
+    #     else:
+    #         print(SN + ': Temperatures agree')
+#%%    
+    #### all loggers' average lat and lon should agree within 1 m
+
+    ## group waveform data data:
+    #### length of converted data should match among all loggers
+    #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
+    DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
+    DB = DB.loc[DB.station.isin(SN_list),:]
+    [t, lag, xc_coef, consistency] = check_lags(DB)
+    coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
+    zero_lags = lag[:,coherent_windows]==0
+    num_coherent_windows = np.sum(coherent_windows)
+    if (np.sum(np.all(zero_lags, 0)) / num_coherent_windows) < 0.8:
+        failure_message = 'Time lags are excessively nonzero for coherent time windows'
+        print(failure_message)
+        group_err.append(failure_message)
+    else:
+        note = 'Time lags for coherent time windows are mostly/all zero'
+        group_notes.append(note)
+        print(note)
+        
+
+    #return {'errors':errors, 'warnings':warnings, 'notes':notes}
+
    
 # ============================================================================= 
     # Create a PDF output of plots with the date of report, errors warning and
@@ -618,119 +783,25 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.ln()
     pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
     pdf.ln()
-    pdf.image(gps_fig_path, w = 176, h = 135)
-    pdf.ln()  
-    pdf.output(f"{report_path}/{filename}.pdf")
+    pdf.image(gps_fig_path, w = img_width, h = 135)
+    pdf.ln()
+    pdf.ln()
+    
+## Group test results
+    pdf.set_font('helvetica', 'B', size = 10)
+    pdf.cell(0,10, f"Group Test Results", border=0, ln=0, align= 'C')
+    pdf.ln()
+    pdf.set_font('helvetica', size=8)
+    for i, error in enumerate(group_err):
+        pdf.cell(12,4, '%s' % group_err[i], ln=1)
+    for i, note in enumerate(group_notes):
+         pdf.cell(12,4, '%s' % group_notes[i], ln=1)
     #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
+    pdf.ln()
+    for i, note in enumerate(info):
+        pdf.multi_cell(200,5, '%s' %info[i])
+        pdf.ln()
     
-   
-    ## Before running the group tests, ensure that we actually have data more than one Gem!
-    ## If not, add a warning, and return without conducting group tests.
-    print("\n\nRunning group GPS tests")
-    if (len(SN_list) == 1) or individual_only:
-        warn_message = 'Test only includes one logger; cannot run comparison tests'
-        warnings.append(warn_message)
-        #return {'errors':errors, 'warnings':warnings, 'notes':notes}
-
-    ## If we're at this point, we have data from multiple loggers and are clear to run group tests.
-    ## Group metadata:
-    #### all loggers' first and last times should agree within 20 minutes
-    # start_time = metadata_dict[SN_list[0]].t.min()
-    # end_time = metadata_dict[SN_list[0]].t.max()
-    # failure_type = "time sync"
-    group_err = []
-    max_mins = 20
-    max_secs = max_mins * 60
+## Close and name file    
+    pdf.output(f"{report_path}/{filename}.pdf")
     
-    # Record all start and stop times in group test dataframe
-    for SN in SN_list:
-        start_time = min(metadata.t)
-        end_time = max(metadata.t)
-        group_df.loc[SN, "start time"] = start_time
-        group_df.loc[SN, "end time"] = end_time
-    
-    # Find the median and create a range within the max time distance for start and stop times
-    gps_start_med = np.median(group_df.iloc[:,0]) # find the median of start times
-    gps_stop_med = np.median(group_df.iloc[:,1]) # find the median of stop times
-    upper_start = gps_start_med + max_secs/2 # create an upper bound for start times
-    lower_start = gps_start_med - max_secs/2 # create a lower bound for start times
-    upper_stop = gps_stop_med + max_secs/2 # create an upper bound for stop times
-    lower_stop = gps_stop_med - max_secs/2 # create a lower bound for stop times
-    
-    # Check all SN start and stop times to ensure they are within range
-    for SN_index, SN in enumerate(SN_list):
-        if not lower_start <= group_df.iloc[SN_index,0] <= upper_start:
-            err_message = (f"{SN} GROUP GPS ERROR: The start times are not within {max_mins} minutes of the median.")
-            group_err.append(err_message)
-            print(err_message)
-        else: print(f"{SN}: metadata start times agree")
-        if not lower_stop <= group_df.iloc[SN_index,1] < upper_stop:
-            err_message = (f"{SN} GROUP GPS ERROR: The stop times are not within {max_mins} minutes of the median.")
-            group_err.append(err_message)
-            print(err_message)
-        else: print(f"{SN}: metadata stop times agree")   
-    
-#%%
-
-    
-    for SN in SN_list[1:]:
-        
-        
-        
-        if np.abs(metadata_dict[SN].t.min() - start_time) > (max_secs):
-            failure_message = SN + ': metadata start times disagree excessively'
-            print(failure_message)
-            errors.append(failure_message)
-        else:
-            print(SN + ': metadata start times agree')
-        if np.abs(metadata_dict[SN].t.max() - end_time) > (max_secs):
-            failure_message = 'metadata stop times disagree excessively'
-            print(failure_message)
-            errors.append(failure_message)
-        else:
-            print(SN + ': metadata stop times agree')
-        start_time = max(start_time, metadata_dict[SN].t.min())
-        end_time = min(end_time, metadata_dict[SN].t.max())
-        
-    #### at every given time, temperature must agree within 2C for all loggers
-    times_to_check = np.arange(start_time, end_time)
-    #average_temperatures = 0
-    all_temperatures = np.zeros((len(SN_list), len(times_to_check)))
-    temperatures = {}
-    for i, SN in enumerate(SN_list):
-        temperatures[SN] = scipy.signal.lfilter(np.ones(100)/100, [1],
-            scipy.interpolate.interp1d(metadata_dict[SN].t, metadata_dict[SN].temp)(times_to_check))
-        # to do: use the median instead
-        #average_temperatures += temperatures[SN]/ len(SN_list)
-        all_temperatures[i,:] =  temperatures[SN]
-    med_temperatures = np.median(all_temperatures, 0)
-    for SN in SN_list:
-        if np.sum(np.abs(temperatures[SN] - med_temperatures) > 2)/len(times_to_check) > 0.1:
-            failure_message = SN + ': disagrees excessively with average temperature'
-            print(failure_message)
-            errors.append(failure_message)
-        else:
-            print(SN + ': Temperatures agree')
-    
-    ## Group GPS
-    #### all loggers' average lat and lon should agree within 1 m
-    #### all loggers' first and last GPS times should agree within 20 minutes
-
-    ## group waveform data data:
-    #### length of converted data should match among all loggers
-    #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
-    DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
-    DB = DB.loc[DB.station.isin(SN_list),:]
-    [t, lag, xc_coef, consistency] = check_lags(DB)
-    coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
-    zero_lags = lag[:,coherent_windows]==0
-    num_coherent_windows = np.sum(coherent_windows)
-    if (np.sum(np.all(zero_lags, 0)) / num_coherent_windows) < 0.8:
-        failure_message = 'Time lags are excessively nonzero for coherent time windows'
-        print(failure_message)
-        errors.append(failure_message)
-    else:
-        print('Time lags for coherent time windows are mostly/all zero')
-        
-
-    return {'errors':errors, 'warnings':warnings, 'notes':notes}
