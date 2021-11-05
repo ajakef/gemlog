@@ -23,7 +23,7 @@ def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
-def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False):
+def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False, run_crosscorrelation_checks = False):
     """Perform a battery of tests on converted data from a huddle test to ensure that no Gems are
     obviously malfunctioning. 
 
@@ -62,11 +62,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --results: data frame showing qualitative results for all tests
     """
 #%%  
-    path = '/home/tamara/gemlog/demo_QC'
+    if os.getlogin() == 'tamara':
+        path = '/home/tamara/gemlog/demo_QC'
+    elif os.getlogin() == 'jake':
+        path = '/home/jake/Work/gemlog_python/demo_QC'
+    else:
+        print('unknown user, need to define path')
     SN_list = ['058','061','065','077']
     SN_to_exclude = []
     individual_only = False
-    
+    run_crosscorrelation_checks = False
+#%%    
     ## Create folder for figures
     figure_path = os.path.join(path, "figures")
     file_exists = os.path.exists(figure_path)
@@ -268,40 +274,40 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         ##A2
         A2_zerodiff_proportion = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
-        pstats_df.loc[SN, "A2 dV/dt nonzero"] = A2_zerodiff_proportion
+        pstats_df.loc[SN, "A2 flat"] = A2_zerodiff_proportion
         within_A2_range = (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1))
         pstats_df.loc[SN, "A2 range"] = within_A2_range
         
         #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
-        if pstats_df.loc[SN, "A2 dV/dt nonzero"] > 0.99: 
-            errors_df.loc[SN, "A2 dV/dt nonzero"] = "ERROR"
-            err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is greater than 0. Less than 99% indicates a likely short circuit."
+        if pstats_df.loc[SN, "A2 flat"] > 0.99: 
+            errors_df.loc[SN, "A2 flat"] = "ERROR"
+            err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
             print(err_message)
             errors.append(err_message)
-        elif pstats_df.loc[SN,"A2 dV/dt nonzero"] > 0.95: #95% placeholder; uncertain interpretation
-            errors_df.loc[SN, "A2 dV/dt nonzero"] = "WARNING"
-            warn_message = f"{SN} A2 WARNING: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is greater than 0. Less than 99% indicates a likely short circuit."
+        elif pstats_df.loc[SN,"A2 flat"] > 0.95: #95% placeholder; uncertain interpretation
+            errors_df.loc[SN, "A2 flat"] = "WARNING"
+            warn_message = f"{SN} A2 WARNING: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
             warnings.append(warn_message)
             print(warn_message)
         else:
-            errors_df.loc[SN, "A2 dV/dt nonzero"] = "OKAY" 
+            errors_df.loc[SN, "A2 flat"] = "OKAY" 
       
-        #failure_type = "A2"
-        #errors_df.loc[SN, "A2"] = np.NaN #probably don't need this
-        A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
-        limit = 0.01
-        if A2_check > limit: 
-            errors_df.loc[SN, "A2 dV/dt"] = "ERROR"
-            err_message = f"{SN} A2 ERROR: A2 dV/dt constant ratio of {np.round(A2_check,decimals=3)} (limit is {limit})."
-            errors.append(err_message)
-        if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
-            failure_message = SN + ': Bad A2'
-            errors_df.loc[SN, "A2 error"] = 1 #yes error exists (true)
-            errors.append(failure_message) 
-            print(f"{SN} A2 ERROR: A2 malfunction")
-        else:
-            errors_df.loc[SN, "A2 error"] = "OKAY" #no error present(false)
-        errors_df.loc[SN,"A2 dV/dt nonzero"] = "OKAY"
+        # #failure_type = "A2"
+        # #errors_df.loc[SN, "A2"] = np.NaN #probably don't need this
+        # A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
+        # limit = 0.01
+        # if A2_check > limit: 
+        #     errors_df.loc[SN, "A2 dV/dt"] = "ERROR"
+        #     err_message = f"{SN} A2 ERROR: A2 dV/dt constant ratio of {np.round(A2_check,decimals=3)} (limit is {limit})."
+        #     errors.append(err_message)
+        # if not (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1)):
+        #     failure_message = SN + ': Bad A2'
+        #     errors_df.loc[SN, "A2 error"] = 1 #yes error exists (true)
+        #     errors.append(failure_message) 
+        #     print(f"{SN} A2 ERROR: A2 malfunction")
+        # else:
+        #     errors_df.loc[SN, "A2 error"] = "OKAY" #no error present(false)
+        # errors_df.loc[SN,"A2 flat"] = "OKAY"
             
        #Check A2 is within range
         if not within_A2_range:
@@ -316,23 +322,23 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ##%%%%%## 
         ##A3
         A3_nonzero = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
-        pstats_df.loc[SN,"A3 dV/dt nonzero"] = A3_nonzero
+        pstats_df.loc[SN,"A3 flat"] = A3_nonzero
         within_A3_range = (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1))
         pstats_df.loc[SN, "A3 range"] = within_A3_range
         
         #Check that A3 dV/dt == 0 less than 99% of time
-        if pstats_df.loc[SN,"A3 dV/dt nonzero"] > 0.99: 
-            errors_df.loc[SN,"A3 dV/dt nonzero"] = "ERROR"
-            err_message = f"{SN} A3 ERROR: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is greater than 0. Less than 99% indicates a likely short circuit."
+        if pstats_df.loc[SN,"A3 flat"] > 0.99: 
+            errors_df.loc[SN,"A3 flat"] = "ERROR"
+            err_message = f"{SN} A3 ERROR: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
             errors.append(err_message)
             print(err_message)
-        elif pstats_df.loc[SN,"A3 dV/dt nonzero"] > 0.95: #placeholder of 95%
-            errors_df.loc[SN, "A3 dV/dt nonzero"] = "WARNING"
-            warn_message = f"{SN} A3 WARNING: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is greater than 0. Less than 99% indicates a likely short circuit."
+        elif pstats_df.loc[SN,"A3 flat"] > 0.95: #placeholder of 95%
+            errors_df.loc[SN, "A3 flat"] = "WARNING"
+            warn_message = f"{SN} A3 WARNING: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
             warnings.append(warn_message)
             print(warn_message)
         else:
-            errors_df.loc[SN,"A3 dV/dt nonzero"] = "OKAY"
+            errors_df.loc[SN,"A3 flat"] = "OKAY"
             
        #Check A3 is within range     
         if not within_A3_range:
@@ -472,7 +478,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', None)
-    pd.set_option('display.max_colwidth', -1)
+    pd.set_option('display.max_colwidth', None)
     print('Results')
     print(errors_df)
     print('Stats:')
@@ -613,24 +619,34 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ## group waveform data data:
     #### length of converted data should match among all loggers
     #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
-    DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
-    DB = DB.loc[DB.station.isin(SN_list),:]
-    [t, lag, xc_coef, consistency] = check_lags(DB)
-    coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
-    zero_lags = lag[:,coherent_windows]==0
-    num_coherent_windows = np.sum(coherent_windows)
-    if (np.sum(np.all(zero_lags, 0)) / num_coherent_windows) < 0.8:
-        failure_message = 'Time lags are excessively nonzero for coherent time windows'
-        print(failure_message)
-        group_err.append(failure_message)
-    else:
-        note = 'Time lags for coherent time windows are mostly/all zero'
-        group_notes.append(note)
-        print(note)
+    if run_crosscorrelation_checks:
+        DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
+        DB = DB.loc[DB.station.isin(SN_list),:]
+        [t, lag, xc_coef, consistency] = check_lags(DB, winlength=100)
+        coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
+        zero_lags = lag[:,coherent_windows]==0
+        num_coherent_windows = np.sum(coherent_windows)
+        if (np.sum(np.all(zero_lags, 0)) / num_coherent_windows) < 0.8:
+            failure_message = 'Time lags are excessively nonzero for coherent time windows'
+            print(failure_message)
+            group_err.append(failure_message)
+        else:
+            note = 'Time lags for coherent time windows are mostly/all zero'
+            group_notes.append(note)
+            print(note)
         
+        ## add a figure showing time lags plotted over time
+        time_lags_fig = plt.figure(3)
+        for i in range(len(lag)):
+            plt.plot(np.array(t)-t[0], lag[i])
+        plt.legend() ## not sure how to do this
+        plt.title('Time lags from cross-correlation')
+        plt.ylabel('Time lag (samples)')
+        time_lags_fig_path = f"{path}/figures/time_lags.png"
+        time_lags_fig.savefig(time_lags_fig_path, dpi = 300)
 
     #return {'errors':errors, 'warnings':warnings, 'notes':notes}
-
+#%%
    
 # ============================================================================= 
     # Create a PDF output of plots with the date of report, errors warning and
@@ -802,6 +818,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pdf.multi_cell(200,5, '%s' %info[i])
         pdf.ln()
     
+    ## add the time lags if they were actually calculated
+    if run_crosscorrelation_checks:
+        pdf.ln()
+        pdf.image(time_lags_fig_path, w = img_width, h = img_height)
+        
 ## Close and name file    
     pdf.output(f"{report_path}/{filename}.pdf")
     
