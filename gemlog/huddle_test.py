@@ -157,16 +157,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #Create GPS runtime histogram plots for all SN 
     # will not plot for single SN
     # get list of axis even if there is only one in SN_list
-    gps_fig = plt.figure(2, figsize = (6.5,5))
+    gps_fig = plt.figure(2, figsize = (6.5,5),)
     gps_ax = gps_fig.subplots(len(SN_list))
     gps_ax[0].set_title("GPS Runtime")
     gps_fig.tight_layout()
+
+    
     
         ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
         metadata_dict[SN] = metadata
+        
+        interval = np.mean(np.diff(metadata.t)) # calculate interval between metadata sampling
+        
         #### battery voltage must be in reasonable range (1.7 to 15 V)
         
         pstats_df.loc[SN, "battery min"] = min(metadata.batt)
@@ -287,7 +292,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors_df.loc[SN, "A2 dV/dt nonzero"] = "OKAY" 
       
         #failure_type = "A2"
-        #errors_df.loc[SN, "A2"] = np.NaN #probably don't need this
         A2_check = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
         limit = 0.01
         if A2_check > limit: 
@@ -408,8 +412,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             
     ##%%%%%##             
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
-        pstats_df.loc[SN,"unused stack1 max"] = max(metadata.unusedStack1)
-        pstats_df.loc[SN,"unused stack idle max"] = max(metadata.unusedStackIdle)
+        #pstats_df.loc[SN,"unused stack1 max"] = max(metadata.unusedStack1)
+        #pstats_df.loc[SN,"unused stack idle max"] = max(metadata.unusedStackIdle)
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             errors_df.loc[SN, "unused stack"] = "WARNING"
             warn_message = f"UNUSED STACK WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
@@ -420,8 +424,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     ##%%%%%##             
         #### find time differences among samples with gps off that are > 180 sec
+        # subtract interval from gps_time_check
         gps_time_check = np.diff(metadata.t[metadata.gpsOnFlag == 0])[10:] # skip the first ten seconds and first GPS cycle, which is very long by design
-        pstats_df.loc[SN, "gps run time"] = max(gps_time_check)
+        gps_mean = gps_time_check[gps_time_check > 11] 
+        pstats_df.loc[SN, "mean gps run time"] = np.mean(gps_mean)
         if any(gps_time_check > 180): 
             errors_df.loc[SN, "gps run time"] = "WARNING"
             warn_message = f"{SN} GPS WARNING: GPS runtime is {max(gps_time_check)}."
@@ -431,22 +437,33 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## individual GPS:
             #plot GPS histogram for runtime
             #change plotting options 
-        
+        gps_on = metadata.gpsOnFlag
+        time_cycle = 900 # seconds in cycle (15 minutes)
+        gps_proportion = np.sum(gps_on)/len(gps_on) * time_cycle # time proportion that GPS is on
+        if gps_proportion > 180:
+            gps_proportion = 180
+        pstats_df.loc[SN, "on time proportion"] = gps_proportion
         #IDEAS - change to stacked bar chart with different colors for serial numbers
         # how to select colors automatically?
-        time_filt = gps_time_check[gps_time_check > 12]
+        time_filt = gps_time_check[gps_time_check > 11] - interval
         time_filt[time_filt > 180] = 180
         binsize = np.arange(10,180,10)
         gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
+        gps_ax[SN_index].errorbar(gps_proportion, 10, yerr= 10, ecolor = 'r')
+        gps_ax[SN_index].set_ylim(0,20)
         gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
+        gps_ax[SN_index].set_xticks([]) # not working
         gps_ax[SN_index].axes.xaxis.set_ticklabels([])
         gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
         gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
         if SN == SN_list[-1]:    
             gps_ax[SN_index].set_xlabel('seconds')
             gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180'])
+            gps_ax[SN_index].annotate('on time proportion', (gps_proportion, 10), xytext = (gps_proportion + 10 , 15), color = 'r',
+                                  arrowprops = dict(arrowstyle = '->', connectionstyle = "angle, angleA = 90, angleB = 0, rad = 10", color = 'r'))
         gps_fig_path = f"{path}/figures/gps_runtime.png"
         gps_fig.savefig(gps_fig_path, dpi=300)
+        
            
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
@@ -590,7 +607,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #     print("The recorded temperatures are within two degrees Celcius")  
      
             
-#%%  Relict temperature check (KeyError: 'SN')      
+    #  Relict temperature check (KeyError: 'SN')      
     # all_temperatures = np.zeros((len(SN_list), len(times_to_check_index)))
     # temperatures = {}
     # for i, SN in enumerate(SN_list):
@@ -607,7 +624,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #         errors.append(failure_message)
     #     else:
     #         print(SN + ': Temperatures agree')
-#%%    
+   
     #### all loggers' average lat and lon should agree within 1 m
 
     ## group waveform data data:
