@@ -82,7 +82,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pass
     
     
-    ## Create blank error and warning lists
+    ## Create blank error, warning, and notes lists to save console messages
     errors = []
     warnings = []
     notes = []
@@ -111,24 +111,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     gps_dict = {} 
     metadata_dict = {}
-    
-    errors = []
-    warnings = []
-    
-    info = []
-    trouble = []
-    
-    ## Test info and trouble shooting ##
-    info.append("""BATTERY TEST INFO: This test is designed to ensure the voltage of each gem is within 1.7 to 15 Volts at each recorded instance. Gems within this specified range, but outside a range 3.0-14.95 Volts will result in a warning message.""")
-    trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery warning, it is likely the gem was not able to record any waveform data. This can usually be fixed by changing the batteries. If you received a battery error [INSERT PROBLEM]
-        [INSERT TROUBLESHOOT]
-        """)
-    info.append("""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable range.
-        This range is set at -20 to 60 Celsius or -4 to 140 Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.
-        """)
-    trouble.append("""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching the limit of the temperature range operation 
-        for the gemlogger (-20 to 60 C). If this value does not reflect an accurate ambient air temperature, [INSERT TROUBLESHOOTING]
-        """)
+   
     #### Individual Metadata: 
     ### Initialize plots
     plt.close('all') #close any previous figures  
@@ -178,17 +161,23 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         interval = np.mean(np.diff(metadata.t)) # calculate interval between metadata sampling
         
-        #### battery voltage must be in reasonable range (1.7 to 15 V)
+        ### Battery voltage must be in reasonable range
+        # Define battery voltage range
+        batt_min = 1.7
+        batt_max = 15
         
+        
+        # Save a few statistics from battery metadata
         pstats_df.loc[SN, "battery min"] = min(metadata.batt)
         pstats_df.loc[SN,"battery max"] = max(metadata.batt)
-        #battery voltage minimum tests
-        if pstats_df.loc[SN, "battery min"] < 1.7:
+        
+        # Battery voltage minimum tests
+        if pstats_df.loc[SN, "battery min"] < batt_min:
             errors_df.loc[SN, "battery min"] = "ERROR"
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(1.7-min(metadata.batt),decimals=2)} Volts below minimum threshold (1.7V)."
             print(err_message)
             errors.append(err_message)
-        elif pstats_df.loc[SN, "battery min"] < 3.0:
+        elif pstats_df.loc[SN, "battery min"] < batt_min + 1.5:
             errors_df.loc[SN, "battery min"] = "WARNING"
             warn_message = f"{SN} BATTERY WARNING: low battery level within {np.round(min(metadata.batt-1.7),decimals=2)} Volts of minimum threshold (1.7V)."
             print(warn_message)
@@ -196,13 +185,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN, "battery min"] = "OKAY"
             
-        #battery voltage maximum tests    
-        if pstats_df.loc[SN, "battery max"] > 15:
+        # Battery voltage maximum tests    
+        if pstats_df.loc[SN, "battery max"] > batt_max:
             errors_df.loc[SN, "battery max"] = "ERROR"
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(max(metadata.batt)-15,decimals=2)} Volts above maximum threshold (15V)."
             print(err_message)
             errors.append(err_message)
-        elif pstats_df.loc[SN, "battery max"] > 14.95:
+        elif pstats_df.loc[SN, "battery max"] > batt_max - 0.05:
             errors_df.loc[SN, "battery max"] = "WARNING"
             warn_message = f"{SN} BATTERY WARNING: battery level within {np.round(15 - max(metadata.batt-1.7), decimals=2)} Volts of maximum threshold (15V)."
             print(warn_message)
@@ -213,12 +202,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #slope of voltage decay
         
     ##%%%%%##
-        ####temperature must be within reasonable range (-20 t0 60 C)  
+        ## Temperature must be within reasonable range
+        # Define temperature range
+        temp_min = -20
+        temp_max = 60
+        
+        # Save a few statistics from temperature metadata
         pstats_df.loc[SN, "temperature min"] = min(metadata.temp)
         pstats_df.loc[SN, "temperature max"] = max(metadata.temp)
         pstats_df.loc[SN, "temperature average"] = np.mean(metadata.temp)
      
-        #temperature minimum check
+        # Temperature minimum check
         if pstats_df.loc[SN,"temperature min"] < -20: #degrees Celsius
             errors_df.loc[SN, "temperature min"] = "ERROR"
             err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold (-20 C)."
@@ -231,7 +225,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             warnings.append(warn_message)
         else:
             errors_df.loc[SN, "temperature min"] = "OKAY" 
-        #temperature maximum check
+        # Temperature maximum check
         if pstats_df.loc[SN, "temperature max"] > 60: #degrees Celsius
             errors_df.loc[SN, "temperature max"] = "ERROR"
             err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold (60 C)."
@@ -247,7 +241,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             
     ##%%%%%##    
         ###Create plots for battery voltage and temperature
-        
         dec_factor = 10 # decimation factor
         
         ##format data for plotting
@@ -262,8 +255,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         temp_dec = metadata.temp[temp_ind]
         
         #Plot battery voltage
-        batt_temp_ax[0].plot(time_datestamp_dec, batt_dec)
-        batt_temp_ax[0].legend(SN_list)
+        batt_temp_ax[0].plot(time_datestamp_dec, batt_dec, label= int(SN))
+        batt_temp_ax[0].legend()
+        batt_temp_ax[0].axhline(batt_min, color="red", linestyle = ":", linewidth = 1)
+        batt_temp_ax[0].axhline(batt_max, color="red", linestyle=":", linewidth = 1)
     
         #Plot temperature
         batt_temp_ax[1].plot(time_datestamp_dec, temp_dec)
@@ -273,14 +268,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
                   
     ##%%%%%##         
-        #### A2 and A3 must be 0-3.1, and dV/dt = 0 should be true <1% of record
-        #re-evaluate threshold %age
-        #Add increased information in error messages
-        
-        ##A2
-        A2_zerodiff_proportion = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 ))
-        pstats_df.loc[SN, "A2 flat"] = A2_zerodiff_proportion
-        within_A2_range = (all(metadata.A2 >=0) & all(metadata.A2 <= 3.1))
+        #### A2 and A3 must be within a specified range, and dV/dt = 0 should be true <1% of record
+        # Define A2 and A3 range
+        A_min = 0
+        A_max = 3.1 # [TROUBLESHOOT]: May need to be re-evaluated
+         
+        ## A2
+        # Calculate the proportion where A2 is zero
+        A2_zerodiff_proportion = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) 
+        pstats_df.loc[SN, "A2 flat"] = A2_zerodiff_proportion 
+        # True/False test to see whether all data is within range
+        within_A2_range = (all(metadata.A2 >= A_min) & all(metadata.A2 <= A_max))
         pstats_df.loc[SN, "A2 range"] = within_A2_range
         
         #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
@@ -308,10 +306,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             pstats_df.loc[SN,"A2 range"] = 1 #within range(true)
             errors_df.loc[SN,"A2 range"] = "OKAY" 
     ##%%%%%## 
-        ##A3
+        ## A3
+        # Calculate the proportion where A3 is zero
         A3_nonzero = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
         pstats_df.loc[SN,"A3 flat"] = A3_nonzero
-        within_A3_range = (all(metadata.A3 >=0) & all(metadata.A3 <= 3.1))
+        #True/False test to see whether all data is within range
+        within_A3_range = (all(metadata.A3 >= A_min) & all(metadata.A3 <= A_max))
         pstats_df.loc[SN, "A3 range"] = within_A3_range
         
         #Check that A3 dV/dt == 0 less than 99% of time
@@ -359,16 +359,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
     ##%%%%%##            
         #### minFifoFree and maxFifoUsed should always add to 75
+        # Determine threshold
+        fifo_rule = 75
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
-        pstats_df.loc[SN, "FIFO sum"] = max(fifo_sum)
-        if any((fifo_sum) != 75):
-           errors_df.loc[SN, "FIFO sum"] = "ERROR"
-           err_message = f"{SN} FIFO ERROR: FIFO sum exceeds range by {np.round(75 - max(fifo_sum),decimals=2)}."
-           errors.append(err_message)
-           print(err_message)
+        pstats_df.loc[SN, "fifo sum"] = max(fifo_sum)
+        if any((fifo_sum) != fifo_rule):
+           errors_df.loc[SN, "fifo sum"] = "INFO"
+           notes_message = f"{SN} fifo notes: fifo sum exceeds range by {np.round(fifo_rule - max(fifo_sum),decimals=2)}."
+           notes.append(notes_message)
+           #print(notes_message)
         ##elif for warning??
         else:
-            errors_df.loc[SN,"FIFO within range"] = "OKAY"
+            errors_df.loc[SN,"fifo within range"] = "OKAY"
             
         #### maxFifoUsed should be less than 5 99% of the time, and should never exceed 25
         #how to display in dataframe if less than 5 99%?
@@ -376,16 +378,16 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN,"max fifo within range"] = max_fifo_check
         if max_fifo_check > 0.01:
             errors_df.loc[SN,"max fifo within range"] = "INFO"
-            info_message = f"{SN} MAX FIFO INFO: max fifo (max_fifo_check - 0.01)*100 % outside the standard operating range."
-            print(info_message)
-            info.append(info_message)
+            notes_message = f"{SN} max fifo info: max fifo (max_fifo_check - 0.01)*100 % outside the standard operating range."
+            #print(notes_message)
+            notes.append(notes_message)
         else:
             errors_df.loc[SN, "max fifo within range"] = "OKAY"
             
         if any(metadata.maxFifoUsed > 25):
-            errors_df.loc[SN, "max fifo"] = "WARNING"
-            warn_message = f"{SN} MAX FIFO WARNING: max fifo exceeds maximum by {np.round(max(metadata.maxFifoUsed)-25,decimals=2)}."
-            warnings.append(warn_message)
+            errors_df.loc[SN, "max fifo"] = "NOTE"
+            notes_message = f"{SN} max fifo note: max fifo exceeds maximum by {np.round(max(metadata.maxFifoUsed)-25,decimals=2)}."
+            notes.append(notes_message)
         else:
             errors_df.loc[SN, "max fifo within range"] = "OKAY"
             
@@ -393,10 +395,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### maxOverruns should always be zero 
         pstats_df.loc[SN, "max overruns"] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
-            errors_df.loc[SN, "max overruns"] = "ERROR"
-            err_message = f"{SN} OVERRUNS ERROR: maximum overruns does equal 0. ({max(metadata.maxOverruns)})"
-            print(err_message)
-            errors.append(err_message)
+            errors_df.loc[SN, "max overruns"] = "NOTE"
+            notes_message = f"{SN} overruns note: maximum overruns does equal 0. ({max(metadata.maxOverruns)})"
+            print(notes_message)
+            notes.append(notes_message)
         else:
             errors_df.loc[SN, "max overruns"] = "OKAY"
             
@@ -438,9 +440,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         time_filt = gps_time_check[gps_time_check > 11] - interval
         time_filt[time_filt > 180] = 180
         binsize = np.arange(10,180,10)
-        gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
-        gps_ax[SN_index].errorbar(gps_proportion, 10, yerr= 10, ecolor = 'r')
-        gps_ax[SN_index].set_ylim(0,20)
+        bins = gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
+        y_scale = np.round((max(bins[0])/2) + 1)
+        gps_ax[SN_index].errorbar(gps_proportion, y_scale, yerr= y_scale, ecolor = 'r')
         gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
         gps_ax[SN_index].set_xticks([]) # not working
         gps_ax[SN_index].axes.xaxis.set_ticklabels([])
@@ -539,18 +541,16 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         print(note)
 
 #### at every given time, temperature must agree within 2C for all loggers
-    ## TROUBLESHOOT: why are all temperatures the same value when the graph shows a difference of >2?    
     interval = 60 #seconds (time between checks)
     
     # Determine start and stop times (Unix time)
-    temp_start = np.round(upper_start, -2) # time at which to start checking temperatures on all logers
-    temp_end = np.round(upper_stop, -2)
-    mod = temp_start % interval # modulus remainder to round start time to even minute
-    temp_start = temp_start - mod # start time on an even minute
-    temp_end = temp_end - mod # stop time on an even minute
+    mod = upper_start % interval # modulus remainder to round start time to even minute
+    temp_start = upper_start - mod # start time on an even minute
+    mod = upper_stop % interval
+    temp_end = upper_stop - mod # stop time on an even minute
     
     # Create dataframe to house temperatures to check
-    column_index = np.arange(0,int((temp_end-temp_start)/interval)+1,1) 
+    column_index = np.arange(0,int((temp_end-temp_start)/interval),1) # theoretically, the number of values between start and end
     
     group_temp_df = pd.DataFrame(index = SN_list, columns = column_index ) # create dataframe to house temperatures at each minute for each SN
     diff = [] # contain difference calculations
@@ -569,32 +569,32 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #format to not include nans from metadata
         stop_index = np.argmin(argend_list) # find index for last time value
         
-        temp_start = times[start_index]
-        temp_end = times[stop_index]
-        temp_times = np.arange(temp_start, temp_end, 60)
+
+        temp_times = np.arange(temp_start, temp_end, 60) # for label
         
         times_to_check_index = np.arange(start_index, stop_index, 60) # create evenly spaced array of even minutes
         # must create index based on mutally agreed start time
         for df_index, index in enumerate(times_to_check_index):
+            #TROUBLESHOOT: 061 and 065 saving into dataframe as nan after index 29
             group_temp_df.iloc[SN_index,df_index] = metadata.temp[index] # save minute temperature reading into dataframe
             times_checked[0, df_index] = (metadata.t[index]) # ***not efficient***
-    
-    # DO NOT DELETE BELOW CODE!!!
-    # error = False
-    # for column in column_index: # column represents temperature data for each time that will be checked 
-    #     # might be operating dataframe functions on entire set, not by columns...
-    #     temp_median = np.round(group_temp_df[column].median(),2)
-    #     temp_range = np.round(group_temp_df[column].max() - group_temp_df[column].min(),2)
-    #     outliers = (np.where(any(group_temp_df[column]) > temp_median + 1 or any(group_temp_df[column] < temp_median - 1))[0])
-    #     # Find offending serial numbers outside of temperature range
-    #     x = (group_temp_df.index[group_temp_df[column] > temp_median + 1].tolist())       
-    #     if len(x) > 0:
-    #         error = True
-    #         ts = int(times_checked[0,column])
-    #         time_lookup = datetime.datetime.utcfromtimestamp(ts)
-    #         print(f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median} on {time_lookup}. Recorded temperature range = {temp_range}")
-    # if error == False:
-    #     print("The recorded temperatures are within two degrees Celcius")  
+    error = False
+    for column in column_index: # column represents temperature data for each time that will be checked 
+        # might be operating dataframe functions on entire set, not by columns...
+        temp_median = np.round(group_temp_df[column].median(),2)
+        temp_range = np.round(group_temp_df[column].max() - group_temp_df[column].min(),2)
+        outliers = (np.where(any(group_temp_df[column]) > temp_median + 1 or any(group_temp_df[column] < temp_median - 1))[0])
+        # Find offending serial numbers outside of temperature range
+        x = (group_temp_df.index[group_temp_df[column] > temp_median + 1].tolist())       
+        if len(x) > 0:
+            error = True
+            ts = int(times_checked[0,column])
+            time_lookup = datetime.datetime.utcfromtimestamp(ts)
+            err_message = (f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median} on {time_lookup}. Total temperature range = {temp_range}")
+            group_err.append(err_message)
+            print(err_message)
+    if error == False:
+        print("The recorded temperatures are within two degrees Celcius")  
      
             
     #  Relict temperature check (KeyError: 'SN')      
@@ -647,6 +647,35 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         time_lags_fig.savefig(time_lags_fig_path, dpi = 300)
 
     #return {'errors':errors, 'warnings':warnings, 'notes':notes}
+    
+#%%
+
+# ============================================================================
+    # Information on tests including thresholds to be printed in the report
+# ============================================================================
+    info = []
+    trouble = []
+
+    ## Battery test information and troubleshooting ##
+    info.append(f"""BATTERY TEST INFO: This test is designed to ensure the voltage of each gem is within [{batt_min} to {batt_max} 
+                Volts at each recorded instance. Gems within this specified range, but within a range 0.5 Volts from the threshold 
+                will result in a warning message. This message is printed into the console and into the automatically generated pdf
+                within the metadata folder. A plot is generated to visualize which serial numbers are malfunctioning
+                and where they are operating. This plot is also saved in the metadata folder under an automatically generated folder
+                called figures.""")
+    trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery warning, it is likely the gem was not able to record any 
+                   waveform data. This can usually be fixed by changing the batteries. If you received a battery error [INSERT PROBLEM]
+        [INSERT TROUBLESHOOT]
+        """)
+    ## Temperature test information and troubleshooting ##
+    info.append(f"""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable 
+                range. This range is set at {temp_min} to {temp_max} Celsius or {(temp_min * 9/5) + 32} to {(temp_max * 9/5) + 32} 
+                Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.
+        """)
+    trouble.append("""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching the limit of the 
+                   temperature range operation for the gemlogger ({temp_min} to {temp_max} C). If this value does not reflect an 
+                   accurate ambient air temperature, [INSERT TROUBLESHOOTING]
+        """)
 #%%
    
 # ============================================================================= 
@@ -671,16 +700,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.ln() #new line
     pdf.cell(0,10, f"Date: {report_date}",border=0,align= 'C', ln=1)
     pdf.ln()
+
+## Insert error and warning list
     pdf.cell(0,5,"Errors and Warnings", align = 'L', ln=1)
     pdf.set_font('helvetica', size=8)
-    
-## Insert error and warning list into pdf
     for i, error in enumerate(errors):
         pdf.cell(12,4, '%s' % errors[i], ln=1)
     for j, warning in enumerate(warnings):
         pdf.cell(12,4, '%s' % warnings[j], ln=1)
     pdf.ln()    
-
+## Insert notes list       
+    pdf.cell(0,5,"Notes", align = 'L', ln=1)
+    pdf.set_font('helvetica', size=8)
+    for k, note in enumerate(notes):
+        pdf.cell(12,3, '%s' % notes[i], ln=1)
+    pdf.ln()
     
 ## Insert errors dataframe as status
     #Format for multiline headers
@@ -827,3 +861,4 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 ## Close and name file    
     pdf.output(f"{report_path}/{filename}.pdf")
     
+
