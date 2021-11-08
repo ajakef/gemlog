@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import os, glob, obspy, gemlog
 import time
 import datetime
@@ -126,11 +127,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     batt_temp_ax = batt_temp_fig.subplots(2)
     batt_temp_ax[0].set_title("Battery Voltage")
     batt_temp_ax[0].set_ylabel("voltage (V)")
-    batt_temp_ax[0].set_xlabel("month-date hour")
     batt_temp_ax[1].set_title("Temperature")
     batt_temp_ax[1].set_ylabel("temperature (C)")
     batt_temp_ax[1].set_xlabel("month-date hour")
-    batt_temp_fig.tight_layout()
+    batt_temp_fig.tight_layout(h_pad = 3.0)
     
     ##Create A2 and A3 time series graphs for all SN
     A2_A3_fig = plt.figure(1, figsize = (6.5,5))
@@ -141,7 +141,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     A2_A3_ax[1].set_title("A3")
     A2_A3_ax[1].set_ylabel("Voltage (V)")
     A2_A3_ax[1].set_xlabel("month-date hour")
-    A2_A3_fig.tight_layout()
+    A2_A3_fig.tight_layout(h_pad = 3.0)
     
     #Create GPS runtime histogram plots for all SN 
     # will not plot for single SN
@@ -158,6 +158,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
         metadata_dict[SN] = metadata
+        if len(metadata) < 86400: 
+            formatter = mdates.DateFormatter('%H:%M')
+            xlabel = np.round(metadata.iloc[1,13])
+            xlabel = datetime.datetime.utcfromtimestamp(xlabel).strftime('%Y-%m-%d')
+        else:
+            formatter = mdates.DateFormatter('%m-%d')
+            xlabel = "Month-Date"
         
         interval = np.mean(np.diff(metadata.t)) # calculate interval between metadata sampling
         
@@ -257,12 +264,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Plot battery voltage
         batt_temp_ax[0].plot(time_datestamp_dec, batt_dec, label= int(SN))
         batt_temp_ax[0].legend()
+        batt_temp_ax[0].xaxis.set_major_formatter(formatter)
+        batt_temp_ax[0].set_xlabel(xlabel)
         batt_temp_ax[0].axhline(batt_min, color="red", linestyle = ":", linewidth = 1)
         batt_temp_ax[0].axhline(batt_max, color="red", linestyle=":", linewidth = 1)
+
     
         #Plot temperature
         batt_temp_ax[1].plot(time_datestamp_dec, temp_dec)
         batt_temp_ax[1].legend(SN_list)
+        batt_temp_ax[1].xaxis.set_major_formatter(formatter)
+        batt_temp_ax[1].set_xlabel(xlabel)
         
         batt_temp_fig_path = f"{path}/figures/batt_temp.png"
         batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
@@ -349,10 +361,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Plot A2 data
         A2_A3_ax[0].plot(time_datestamp_dec, A2_dec)  
         A2_A3_ax[0].legend(SN_list)
-        
+        A2_A3_ax[0].xaxis.set_major_formatter(formatter)
+        A2_A3_ax[0].set_xlabel(xlabel)
         #Plot A3 data
         A2_A3_ax[1].plot(time_datestamp_dec, A3_dec)
         A2_A3_ax[1].legend(SN_list)
+        A2_A3_ax[1].xaxis.set_major_formatter(formatter)
+        A2_A3_ax[1].set_xlabel(xlabel)
         
         A2_A3_fig_path = f"{path}/figures/A2_A3.png"
         A2_A3_fig.savefig(A2_A3_fig_path, dpi = 300)
