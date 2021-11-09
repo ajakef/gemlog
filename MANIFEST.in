@@ -1,2 +1,2 @@
 graft gemlog/data
-include *pyx
+include */*pyx
