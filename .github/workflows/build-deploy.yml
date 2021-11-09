@@ -68,7 +68,7 @@ jobs:
     # only publish on a new release:
     #if: github.event_name == 'release' && github.event.action == 'published'
     #if: github.event_name == 'release' && github.event.action == 'published'
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+    if: github.event_name == 'push'# && startsWith(github.ref, 'refs/tags')
     steps:
       - uses: actions/download-artifact@v2
         with:
