@@ -23,7 +23,7 @@ from distutils.util import convert_path
 import sys
 
 # The minimum python version which can be used to run ObsPy
-MIN_PYTHON_VERSION = (3, 6)
+MIN_PYTHON_VERSION = (3, 7)
 
 # Fail fast if the user is on an unsupported version of python.
 if sys.version_info < MIN_PYTHON_VERSION:
@@ -87,9 +87,10 @@ CLASSIFIERS = [
     'Intended Audience :: Developers',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
     'Topic :: Scientific/Engineering',
     'Topic :: Scientific/Engineering :: Physics'
 ]
