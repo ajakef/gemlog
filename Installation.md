@@ -4,7 +4,7 @@ Regardless of whether you are an ordinary user or developer, using a conda envir
 ### For Users
 * First, create and activate a conda environment with dependencies (named "gem" in this example). This environment must always be activated when running `gemconvert`.
 ```
-conda create -y -n gem python=3.9
+conda create -y -n gem python=3.10
 ```
 
 * Then, activate that environment and install gemlog into it using pip:
@@ -12,7 +12,16 @@ conda create -y -n gem python=3.9
 conda activate gem
 pip install gemlog
 ```
+
 Note that this will install all of gemlog's dependencies. These include the ubiquitous numpy and pandas, along with the super-useful and strongly recommended obspy package for seismic/infrasound data processing.
+
+* If you will be doing any scientific computing in python besides converting data, consider installing a user-friendly computing environment; for example,
+```pip install spyder ipython```
+
+* To update gemlog to a newer version, run
+```pip install --upgrade gemlog```
+
+This will not upgrade your python version. 
 
 ### For Developers
 * First, set up the conda environment with dependencies.
