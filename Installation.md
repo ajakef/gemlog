@@ -10,6 +10,7 @@ conda create -y -n gem python=3.10
 * Then, activate that environment and install gemlog into it using pip:
 ```
 conda activate gem
+pip install cython
 pip install gemlog
 ```
 
