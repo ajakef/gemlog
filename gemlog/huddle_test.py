@@ -15,10 +15,9 @@ from fpdf import FPDF
 from matplotlib.backends.backend_pdf import PdfPages
 
 ## TO DO:
-# - graphs for GPS runtime
-# - output to pdf (https://matplotlib.org/stable/gallery/misc/multipage_pdf.html#sphx-glr-gallery-misc-multipage-pdf-py)
 # - one plot for each Sn with three axis (normalize GPS and plot with battery voltage)
 # - average voltage decay rate
+
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -112,7 +111,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     gps_dict = {} 
     metadata_dict = {}
-   
+    interval_dict = {}
     #### Individual Metadata: 
     ### Initialize plots
     plt.close('all') #close any previous figures  
@@ -166,7 +165,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             formatter = mdates.DateFormatter('%m-%d')
             xlabel = "Month-Date"
         
-        interval = np.mean(np.diff(metadata.t)) # calculate interval between metadata sampling
+        interval_dict[SN] = np.mean(np.diff(metadata.t)) # calculate interval between metadata sampling
         
         ### Battery voltage must be in reasonable range
         # Define battery voltage range
@@ -275,7 +274,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         batt_temp_ax[1].legend(SN_list)
         batt_temp_ax[1].xaxis.set_major_formatter(formatter)
         batt_temp_ax[1].set_xlabel(xlabel)
-        
+
         batt_temp_fig_path = f"{path}/figures/batt_temp.png"
         batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
                   
@@ -454,8 +453,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # how to select colors automatically?
         time_filt = gps_time_check[gps_time_check > 11] - interval
         time_filt[time_filt > 180] = 180
-        binsize = np.arange(10,180,10)
-        bins = gps_ax[SN_index].hist(time_filt, bins=np.arange(10,180,5))
+        binsize = np.arange(10,180,5)
+        bins = gps_ax[SN_index].hist(time_filt, bins=binsize)
         y_scale = np.round((max(bins[0])/2) + 1)
         gps_ax[SN_index].errorbar(gps_proportion, y_scale, yerr= y_scale, ecolor = 'r')
         gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
@@ -556,23 +555,27 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         print(note)
 
 #### at every given time, temperature must agree within 2C for all loggers
-    interval = 60 #seconds (time between checks)
+# interval of 061 and 065 is 10 seconds
+    check_interval = 60 #seconds (time between checks)
+    all_interval= interval_dict.values()
+    df_width = check_interval / int(min(all_interval)) # use largest interval to calculate size
+   
     
     # Determine start and stop times (Unix time)
-    mod = upper_start % interval # modulus remainder to round start time to even minute
+    mod = upper_start % df_width # modulus remainder to round start time to even minute
     temp_start = upper_start - mod # start time on an even minute
-    mod = upper_stop % interval
-    temp_end = upper_stop - mod # stop time on an even minute
+    mod = upper_stop % df_width
+    temp_end = upper_stop - mod - check_interval*10 # stop time on an even minute, ten minutes before end
     
     # Create dataframe to house temperatures to check
-    column_index = np.arange(0,int((temp_end-temp_start)/interval),1) # theoretically, the number of values between start and end
+    column_index = np.arange(0,int((temp_end-temp_start)/df_width),1) # theoretically, the number of values between start and end
     
     group_temp_df = pd.DataFrame(index = SN_list, columns = column_index ) # create dataframe to house temperatures at each minute for each SN
-    diff = [] # contain difference calculations
     times_checked = np.zeros((1,max(column_index)))
     
     for SN_index, SN in enumerate(SN_list):
         metadata = metadata_dict[SN]
+        temp_interval = check_interval / int(interval_dict[SN])
         argstart_list = [] # reset closest start list
         argend_list = [] # reset closest end list
         times = metadata.t # call all the time metadata
@@ -583,16 +586,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         start_index = np.argmin(argstart_list) # find index for closest minute time for start
         #format to not include nans from metadata
         stop_index = np.argmin(argend_list) # find index for last time value
-        
+        # too high
 
-        temp_times = np.arange(temp_start, temp_end, 60) # for label
-        
-        times_to_check_index = np.arange(start_index, stop_index, 60) # create evenly spaced array of even minutes
-        # must create index based on mutally agreed start time
+        times_to_check_index = np.arange(start_index, stop_index, temp_interval) # create evenly spaced array of even minutes
+        times_checked = np.arange(temp_start, temp_end, temp_interval) # must create index based on mutally agreed start time
         for df_index, index in enumerate(times_to_check_index):
             #TROUBLESHOOT: 061 and 065 saving into dataframe as nan after index 29
             group_temp_df.iloc[SN_index,df_index] = metadata.temp[index] # save minute temperature reading into dataframe
-            times_checked[0, df_index] = (metadata.t[index]) # ***not efficient***
     error = False
     for column in column_index: # column represents temperature data for each time that will be checked 
         # might be operating dataframe functions on entire set, not by columns...
@@ -603,13 +603,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         x = (group_temp_df.index[group_temp_df[column] > temp_median + 1].tolist())       
         if len(x) > 0:
             error = True
-            ts = int(times_checked[0,column])
+            ts = int(times_checked[column])
             time_lookup = datetime.datetime.utcfromtimestamp(ts)
-            err_message = (f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median} on {time_lookup}. Total temperature range = {temp_range}")
+            err_message = (f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median} on {time_lookup}. Total temperature range = {temp_range} (alpha)")
             group_err.append(err_message)
             print(err_message)
     if error == False:
-        print("The recorded temperatures are within two degrees Celcius")  
+        print("The recorded temperatures are within two degrees Celcius (alpha)")  
      
             
     #  Relict temperature check (KeyError: 'SN')      
