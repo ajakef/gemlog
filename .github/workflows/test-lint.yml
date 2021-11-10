@@ -16,12 +16,12 @@ jobs:
       matrix:
         python-version: [3.7, 3.8, 3.9, "3.10"]
         env: [
-          '-r requirements-min.txt .[test]',
+          #'-r requirements-min.txt .[test]',
           '--upgrade --upgrade-strategy=eager .[test]'
         ]
 	# to keep the number of tests low, only run minimum requirements on minimum python version
-        exclude:
-          - python-version: [3.8, 3.9, "3.10"]
+        include:
+          - python-version: 3.7
             env: '-r requirements-min.txt .[test]'
           #- python-version: 3.9
           #  env: '-r requirements-min.txt .[test]'
