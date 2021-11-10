@@ -19,7 +19,6 @@ jobs:
           #'-r requirements-min.txt .[test]',
           '--upgrade --upgrade-strategy=eager .[test]'
         ]
-	# to keep the number of tests low, only run minimum requirements on minimum python version
         include:
           - python-version: 3.7
             env: '-r requirements-min.txt .[test]'
