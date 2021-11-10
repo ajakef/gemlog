@@ -1,4 +1,5 @@
-__version__ = '1.5.8' # new updates to support python 3.10 
+__version__ = '1.5.9' # improvements to installation process, cython now required 
+#__version__ = '1.5.8' # new updates to support python 3.10 
 #__version__ = '1.5.7' # support python 3.10 
 #__version__ = '1.5.6' # added automated tests for minimum and newest versions to detect dependency incompatibilities 
 #__version__ = '1.5.5' # allow deconvolve_gem_response to use non-standard response files, just like get_gem_response 
@@ -44,4 +45,4 @@ __version__ = '1.5.8' # new updates to support python 3.10
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive####################################
+## List of old versions is not yet comprehensive#####################################
