@@ -291,7 +291,7 @@ def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, f
     # 2: wants output frequencies and spectrum with no frequency input
     # in order to permit 2, we need to return frequencies and spectrum
     noise_spec = pd.read_csv(os.path.join(_noise_path, 'IMSNOISE_MIN_MED_MAX.txt'),
-                             names = ['f', 'min', 'med', 'max'], sep = '\s+')
+                             names = ['f', 'min', 'med', 'max'], sep = r'\s+')
     freq_in = noise_spec['f']
     if model.lower() in ['low', 'min']:
         power_in = 10**noise_spec['min']
