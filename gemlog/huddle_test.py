@@ -62,7 +62,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --results: data frame showing qualitative results for all tests
     """
     #%%
-    if False: ## set default input values in development; set to True if running the code line-by-line
+    if True: ## set default input values in development; set to True if running the code line-by-line
         if os.getlogin() == 'tamara':
             path = '/home/tamara/gemlog/demo_QC'
         elif os.getlogin() == 'jake':
@@ -73,7 +73,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         SN_to_exclude = []
         individual_only = False
         run_crosscorrelation_checks = False
-#%%    
+ 
     ## Create folder for figures
     figure_path = os.path.join(path, "figures")
     file_exists = os.path.exists(figure_path)
@@ -151,7 +151,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     gps_ax[0].set_title("GPS Runtime")
     gps_fig.tight_layout()
 
-    
+    # Create wiggle figures
+    wave_fig = plt.figure()
+    wave_ax = wave_fig.subplots(len(SN_list))
+    wave_fig.tight_layout()
     
         ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
@@ -275,7 +278,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         batt_temp_ax[1].legend(SN_list)
         batt_temp_ax[1].xaxis.set_major_formatter(formatter)
         batt_temp_ax[1].set_xlabel(xlabel)
-
+        # Horizontal line y-scales temperature too wide 
+        #batt_temp_ax[1].axhline(temp_min, color="red", linestyle = ":", linewidth = 1)
+        #batt_temp_ax[1].axhline(temp_max, color="red", linestyle=":", linewidth = 1)
         batt_temp_fig_path = f"{path}/figures/batt_temp.png"
         batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
                   
@@ -437,7 +442,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, "mean gps run time"] = np.mean(gps_mean)
         if any(gps_time_check > 180): 
             errors_df.loc[SN, "gps run time"] = "WARNING"
-            warn_message = f"{SN} GPS WARNING: GPS runtime is {max(gps_time_check)}."
+            warn_message = f"{SN} GPS WARNING: GPS runtime is {max(gps_time_check)}, limit is 180."
             print(warn_message)
             warnings.append(warn_message)
             
@@ -452,7 +457,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, "on time proportion"] = gps_proportion
         #IDEAS - change to stacked bar chart with different colors for serial numbers
         # how to select colors automatically?
-        time_filt = gps_time_check[gps_time_check > 11] - interval
+        time_filt = gps_time_check[gps_time_check > 11] - interval_dict[SN]
         time_filt[time_filt > 180] = 180
         binsize = np.arange(10,180,5)
         bins = gps_ax[SN_index].hist(time_filt, bins=binsize)
@@ -484,8 +489,26 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ############################################
 
         ## Individual SN waveform data:
+        # Define parameters
         stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
         stream.merge()
+        stream.detrend()
+        trace = stream[0]
+        trace.detrend()
+        sps = trace.stats.sampling_rate
+        npts = trace.stats.npts # save shortcut to number of points from stats inside trace
+        wave_start = trace.stats.starttime.timestamp
+        wave_end = trace.stats.endtime.timestamp
+
+        
+        d = 1/sps # seconds per sample (space between each sample in time)
+        max_seconds = npts / sps # calcalate total number of seconds (maximum time value)
+        t = np.arange(0, max_seconds, d) # create evenly spaced time values from 0 until the maximum to match to data
+        
+        trim_seconds = max_seconds - 60 * 5 * 10
+        trim_seconds = np.arange(0,trim_seconds, d)
+        
+        wave_ax[SN_index].plot(t[0:len(trace)],trace)
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
@@ -682,17 +705,35 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
                 called figures.""")
     trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery warning, it is likely the gem was not able to record any 
                    waveform data. This can usually be fixed by changing the batteries. If you received a battery error [INSERT PROBLEM]
-        [INSERT TROUBLESHOOT]
-        """)
+                   [INSERT TROUBLESHOOT]""")
+                   
     ## Temperature test information and troubleshooting ##
     info.append(f"""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable 
                 range. This range is set at {temp_min} to {temp_max} Celsius or {(temp_min * 9/5) + 32} to {(temp_max * 9/5) + 32} 
-                Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.
-        """)
+                Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.""")
     trouble.append("""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching the limit of the 
                    temperature range operation for the gemlogger ({temp_min} to {temp_max} C). If this value does not reflect an 
-                   accurate ambient air temperature, [INSERT TROUBLESHOOTING]
-        """)
+                   accurate ambient air temperature, [INSERT TROUBLESHOOTING]""")
+                   
+    ## A2 and A3 test information and troubleshooting ##
+    info.append(f"""A2 AND A3 TEST INFO: These tests ensures that the A2 and A3 connections on the circuit board are functioning properly.
+                Metadata values are recorded as Voltage (details). The first test ensures that the metadata has not flatlined for more 
+                than 99% of the recorded time. The second test ensures it is within a range of {A_min} - {A_max}. A plot is generated to 
+                to visualize A2 and A3 voltages and is saved in the metadata folder under an automatically generated folder called figures.""")
+    trouble.append(f""" A2 AND A3 TROUBLESHOOTING: Developers are still trying to create a practical range for these values. If you received
+                   an error for A2 or A3, most likely the sensor is fine. Cause for concern would be a flat line indicated on the A2 or A3
+                   plots, or values that greatly exceed the limits. [INSERT MORE TROUBLESHOOTING]
+                   """)
+    ## FIFO 
+    info.append(f"""FIFO TEST INFO:  """)
+    trouble.append(f"""FIFO TROUBLESHOOTING:  """) 
+
+    ## Max Overruns
+    info.append(f"""MAX OVERRUNS INFO: """)     
+    trouble.append(f"""MAX OVERRUNS TROUBLESHOOTING: """)
+
+    ##          
+                 
 #%%
    
 # ============================================================================= 
