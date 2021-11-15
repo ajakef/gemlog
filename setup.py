@@ -1,29 +1,16 @@
 #!/usr/bin/env python
 try:
-    from setuptools import setup
+    from setuptools import setup, Extension
 except ImportError:
     raise RuntimeError('setuptools is required')
 
-
 import os
-use_cython = os.environ.get("USE_CYTHON", 'True').lower() != 'false'
-
-if use_cython:
-    try:
-        from Cython.Build import cythonize
-    except ImportError:
-        msg = (
-            'Could not import cython. Make sure cython is installed and a C '
-            'compiler is available and retry, or disable the C-extension with '
-            '`USE_CYTHON=False pip install gemlog`.'
-        )
-        raise RuntimeError(msg)
 
 from distutils.util import convert_path
 import sys
 
 # The minimum python version which can be used to run ObsPy
-MIN_PYTHON_VERSION = (3, 6)
+MIN_PYTHON_VERSION = (3, 7)
 
 # Fail fast if the user is on an unsupported version of python.
 if sys.version_info < MIN_PYTHON_VERSION:
@@ -58,16 +45,14 @@ with open(version_path) as version_file:
 VERSION = version_dict['__version__']
 
 INSTALL_REQUIRES = [
+    'setuptools>=18.0', # 18.0 needed to handle cython in installation
     'obspy>=1.2.2', # June 2020, earlier versions don't install
     'numpy>=1.17.3', # Oct 2019, required for pandas 1.3.0
     'pandas>=1.3.0', # July 2021, earlier versions are incompatible with gemlog
     'scipy>=1.3.0', # May 2019
     'matplotlib>=3.2.0', # March 2020
-    'lxml',
-    'setuptools',
-    'sqlalchemy',
-    'decorator',
-    'requests'
+    'cython', # used for reading raw files quickly
+    'fpdf' # needed for pdf huddle test reports
 ]
 
 TESTS_REQUIRE = ['pytest']
@@ -87,9 +72,10 @@ CLASSIFIERS = [
     'Intended Audience :: Developers',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
     'Topic :: Scientific/Engineering',
     'Topic :: Scientific/Engineering :: Physics'
 ]
@@ -110,18 +96,14 @@ setuptools_kwargs = {
 
 PACKAGES = ['gemlog']
 
-if use_cython:
-    ext_modules = cythonize("gemlog/parsers.pyx")
-else:
-    ext_modules = []
-
 setup(name=DISTNAME,
+      setup_requires=['setuptools>=18.0','cython'],
       version=VERSION,
       packages=PACKAGES,
       install_requires=INSTALL_REQUIRES,
       extras_require=EXTRAS_REQUIRE,
       tests_require=TESTS_REQUIRE,
-      ext_modules=ext_modules,
+      ext_modules=[Extension('gemlog.parsers', sources=['gemlog/parsers.pyx'])],
       description=DESCRIPTION,
       long_description=LONG_DESCRIPTION,
       author=AUTHOR,
