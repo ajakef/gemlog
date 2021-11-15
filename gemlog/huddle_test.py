@@ -62,17 +62,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --stats: data frame showing quantitative results for all tests
     --results: data frame showing qualitative results for all tests
     """
-#%%  
-    if os.getlogin() == 'tamara':
-        path = '/home/tamara/gemlog/demo_QC'
-    elif os.getlogin() == 'jake':
-        path = '/home/jake/Work/gemlog_python/demo_QC'
-    else:
-        print('unknown user, need to define path')
-    SN_list = ['058','061','065','077']
-    SN_to_exclude = []
-    individual_only = False
-    run_crosscorrelation_checks = False
+    #%%
+    if False: ## set default input values in development; set to True if running the code line-by-line
+        if os.getlogin() == 'tamara':
+            path = '/home/tamara/gemlog/demo_QC'
+        elif os.getlogin() == 'jake':
+            path = '/home/jake/Work/gemlog_python/demo_QC'
+        else:
+            print('unknown user, need to define path')
+        SN_list = ['058','061','065','077']
+        SN_to_exclude = []
+        individual_only = False
+        run_crosscorrelation_checks = False
 #%%    
     ## Create folder for figures
     figure_path = os.path.join(path, "figures")
@@ -410,10 +411,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### maxOverruns should always be zero 
         pstats_df.loc[SN, "max overruns"] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
-            errors_df.loc[SN, "max overruns"] = "NOTE"
-            notes_message = f"{SN} overruns note: maximum overruns does equal 0. ({max(metadata.maxOverruns)})"
-            print(notes_message)
-            notes.append(notes_message)
+            errors_df.loc[SN, "max overruns"] = "WARNING"
+            warn_message = f"{SN} OVERRUNS WARNING: maximum overruns does not equal 0. ({max(metadata.maxOverruns)})"
+            print(warn_message)
+            warnings.append(warn_message)
         else:
             errors_df.loc[SN, "max overruns"] = "OKAY"
             
@@ -609,7 +610,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             group_err.append(err_message)
             print(err_message)
     if error == False:
-        print("The recorded temperatures are within two degrees Celcius")  
+        print("The recorded temperatures are within two degrees Celsius")  
      
             
     #  Relict temperature check (KeyError: 'SN')      
@@ -728,7 +729,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     pdf.cell(0,5,"Notes", align = 'L', ln=1)
     pdf.set_font('helvetica', size=8)
     for k, note in enumerate(notes):
-        pdf.cell(12,3, '%s' % notes[i], ln=1)
+        pdf.cell(12,3, '%s' % note, ln=1)
     pdf.ln()
     
 ## Insert errors dataframe as status
