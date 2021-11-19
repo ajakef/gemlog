@@ -507,7 +507,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         trim_seconds = max_seconds - 60 * 5 * 10
         trim_seconds = np.arange(0,trim_seconds, d)
-        
         wave_ax[SN_index].plot(t[0:len(trace)],trace)
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
