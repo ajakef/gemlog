@@ -14,10 +14,6 @@ import shutil
 from fpdf import FPDF
 from matplotlib.backends.backend_pdf import PdfPages
 
-## TO DO:
-# - one plot for each Sn with three axis (normalize GPS and plot with battery voltage)
-# - average voltage decay rate
-
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -175,6 +171,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # Define battery voltage range
         batt_min = 1.7
         batt_max = 15
+        
         
         
         # Save a few statistics from battery metadata
@@ -492,21 +489,25 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # Define parameters
         stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
         stream.merge()
-        stream.detrend()
+        # Check for clipping - if it is flatlined
+        # filter then normalize right before plotting
         trace = stream[0]
-        trace.detrend()
+        #trace.detrend()
         sps = trace.stats.sampling_rate
         npts = trace.stats.npts # save shortcut to number of points from stats inside trace
-        wave_start = trace.stats.starttime.timestamp
-        wave_end = trace.stats.endtime.timestamp
+        wave_start = trace.stats.starttime
+        wave_end = trace.stats.endtime
 
         
         d = 1/sps # seconds per sample (space between each sample in time)
         max_seconds = npts / sps # calcalate total number of seconds (maximum time value)
         t = np.arange(0, max_seconds, d) # create evenly spaced time values from 0 until the maximum to match to data
         
-        trim_seconds = max_seconds - 60 * 5 * 10
-        trim_seconds = np.arange(0,trim_seconds, d)
+        trim_seconds = 60 * 5
+        #trim_seconds = np.arange(0,trim_seconds, d)
+        
+        trace.trim(wave_start+trim_seconds, wave_end-trim_seconds)
+        trace.detrend()
         wave_ax[SN_index].plot(t[0:len(trace)],trace)
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
