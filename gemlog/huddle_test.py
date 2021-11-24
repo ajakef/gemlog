@@ -14,6 +14,28 @@ import shutil
 from fpdf import FPDF
 from matplotlib.backends.backend_pdf import PdfPages
 
+def metadata_status(status, message, status_list, column_header, serial_num, dataframe = None):
+    # ordered input before named input
+    """
+    Writes the metadata status to a status dataframe and saves message to appropriate list.
+    metadata_status(status, message, dataframe, status_list, column_header, serial_num):
+    status : string - status of metadata (error, warning, note)
+    message : string - result message that prints to console
+    dataframe : pandas dataframe - write to a dataframe that contains errors, warnings, or notes.
+    status_list : list - contains printed status messages
+    column_header : string - name of metadata test
+    serial_num : int - serial number of gem
+
+    Returns
+    -------
+    updated dataframe
+
+    """
+    if dataframe is not None:
+        dataframe.loc[serial_num, column_header] = status.upper()
+    status_list.append(message)
+    print(message)
+    return(dataframe, status_list)
 
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
@@ -180,29 +202,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         # Battery voltage minimum tests
         if pstats_df.loc[SN, "battery min"] < batt_min:
-            errors_df.loc[SN, "battery min"] = "ERROR"
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(1.7-min(metadata.batt),decimals=2)} Volts below minimum threshold (1.7V)."
-            print(err_message)
-            errors.append(err_message)
+            metadata_status("error", err_message, errors_df, errors, "battery min", SN)
         elif pstats_df.loc[SN, "battery min"] < batt_min + 1.5:
-            errors_df.loc[SN, "battery min"] = "WARNING"
             warn_message = f"{SN} BATTERY WARNING: low battery level within {np.round(min(metadata.batt-1.7),decimals=2)} Volts of minimum threshold (1.7V)."
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, errors_df, warnings, "battery min", SN)
         else:
             errors_df.loc[SN, "battery min"] = "OKAY"
             
         # Battery voltage maximum tests    
         if pstats_df.loc[SN, "battery max"] > batt_max:
-            errors_df.loc[SN, "battery max"] = "ERROR"
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(max(metadata.batt)-15,decimals=2)} Volts above maximum threshold (15V)."
-            print(err_message)
-            errors.append(err_message)
+            metadata_status("error", err_message, errors_df, errors, "battery max", SN)
         elif pstats_df.loc[SN, "battery max"] > batt_max - 0.05:
-            errors_df.loc[SN, "battery max"] = "WARNING"
             warn_message = f"{SN} BATTERY WARNING: battery level within {np.round(15 - max(metadata.batt-1.7), decimals=2)} Volts of maximum threshold (15V)."
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, errors_df, warnings, "battery max", SN)
         else:
             errors_df.loc[SN, "battery max"] = "OKAY"  
             
@@ -221,10 +235,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
      
         # Temperature minimum check
         if pstats_df.loc[SN,"temperature min"] < -20: #degrees Celsius
-            errors_df.loc[SN, "temperature min"] = "ERROR"
             err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold (-20 C)."
-            print(err_message)
-            errors.append(err_message)
+            metadata_status("error", err_message, errors_df, errors, "temperature min", SN)
         elif pstats_df.loc[SN,"temperature min"] < -15: #modify as needed, just a backbone structure for now.
             errors_df.loc[SN, "temperature min"] = "WARNING"
             warn_message = f"{SN} TEMPERATURE WARNING: temperature within {np.abs(np.round(20 + min(metadata.temp),decimals=2))} degrees of minimum threshold (-20 C)"
@@ -234,10 +246,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors_df.loc[SN, "temperature min"] = "OKAY" 
         # Temperature maximum check
         if pstats_df.loc[SN, "temperature max"] > 60: #degrees Celsius
-            errors_df.loc[SN, "temperature max"] = "ERROR"
             err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold (60 C)."
-            print(err_message)
-            errors.append(err_message)
+            metadata_status("error", err_message, errors_df, errors, "temperature max", SN)
         elif pstats_df.loc[SN, "temperature max"] > 50: #modify as needed, just a backbone structure for now.
             errors_df.loc[SN, "temperature max"] = "WARNING"
             warn_message = f"{SN} TEMPERATURE WARNING: temperature within {np.round(60-max(metadata.temp),decimals=2)} degrees of maximum threshold (60 C)."
@@ -297,10 +307,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
         if pstats_df.loc[SN, "A2 flat"] > 0.99: 
-            errors_df.loc[SN, "A2 flat"] = "ERROR"
             err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            print(err_message)
-            errors.append(err_message)
+            metadata_status("error", err_message, errors_df, errors, "A2 flat", SN)
         elif pstats_df.loc[SN,"A2 flat"] > 0.95: #95% placeholder; uncertain interpretation
             errors_df.loc[SN, "A2 flat"] = "WARNING"
             warn_message = f"{SN} A2 WARNING: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
@@ -312,10 +320,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
        #Check A2 is within range
         if not within_A2_range:
             pstats_df.loc[SN, "A2 range"] = 0 #outside of range (false)
-            errors_df.loc[SN, "A2 range"] = "ERROR"
             err_message = f"{SN} A2 ERROR: A2 outside of range"
-            errors.append(err_message)
-            print(err_message)
+            metadata_status("error", err_message, errors_df, errors, "A2 range", SN)
         else:
             pstats_df.loc[SN,"A2 range"] = 1 #within range(true)
             errors_df.loc[SN,"A2 range"] = "OKAY" 
@@ -330,10 +336,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         #Check that A3 dV/dt == 0 less than 99% of time
         if pstats_df.loc[SN,"A3 flat"] > 0.99: 
-            errors_df.loc[SN,"A3 flat"] = "ERROR"
             err_message = f"{SN} A3 ERROR: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            errors.append(err_message)
-            print(err_message)
+            metadata_status("error", err_message, errors_df, errors, "A3 flat", SN)
         elif pstats_df.loc[SN,"A3 flat"] > 0.95: #placeholder of 95%
             errors_df.loc[SN, "A3 flat"] = "WARNING"
             warn_message = f"{SN} A3 WARNING: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
@@ -345,10 +349,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
        #Check A3 is within range     
         if not within_A3_range:
             pstats_df.loc[SN, "A3 range"] = 0 #outside of range (false)
-            errors_df.loc[SN, "A3 range"] = "ERROR"
             err_message = f"{SN} A3 ERROR: A3 outside of range."
-            errors.append(err_message)
-            print(err_message)
+            metadata_status("error", err_message, errors_df, errors, "A3 range", SN)
         else:
             pstats_df.loc[SN, "A3 range"] = 1 #within range(true)
             errors_df.loc[SN, "A3 range"] = "OKAY" 
@@ -741,6 +743,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # notes list, and metadata summary dataframes
     # Create seperate package to reduce gemlog dependencies for detailed report
 # =============================================================================
+# To Do:   
+#  - set up in landscape mode
+    
     report_path = os.path.join(path, "reports")
     file_exists = os.path.exists(report_path)
     if file_exists == False:    
