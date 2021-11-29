@@ -84,7 +84,7 @@ You then need to sign into GitHub and give it your public key so it knows to let
 If you're registered as a collaborator, you can push code directly to the primary repository (ajakef/gemlog). Otherwise, you can push code to your own gemlog fork on your own github site; in that case, just replace 'ajakef' below with your own github username.
 
 ```
-git remote set_url origin git@github.com:ajakef/gemlog.git
+git remote set-url origin git@github.com:ajakef/gemlog.git
 ```
 You should now be able to push and pull from github just like before.
 
