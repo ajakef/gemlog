@@ -14,25 +14,26 @@ import shutil
 from fpdf import FPDF
 from matplotlib.backends.backend_pdf import PdfPages
 
-def metadata_status(status, message, status_list, column_header, serial_num, dataframe = None):
+def metadata_status(status, message, status_list, serial_num, dataframe = None, col_name = None):
     # ordered input before named input
     """
     Writes the metadata status to a status dataframe and saves message to appropriate list.
-    metadata_status(status, message, dataframe, status_list, column_header, serial_num):
+    metadata_status(status, message, status_list, column_header, serial_num, dataframe = None)
     status : string - status of metadata (error, warning, note)
-    message : string - result message that prints to console
-    dataframe : pandas dataframe - write to a dataframe that contains errors, warnings, or notes.
+    message : string - resulting message that prints to console
     status_list : list - contains printed status messages
-    column_header : string - name of metadata test
+    col_name : string - name of metadata test
     serial_num : int - serial number of gem
-
+    dataframe : pandas dataframe - Change from none if saving into individual test dataframe
+    
     Returns
     -------
-    updated dataframe
+    status_list: updated status list with status message
+    dataframe: and one word status to dataframe if specified
 
     """
-    if dataframe is not None:
-        dataframe.loc[serial_num, column_header] = status.upper()
+    if dataframe is not None and col_name is not None:
+        dataframe.loc[serial_num, col_name] = status.upper()
     status_list.append(message)
     print(message)
     return(dataframe, status_list)
@@ -199,24 +200,24 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # Save a few statistics from battery metadata
         pstats_df.loc[SN, "battery min"] = min(metadata.batt)
         pstats_df.loc[SN,"battery max"] = max(metadata.batt)
-        
+       
         # Battery voltage minimum tests
         if pstats_df.loc[SN, "battery min"] < batt_min:
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(1.7-min(metadata.batt),decimals=2)} Volts below minimum threshold (1.7V)."
-            metadata_status("error", err_message, errors_df, errors, "battery min", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "battery min")
         elif pstats_df.loc[SN, "battery min"] < batt_min + 1.5:
             warn_message = f"{SN} BATTERY WARNING: low battery level within {np.round(min(metadata.batt-1.7),decimals=2)} Volts of minimum threshold (1.7V)."
-            metadata_status("warning", warn_message, errors_df, warnings, "battery min", SN)
+            metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "battery min")
         else:
             errors_df.loc[SN, "battery min"] = "OKAY"
             
         # Battery voltage maximum tests    
         if pstats_df.loc[SN, "battery max"] > batt_max:
             err_message = f"{SN} BATTERY ERROR: battery level {np.round(max(metadata.batt)-15,decimals=2)} Volts above maximum threshold (15V)."
-            metadata_status("error", err_message, errors_df, errors, "battery max", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name="battery max")
         elif pstats_df.loc[SN, "battery max"] > batt_max - 0.05:
             warn_message = f"{SN} BATTERY WARNING: battery level within {np.round(15 - max(metadata.batt-1.7), decimals=2)} Volts of maximum threshold (15V)."
-            metadata_status("warning", warn_message, errors_df, warnings, "battery max", SN)
+            metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name="battery max")
         else:
             errors_df.loc[SN, "battery max"] = "OKAY"  
             
@@ -236,23 +237,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # Temperature minimum check
         if pstats_df.loc[SN,"temperature min"] < -20: #degrees Celsius
             err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold (-20 C)."
-            metadata_status("error", err_message, errors_df, errors, "temperature min", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "temperature min")
         elif pstats_df.loc[SN,"temperature min"] < -15: #modify as needed, just a backbone structure for now.
-            errors_df.loc[SN, "temperature min"] = "WARNING"
             warn_message = f"{SN} TEMPERATURE WARNING: temperature within {np.abs(np.round(20 + min(metadata.temp),decimals=2))} degrees of minimum threshold (-20 C)"
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "temperature min")
         else:
             errors_df.loc[SN, "temperature min"] = "OKAY" 
         # Temperature maximum check
         if pstats_df.loc[SN, "temperature max"] > 60: #degrees Celsius
             err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold (60 C)."
-            metadata_status("error", err_message, errors_df, errors, "temperature max", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "temperature max")
         elif pstats_df.loc[SN, "temperature max"] > 50: #modify as needed, just a backbone structure for now.
-            errors_df.loc[SN, "temperature max"] = "WARNING"
             warn_message = f"{SN} TEMPERATURE WARNING: temperature within {np.round(60-max(metadata.temp),decimals=2)} degrees of maximum threshold (60 C)."
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "temperature max")
         else:
             errors_df.loc[SN,"temperature max"] = "OKAY" 
             
@@ -308,12 +305,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
         if pstats_df.loc[SN, "A2 flat"] > 0.99: 
             err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            metadata_status("error", err_message, errors_df, errors, "A2 flat", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A2 flat")
         elif pstats_df.loc[SN,"A2 flat"] > 0.95: #95% placeholder; uncertain interpretation
-            errors_df.loc[SN, "A2 flat"] = "WARNING"
             warn_message = f"{SN} A2 WARNING: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            warnings.append(warn_message)
-            print(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "A2 flat")
         else:
             errors_df.loc[SN, "A2 flat"] = "OKAY" 
             
@@ -321,7 +316,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if not within_A2_range:
             pstats_df.loc[SN, "A2 range"] = 0 #outside of range (false)
             err_message = f"{SN} A2 ERROR: A2 outside of range"
-            metadata_status("error", err_message, errors_df, errors, "A2 range", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name= "A2 range")
         else:
             pstats_df.loc[SN,"A2 range"] = 1 #within range(true)
             errors_df.loc[SN,"A2 range"] = "OKAY" 
@@ -337,12 +332,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #Check that A3 dV/dt == 0 less than 99% of time
         if pstats_df.loc[SN,"A3 flat"] > 0.99: 
             err_message = f"{SN} A3 ERROR: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            metadata_status("error", err_message, errors_df, errors, "A3 flat", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 flat")
         elif pstats_df.loc[SN,"A3 flat"] > 0.95: #placeholder of 95%
-            errors_df.loc[SN, "A3 flat"] = "WARNING"
             warn_message = f"{SN} A3 WARNING: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            warnings.append(warn_message)
-            print(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "A3 flat")
         else:
             errors_df.loc[SN,"A3 flat"] = "OKAY"
             
@@ -350,7 +343,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if not within_A3_range:
             pstats_df.loc[SN, "A3 range"] = 0 #outside of range (false)
             err_message = f"{SN} A3 ERROR: A3 outside of range."
-            metadata_status("error", err_message, errors_df, errors, "A3 range", SN)
+            metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 range")
         else:
             pstats_df.loc[SN, "A3 range"] = 1 #within range(true)
             errors_df.loc[SN, "A3 range"] = "OKAY" 
@@ -383,10 +376,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         fifo_sum = metadata.minFifoFree + metadata.maxFifoUsed
         pstats_df.loc[SN, "fifo sum"] = max(fifo_sum)
         if any((fifo_sum) != fifo_rule):
-           errors_df.loc[SN, "fifo sum"] = "INFO"
            notes_message = f"{SN} fifo notes: fifo sum exceeds range by {np.round(fifo_rule - max(fifo_sum),decimals=2)}."
-           notes.append(notes_message)
-           #print(notes_message)
+           metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "fifo sum")
         ##elif for warning??
         else:
             errors_df.loc[SN,"fifo within range"] = "OKAY"
@@ -396,17 +387,14 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         max_fifo_check = np.sum(metadata.maxFifoUsed > 5)/(len(metadata.maxFifoUsed) -1 )
         pstats_df.loc[SN,"max fifo within range"] = max_fifo_check
         if max_fifo_check > 0.01:
-            errors_df.loc[SN,"max fifo within range"] = "INFO"
             notes_message = f"{SN} max fifo info: max fifo (max_fifo_check - 0.01)*100 % outside the standard operating range."
-            #print(notes_message)
-            notes.append(notes_message)
+            metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "max fifo within range")
         else:
             errors_df.loc[SN, "max fifo within range"] = "OKAY"
             
-        if any(metadata.maxFifoUsed > 25):
-            errors_df.loc[SN, "max fifo"] = "NOTE"
+        if any(metadata.maxFifoUsed > 25):  
             notes_message = f"{SN} max fifo note: max fifo exceeds maximum by {np.round(max(metadata.maxFifoUsed)-25,decimals=2)}."
-            notes.append(notes_message)
+            metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "max fifo")
         else:
             errors_df.loc[SN, "max fifo within range"] = "OKAY"
             
@@ -414,10 +402,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### maxOverruns should always be zero 
         pstats_df.loc[SN, "max overruns"] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
-            errors_df.loc[SN, "max overruns"] = "WARNING"
             warn_message = f"{SN} OVERRUNS WARNING: maximum overruns does not equal 0. ({max(metadata.maxOverruns)})"
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "max overruns")
         else:
             errors_df.loc[SN, "max overruns"] = "OKAY"
             
@@ -426,10 +412,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #pstats_df.loc[SN,"unused stack1 max"] = max(metadata.unusedStack1)
         #pstats_df.loc[SN,"unused stack idle max"] = max(metadata.unusedStackIdle)
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
-            errors_df.loc[SN, "unused stack"] = "WARNING"
             warn_message = f"UNUSED STACK WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "unused stack")
         else:
             errors_df.loc[SN, "unused stack"] = "OKAY"
 
@@ -440,10 +424,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         gps_mean = gps_time_check[gps_time_check > 11] 
         pstats_df.loc[SN, "mean gps run time"] = np.mean(gps_mean)
         if any(gps_time_check > 180): 
-            errors_df.loc[SN, "gps run time"] = "WARNING"
             warn_message = f"{SN} GPS WARNING: GPS runtime is {max(gps_time_check)}, limit is 180."
-            print(warn_message)
-            warnings.append(warn_message)
+            metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "gps run time")
             
         ## individual GPS:
             #plot GPS histogram for runtime
@@ -544,7 +526,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     print("\n\nRunning group GPS tests")
     if (len(SN_list) == 1) or individual_only:
         warn_message = 'Test only includes one logger; cannot run comparison tests'
-        group_err.append(warn_message)
+        metadata_status("warning", warn_message, group_warn, SN)
         #return {'errors':errors, 'warnings':warnings, 'notes':notes}
         
 #### all loggers' first and last times should agree within 20 minutes
@@ -573,12 +555,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             print(err_message)
         if not lower_stop <= group_df.iloc[SN_index,1] < upper_stop:
             err_message = (f"{SN} GROUP GPS ERROR: The stop times are not within {max_mins} minutes of the median.")
-            group_err.append(err_message)
-            print(err_message)
+            metadata_status("error", err_message, group_err, SN)
     if len(group_err) == 0:
         note = "The start and stop times for all loggers agree."
-        group_notes.append(note)
-        print(note)
+        metadata_status("note", note, group_notes, SN)
 
 #### at every given time, temperature must agree within 2C for all loggers
 # interval of 061 and 065 is 10 seconds
@@ -632,8 +612,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             ts = int(times_checked[column])
             time_lookup = datetime.datetime.utcfromtimestamp(ts)
             err_message = (f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median} on {time_lookup}. Total temperature range = {temp_range} (alpha)")
-            group_err.append(err_message)
-            print(err_message)
+            metadata_status("error", err_message, group_err, SN)
     if error == False:
         print("The recorded temperatures are within two degrees Celcius (alpha_version)")  
 
@@ -670,9 +649,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         zero_lags = lag[:,coherent_windows]==0
         num_coherent_windows = np.sum(coherent_windows)
         if (np.sum(np.all(zero_lags, 0)) / num_coherent_windows) < 0.8:
-            failure_message = 'Time lags are excessively nonzero for coherent time windows'
-            print(failure_message)
-            group_err.append(failure_message)
+            err_message = 'Time lags are excessively nonzero for coherent time windows'
+            # metadata_status() not used because this block does not use SN
+            print(err_message)
+            group_err.append(err_message)
         else:
             note = 'Time lags for coherent time windows are mostly/all zero'
             group_notes.append(note)
@@ -727,12 +707,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
                    plots, or values that greatly exceed the limits. [INSERT MORE TROUBLESHOOTING]
                    """)
     ## FIFO 
-    info.append(f"""FIFO TEST INFO:  """)
-    trouble.append(f"""FIFO TROUBLESHOOTING:  """) 
+    info.append(f"""FIFO TEST INFO:  Under development""")
+    trouble.append(f"""FIFO TROUBLESHOOTING:  Under development""") 
 
     ## Max Overruns
-    info.append(f"""MAX OVERRUNS INFO: """)     
-    trouble.append(f"""MAX OVERRUNS TROUBLESHOOTING: """)
+    info.append(f"""MAX OVERRUNS INFO: Under development""")     
+    trouble.append(f"""MAX OVERRUNS TROUBLESHOOTING: Under development""")
 
     ##          
                  
@@ -911,16 +891,22 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     for i, note in enumerate(group_notes):
          pdf.cell(12,4, '%s' % group_notes[i], ln=1)
     #return {'errors':errors, 'warnings':warnings, 'stats':pstats_df, 'results':errors_df}
-    pdf.ln()
-    for i, note in enumerate(info):
-        pdf.multi_cell(200,5, '%s' %info[i])
-        pdf.ln()
+    
     
     ## add the time lags if they were actually calculated
     if run_crosscorrelation_checks:
         pdf.ln()
         pdf.image(time_lags_fig_path, w = img_width, h = img_height)
-        
+    pdf.ln()
+    pdf.ln()    
+## Test info and troubleshooting    
+    pdf.set_font('helvetica', 'B', size = 10)
+    pdf.cell(0,10, f"Test Info and Troubleshooting", border=0, ln=0, align= 'C')
+    pdf.ln()
+    pdf.set_font('helvetica', size=8)
+    for i, note in enumerate(info):
+        pdf.multi_cell(200,5, '%s' %info[i])
+        pdf.ln()
 ## Close and name file    
     pdf.output(f"{report_path}/{filename}.pdf")
     
