@@ -42,6 +42,7 @@ version_dict = {}
 version_path = convert_path('gemlog/version.py')
 with open(version_path) as version_file:
     exec(version_file.read(), version_dict)
+
 VERSION = version_dict['__version__']
 
 INSTALL_REQUIRES = [

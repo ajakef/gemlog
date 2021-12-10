@@ -381,7 +381,7 @@ def _unique(list1):
 ## function to exclude outliers by repeatedly calculating standard dev and tossing points outside N standard devs, until none are left
 ## this matters because occasionally a dataset will start or end with short recordings made elsewhere, which must be excluded from the calculation of station coords
 def _remove_outliers(x, N = 5):
-    w = np.where((np.abs(x.lat - np.median(x.lat)) < (N * np.std(x.lat))) & (np.abs(x.lon - np.median(x.lon)) < (N * np.std(x.lon))))[0]
+    w = np.where((np.abs(x.lat - np.median(x.lat)) < (N * (1e-5+np.std(x.lat)))) & (np.abs(x.lon - np.median(x.lon)) < (N * (1e-5+np.std(x.lon)))))[0]
     if len(w) < x.shape[0]:
         return _remove_outliers(x.iloc[w,:], N=N)
     else:
@@ -456,7 +456,8 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         gpsFileList += glob.glob(gpsDir + '/' + '*gps*txt')
     snList = []
     for gpsFile in gpsFileList:
-        snList.append(gpsFile.split('/')[-1][:3])
+        #snList.append(gpsFile.split('/')[-1][:3])
+        snList.append(gpsFile.split('/')[-1].split('gps')[0])
     snList = sorted(_unique(snList))
     coords = pd.DataFrame(columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
     avgFun = lambda x: np.mean(x)
@@ -468,6 +469,8 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
             coords = coords.append(pd.DataFrame(
                 [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
                 columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples']), ignore_index = True)
+        else:
+            print('No non-outliers remaining for gem {SN}')
     if station_info is not None:
         station_info = _get_station_info(station_info)
         network = []
