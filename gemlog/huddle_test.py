@@ -257,7 +257,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             formatter = mdates.DateFormatter('%m-%d')
             xlabel = "Month-Date"
         
-        interval_dict[SN] = np.mean(np.diff(metadata.t)) # calculate interval between metadata sampling
+        interval_dict[SN] = np.nanmean(np.diff(metadata.t)) # calculate interval between metadata sampling. use nanmean in case of possible missing times.
         
         ### Battery voltage must be in reasonable range
         # Define battery voltage range
