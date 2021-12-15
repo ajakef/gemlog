@@ -242,6 +242,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # Create wiggle figures
     wave_fig = plt.figure()
     wave_ax = wave_fig.subplots(len(SN_list))
+    wave_fig.title('Waveforms')
     wave_fig.tight_layout()
     
         ## Individual Metadata tests:
@@ -524,7 +525,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             gps_ax[SN_index].annotate('on time proportion', (gps_proportion, 10), xytext = (gps_proportion + 10 , 15), color = 'r',
                                   arrowprops = dict(arrowstyle = '->', connectionstyle = "angle, angleA = 90, angleB = 0, rad = 10", color = 'r'))
         gps_fig_path = f"{path}/figures/gps_runtime.png"
-        gps_fig.savefig(gps_fig_path, dpi=300)
+        gps_fig.savefig(gps_fig_path, dpi=300, bbox_inches = 'tight', pad_inches = 0.1)
         
            
         gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
@@ -561,7 +562,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         trace.trim(wave_start+trim_seconds, wave_end-trim_seconds)
         trace.detrend()
+        trace.normalize()
         wave_ax[SN_index].plot(t[0:len(trace)],trace)
+        wave_ax[SN_index].set_ylim(-1,1)
+        wave_ax[SN_index].set_ylabel(SN)
+        plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0.30)
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
@@ -747,22 +752,21 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     trouble = []
 
     ## Battery test information and troubleshooting ##
-    info.append(f"""BATTERY TEST INFO: This test is designed to ensure the voltage of each gem is within [{batt_min} to {batt_max} Volts at each recorded instance. Gems within this specified range, but within a range 0.5 Volts from the threshold 
-                will result in a warning message. This message is printed into the console and into the automatically generated pdf within the metadata folder. A plot is generated to visualize which serial numbers are malfunctioning and where 
-                they are operating. This plot is also saved in the metadata folder under an automatically generated folder called figures.""")
+    info.append(f"""BATTERY TEST INFO: This test is designed to ensure the voltage of each gem is within [{batt_min} to {batt_max} Volts at each recorded instance. Gems within this specified range, but within a range 0.5 Volts from the threshold will result in a warning message. This message is printed into the console and into the automatically generated pdf within the metadata folder. A plot is generated to visualize which serial numbers are malfunctioning and where 
+they are operating. This plot is also saved in the metadata folder under an automatically generated folder called figures.""")
     trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery warning, it is likely the gem was not able to record any waveform data. This can usually be fixed by changing the batteries. If you received a battery error [INSERT PROBLEM]
-                   [INSERT TROUBLESHOOT]""")
+[INSERT TROUBLESHOOT]""")
                    
     ## Temperature test information and troubleshooting ##
     info.append(f"""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable range. This range is set at {temp_min} to {temp_max} Celsius or {(temp_min * 9/5) + 32} to {(temp_max * 9/5) + 32} 
-                Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.""")
+Fahrenheit. At temperatures outside this range, the electrical components of the gem could malfunction.""")
     trouble.append("""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching the limit of the temperature range operation for the gemlogger ({temp_min} to {temp_max} C). If this value does not reflect an accurate 
-                   ambient air temperature, [INSERT TROUBLESHOOTING]""")
+ambient air temperature, [INSERT TROUBLESHOOTING]""")
                    
     ## A2 and A3 test information and troubleshooting ##
     info.append(f"""A2 AND A3 TEST INFO: These tests ensures that the A2 and A3 connections on the circuit board are functioning properly. Metadata values are recorded as Voltage (details). The first test ensures that the metadata has not flatlined 
-                for more than 99% of the recorded time. The second test ensures it is within a range of {A_min} - {A_max}. A plot is generated to visualize A2 and A3 voltages and is saved in the metadata folder under an automatically generated folder 
-                called figures.""")
+for more than 99% of the recorded time. The second test ensures it is within a range of {A_min} - {A_max}. A plot is generated to visualize A2 and A3 voltages and is saved in the metadata folder under an automatically generated folder 
+called figures.""")
     trouble.append(f""" A2 AND A3 TROUBLESHOOTING: Developers are still trying to create a practical range for these values. If you received an error for A2 or A3, most likely the sensor is fine. Cause for concern would be a flat line indicated on the 
                    A2 or A3 plots, or values that greatly exceed the limits. [INSERT MORE TROUBLESHOOTING]""")
     ## FIFO 
@@ -783,7 +787,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # Create seperate package to reduce gemlog dependencies for detailed report
 # =============================================================================
 # To Do:   
-#  - set up in landscape mode
+#  - side by side images
 
     if generate_report == True:
         report_path = os.path.join(path, "reports")
@@ -797,8 +801,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         report_date = report_date.strftime("%Y-%m-%d")
         filename = str("Huddle_test_output_" + report_date)
         pdf = PDF()
-        pdf.add_page(orientation = 'L')
-        
+        if len(pstats_df.columns) > 10 or len(errors_df.columns) > 10:
+            pdf.add_page(orientation = 'L')
+            p_width = 275
+            # 25% larger images in landscape mode
+            img_height = 150
+            img_width = 220
+            landscape = True
+        else:
+            pdf.add_page(orientation = 'P')
+            p_width = 175
+            img_height = 120
+            img_width = 176
+            landscape = False
         pdf.set_font('helvetica', 'B', size=12)
         pdf.cell(0,10, "Huddle Test Results", border=0, ln=1, align= 'C')
         pdf.cell(0,10, f"Date: {report_date}",border=0, ln=1, align= 'C')
@@ -825,9 +840,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pdf.import_df(pstats_df,SN_list) # table values   
         
         ## Add figures into report
-        img_height = 120
-        img_width = 176
-        
+        absc = pdf.get_x()
+        ordin = pdf.get_y()
+        pdf.ln()
         pdf.image(batt_temp_fig_path, w = img_width , h = img_height) 
         pdf.ln()
         pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
@@ -849,7 +864,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ## Test info and troubleshooting    
         pdf.heading('Test Info and Troubleshooting')
         for i, note in enumerate(info):
-            pdf.multi_cell(400,5, '%s' %info[i])
+            pdf.multi_cell(p_width,5, '%s' %info[i])
             pdf.ln()
     ## Close and name file    
         pdf.output(f"{report_path}/{filename}.pdf")
