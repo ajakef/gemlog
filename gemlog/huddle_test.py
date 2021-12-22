@@ -242,7 +242,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # Create wiggle figures
     wave_fig = plt.figure()
     wave_ax = wave_fig.subplots(len(SN_list))
-    wave_fig.title('Waveforms')
+    wave_fig.suptitle('Waveforms')
     wave_fig.tight_layout()
     
         ## Individual Metadata tests:
@@ -566,13 +566,16 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         wave_ax[SN_index].plot(t[0:len(trace)],trace)
         wave_ax[SN_index].set_ylim(-1,1)
         wave_ax[SN_index].set_ylabel(SN)
+        #wave_ax[SN_index].xaxis.set_major_formatter(formatter)
+        wave_ax[SN_index].set_xlabel(xlabel)
         plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0.30)
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
         #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
-    
+        wave_path = f"{path}/figures/waveforms.png"
+        wave_fig.savefig(wave_path, dpi=300)
     #Do not omit rows and columns when displaying in console
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
@@ -806,7 +809,7 @@ called figures.""")
             p_width = 275
             # 25% larger images in landscape mode
             img_height = 150
-            img_width = 220
+            img_width = 175
             landscape = True
         else:
             pdf.add_page(orientation = 'P')
@@ -840,8 +843,6 @@ called figures.""")
         pdf.import_df(pstats_df,SN_list) # table values   
         
         ## Add figures into report
-        absc = pdf.get_x()
-        ordin = pdf.get_y()
         pdf.ln()
         pdf.image(batt_temp_fig_path, w = img_width , h = img_height) 
         pdf.ln()
@@ -849,7 +850,7 @@ called figures.""")
         pdf.ln()
         pdf.image(gps_fig_path, w = img_width, h = 135)
         pdf.ln()
-        
+        pdf.image(wave_path, w = img_width, h = img_height)
     ## Group test results
         pdf.heading("Group Test Results")
         pdf.import_list(group_err)    
