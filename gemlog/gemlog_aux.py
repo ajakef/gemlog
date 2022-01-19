@@ -335,3 +335,44 @@ def _noise_spectrum_helper(freq_in, power_in, freq_out, spectype, freq_min, freq
         raise Exception('spectype %s not supported' % spectype)
 
     return {'freqs':freq_out, 'spectrum':spec, 'type':spectype, 'spectrum_units':spec_units, 'freq_min':freq_min, 'freq_max':freq_max, 'noise':noise, 'noise_units':noise_units}
+
+
+def _interpolate_stream(st, gap_limit_sec = 0.1):
+    ## look for short data gaps and interpolate through them
+    ## st must consist of data from just a single station
+    st.split()
+
+    ## If there are no data gaps, the stream will only contain a single trace. Don't change anything.
+    if len(st) == 1:
+        return st
+    
+    for i in range(len(st) - 1):
+        t1 = st[i].stats.endtime
+        t2 = st[i+1].stats.starttime
+        if (t2 - t1) < gap_limit_sec:
+            ## define a new trace consisting of a masked array of the data gap and immediate surroundings
+            st_new = st.slice(t1 - gap_limit_sec, t2 + gap_limit_sec)
+            st_new.merge()
+            tr_new = st_new[0]
+
+            ## interpolate the missing values using a cubic spline
+            data_good = ~tr_new.data.mask
+            t = np.arange(len(tr_new.data))
+            interp_function = scipy.interpolate.CubicSpline(t[data_good], tr_new.data[data_good], extrapolate = False)
+            tr_new.data[~data_good] = interp_function(t[~data_good])
+
+            ## add the new trace back to the stream
+            st = st + tr_new
+        else:
+            ## if the data gap is not short, it will not be interpolated. For now, do nothing.
+            pass
+        
+    st.merge() ## merge all the traces (done in place)
+    st = st.split() ## if there are still data gaps, break them up (ensuring that the result is not a masked array)
+
+    return st
+
+            
+            
+            
+    
