@@ -340,7 +340,8 @@ def _noise_spectrum_helper(freq_in, power_in, freq_out, spectype, freq_min, freq
 def _interpolate_stream(st, gap_limit_sec = 0.1):
     ## look for short data gaps and interpolate through them
     ## st must consist of data from just a single station
-    st.split()
+    st.merge()
+    st = st.split()
 
     ## If there are no data gaps, the stream will only contain a single trace. Don't change anything.
     if len(st) == 1:

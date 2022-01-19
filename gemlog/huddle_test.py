@@ -7,6 +7,7 @@ import os, glob, obspy, gemlog
 import time
 import datetime
 from gemlog.gemlog_aux import check_lags
+from gemlog.gemlog_aux import _interpolate_stream
 from io import StringIO 
 import sys
 import pdb
@@ -243,8 +244,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # Create wiggle figures
     wave_fig = plt.figure()
     wave_ax = wave_fig.subplots(len(SN_list))
-    wave_fig.suptitle('Waveforms')
-    wave_fig.tight_layout()
+    wave_fig.suptitle('Normalized Detrended Waveforms')
+    #wave_fig.tight_layout()
     
         ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
@@ -543,10 +544,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## Individual SN waveform data:
         # Define parameters
         stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
+        stream = _interpolate_stream(stream, gap_limit_sec=0.1)
         stream.merge()
         # Check for clipping - if it is flatlined
         # filter then normalize right before plotting
-        # add function code to interpolate gaps
         trace = stream[0]
         #trace.detrend()
         sps = trace.stats.sampling_rate
@@ -559,20 +560,26 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         max_seconds = npts / sps # calcalate total number of seconds (maximum time value)
         t = np.arange(0, max_seconds, d) # create evenly spaced time values from 0 until the maximum to match to data
         if SN_index == 0:
-            trim_seconds = 60 * 5
+            trim_seconds = 60 * 100 * 5
             trim_start = wave_start + trim_seconds
             trim_end = wave_end - trim_seconds 
             
         trace.trim(trim_start, trim_end)
         trace.detrend()
         trace.normalize()
-        print(trace.count())
-        wave_ax[SN_index].plot(t[0:len(trace)],trace)
+        wave_ax[SN_index].plot(trace.times("matplotlib"),trace)
+        #trace.plot(fig= wave_fig, type='relative')
         wave_ax[SN_index].set_ylim(-1,1)
+        wave_ax[SN_index].set_yticks([])
         wave_ax[SN_index].set_ylabel(SN)
-        #wave_ax[SN_index].xaxis.set_major_formatter(formatter)
-        wave_ax[SN_index].set_xlabel(xlabel)
-        plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0.30)
+        wave_ax[SN_index].set_xticks([])
+        if SN_index == -1: 
+            wave_ax[SN_index].xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+            # TROUBLESHOOT: Xticks for date/time on bottom plot only
+            #wave_ax[SN_index].set_xticks([np.linspace(trim_start, trim_end, 8640000)])
+            #wave_ax[SN_index].xaxis.set_major_formatter(formatter)
+            wave_ax[SN_index].set_xlabel(xlabel)
+        plt.subplots_adjust(left=0.05, bottom=0.05, right=0.975, top=0.95, wspace=0, hspace=0.05)
         #### trim the stream to exclude the first and last 5 minutes
         #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
