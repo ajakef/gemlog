@@ -151,12 +151,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #%%
     if True: ## set default input values in development; set to True if running the code line-by-line
         if os.getlogin() == 'tamara':
-            path = '/home/tamara/gemlog/demo_QC'
+            path = '/home/tamara/gem_tests/huddle_test/2022-1-14'
         elif os.getlogin() == 'jake':
             path = '/home/jake/Work/gemlog_python/demo_QC'
         else:
             print('unknown user, need to define path')
-        SN_list = ['058','061','065','077']
+        #SN_list = ['058','061','065','077']
+        SN_list = ['060', '117','123','161','169','174','177','178']
         SN_to_exclude = []
         individual_only = False
         run_crosscorrelation_checks = False
@@ -545,6 +546,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         stream.merge()
         # Check for clipping - if it is flatlined
         # filter then normalize right before plotting
+        # add function code to interpolate gaps
         trace = stream[0]
         #trace.detrend()
         sps = trace.stats.sampling_rate
@@ -556,13 +558,15 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         d = 1/sps # seconds per sample (space between each sample in time)
         max_seconds = npts / sps # calcalate total number of seconds (maximum time value)
         t = np.arange(0, max_seconds, d) # create evenly spaced time values from 0 until the maximum to match to data
-        
-        trim_seconds = 60 * 5
-        #trim_seconds = np.arange(0,trim_seconds, d)
-        
-        trace.trim(wave_start+trim_seconds, wave_end-trim_seconds)
+        if SN_index == 0:
+            trim_seconds = 60 * 5
+            trim_start = wave_start + trim_seconds
+            trim_end = wave_end - trim_seconds 
+            
+        trace.trim(trim_start, trim_end)
         trace.detrend()
         trace.normalize()
+        print(trace.count())
         wave_ax[SN_index].plot(t[0:len(trace)],trace)
         wave_ax[SN_index].set_ylim(-1,1)
         wave_ax[SN_index].set_ylabel(SN)
@@ -574,6 +578,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         #### SKIP FOR NOW: noise spectrum must exceed spec/2
         #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
+#%%
         wave_path = f"{path}/figures/waveforms.png"
         wave_fig.savefig(wave_path, dpi=300)
     #Do not omit rows and columns when displaying in console
