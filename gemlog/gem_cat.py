@@ -12,7 +12,7 @@ import sys
 import shutil
 from gemlog.gemlog import _read_single, EmptyRawFile, CorruptRawFile
 
-def gem_cat(input_dir, output_dir, ext = ''):
+def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
     """
     gem_cat
     Merge raw data files so that all contain GPS data.
@@ -52,6 +52,15 @@ def gem_cat(input_dir, output_dir, ext = ''):
     for k in range(len(gem_files)):
         #for k in range(2):        
         print(str(k+1) + ' of ' + str(len(gem_files)) + ': ' + gem_files[k])
+
+        if cat_all:
+            if len(out_file) == 0:
+                out_file = output_dir + '/FILE9999.' + SN
+                shutil.copy(gem_files[k], out_file)
+            else:
+                AppendFile(gem_files[k], out_file, gem_files[k-1])
+            continue
+
         try:
             lines = pd.read_csv(gem_files[k], delimiter = '\n', dtype = 'str', names = ['line'])
         except:
@@ -106,7 +115,7 @@ def AppendFile(infile, outfile, prev_infile):
         
     header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
     format = header[7:]
-    if format in ['0.85C', '0.9']:
+    if format in ['0.85C', '0.9', '0.91']:
         #SN = scan(infile, skip = 4, sep = ',', what = list(character(), character()), nlines = 1, flush = TRUE)[[1]][2]
         ## determine what the last ADC reading is before the start of this file
         #if len(prev_infile) == 12:

@@ -1105,6 +1105,7 @@ def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
         #resid = y - (linreg.intercept + x * linreg.slope)
         #reg = np.polyfit(x, y, 3)
     resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
+    #resid = y - _apply_fit(x, reg) # doesn't work because reg is not dict
 
     ## If any are found to be outliers, remove them and recalculate recursively.
     outliers = np.abs(resid) > (z*np.std(resid))
@@ -1115,29 +1116,38 @@ def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
     else:
         return (reg, len(x), np.max(np.abs(resid)), resid, x, y)
 
-def _plot_drift(filename, z = 4, recursive_depth = np.inf):
-    output = _read_several([filename])
-    g = output['gps']
-    x = g['msPPS'] # Gem's internal clock time
-    y = g['t'] # GPS time
-    reg, num_non_outliers, MAD_resid, resid, x_nonoutlier, y_nonoutlier = _robust_regress(x, y, z = z, recursive_depth = recursive_depth, verbose = True)
-    plt.subplot(2,1,1)
-    plt.plot(x, y-y[0] - 0.001024*(x-x[0]), 'k.')
-    #plt.plot(x_nonoutlier, y_nonoutlier, 'rx')
-    p = np.poly1d(reg)
-    plt.plot(x, p(x) - 0.001024*(x-x[0]) - y[0])
-    plt.subplot(2,1,2)
-    plt.plot(x_nonoutlier, resid, 'k.')
-    plt.axhline(z * np.std(resid))
-    plt.axhline(-z * np.std(resid))
+def _no_drift(x):
+    return x * 0.001024
 
+def _plot_drift(file_list, z = 4, recursive_depth = np.inf):
+    if type(file_list) is str:
+        file_list = [file_list]
+    output = _read_several(file_list)
+    g = output['gps']
+    xg = np.array(g['msPPS'])
+    yg = np.array(g['t']) # GPS time
+    xd = output['data'][:,0]
+
+    plt.subplot(2,1,1)
+    plt.plot(xd, _apply_segments(xd, output['header']) - _no_drift(xd) - yg[0])
+    plt.plot(xg, _apply_segments(xg, output['header']) - _no_drift(xg) - yg[0], 'k.')
+
+    drift_gps = _apply_segments(xg, output['header']) - _no_drift(xg) - yg[0]
+    drift_slope = (drift_gps[-1] - drift_gps[0]) / (xg[-1] - xg[0])
+    plt.subplot(2,1,2)
+    plt.plot(xd, _apply_segments(xd, output['header']) - _no_drift(xd) - yg[0] - xd * drift_slope)
+    plt.plot(xg, _apply_segments(xg, output['header']) - _no_drift(xg) - yg[0] - xg * drift_slope, 'k.')
+
+def _apply_fit(x, model):
+    return model['drift_deg0'] + model['drift_deg1'] * x + model['drift_deg2'] * x**2 + model['drift_deg3'] * x**3
+             
 def _apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
-        #y[w] = model['drift_intercept'][i] + model['drift_slope'][i] * x[w]
-        y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
+        #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
+        y[w] = _apply_fit(x[w], model.iloc[i,:])
     return y
     
 def _assign_times(L):
@@ -1170,7 +1180,8 @@ def _assign_times(L):
 
 
 #########################################################
-def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
+def _interp_time(data, t1 = -np.Inf, t2 = np.Inf, min_step = 0, max_step = 0.025):
+    ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
     ## t1 is the first output sample; should be first integer second after or including the first sample (ceiling)
@@ -1181,9 +1192,7 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf):
     #t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## added on 2019-09-11. 2021-07-11: this line is responsible for losing samples before the start of a second
     t1 = t_in[t_in >= (t1 - 0.01 - eps)][0]
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
-    ## R code here had code to catch t2 <= t1. should add that.
-    breaks_raw = np.where((np.diff(t_in) > 0.015) | (np.diff(t_in) < 0.007) )[0] # 2020-11-04: check for backwards steps too
-    breaks_raw = np.where((np.diff(t_in) > 0.025) | (np.diff(t_in) < 0.007) )[0] # 2020-11-04: check for backwards steps too
+    breaks_raw = np.where((np.diff(t_in) > max_step) | (np.diff(t_in) < min_step) )[0] # 2020-11-04: check for backwards steps too
     breaks = breaks_raw[(t_in[breaks_raw] > t1) & (t_in[breaks_raw+1] < t2)]
     starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
     ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
