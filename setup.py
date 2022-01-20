@@ -48,7 +48,8 @@ VERSION = version_dict['__version__']
 INSTALL_REQUIRES = [
     'setuptools>=18.0', # 18.0 needed to handle cython in installation
     'obspy>=1.2.2', # June 2020, earlier versions don't install
-    'numpy>=1.17.3', # Oct 2019, required for pandas 1.3.0
+    #'numpy>=1.17.3', # Oct 2019, required for pandas 1.3.0
+    'numpy==1.21', # earlier numpy has security issue; 1.2.2 is incompatible with obspy 1.2.2. Make this >= once obspy updates.
     'pandas>=1.3.0', # July 2021, earlier versions are incompatible with gemlog
     'scipy>=1.3.0', # May 2019
     'matplotlib>=3.2.0', # March 2020
