@@ -1,4 +1,5 @@
-__version__ = '1.5.11' # no longer supporting python 3.10 until the obspy-numpy conflict gets resolved. bug fixed with spurious data gaps/timing issues. 
+__version__ = '1.5.12' # requires pandas<1.4 due to new conflict introduced in this version; fixed previous gemlog version name 
+#__version__ = '1.5.11' # no longer supporting python 3.10 until the obspy-numpy conflict gets resolved. bug fixed with spurious data gaps/timing issues. 
 #__version__ = '1.5.10' # more changes to support python 3.10 
 #__version__ = '1.5.9' # improvements to installation process, cython now required 
 #__version__ = '1.5.8' # new updates to support python 3.10 
@@ -47,4 +48,4 @@ __version__ = '1.5.11' # no longer supporting python 3.10 until the obspy-numpy 
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive#######################################
+## List of old versions is not yet comprehensive########################################
