@@ -1,4 +1,4 @@
-__version__ = '3.11' # no longer supporting python 3.10 until the obspy-numpy conflict gets resolved. bug fixed with spurious data gaps/timing issues. 
+__version__ = '1.5.11' # no longer supporting python 3.10 until the obspy-numpy conflict gets resolved. bug fixed with spurious data gaps/timing issues. 
 #__version__ = '1.5.10' # more changes to support python 3.10 
 #__version__ = '1.5.9' # improvements to installation process, cython now required 
 #__version__ = '1.5.8' # new updates to support python 3.10 

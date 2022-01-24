@@ -149,7 +149,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --results: data frame showing qualitative results for all tests
     """
     #%%
-    if True: ## set default input values in development; set to True if running the code line-by-line
+    if False: ## set default input values in development; set to True if running the code line-by-line
         if os.getlogin() == 'tamara':
             path = '/home/tamara/gemlog/demo_QC'
         elif os.getlogin() == 'jake':
@@ -242,7 +242,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # Create wiggle figures
     wave_fig = plt.figure()
     wave_ax = wave_fig.subplots(len(SN_list))
-    wave_fig.title('Waveforms')
+    wave_ax[0].set_title('Waveforms')
     wave_fig.tight_layout()
     
         ## Individual Metadata tests:
