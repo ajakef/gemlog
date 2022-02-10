@@ -377,23 +377,32 @@ def _convert_raw_091_095(infile, outfile):
     ## example new data line: nA00 is D2560,1
     ## new bytes: 5 = 1 (data) + 3 (millis) + 1 (\n)
     ## old bytes: 8.5 = 1 (D) + 4 (millis) + 1 (,) + 1.5 (data) + 1 (\n)
-    ## consider removing \n: less readable but more compact
-    with open(outfile, 'a') as OF, open(infile, 'r') as IF:
-        for line in IF:
+    ## consider removing \n in a future format version: less readable but more compact
+    output_format = '0.95'
+    input_format = gemlog.gemlog._read_format_version(infile)
+    if input_format not in ['0.85C', '0.9', '0.91']:
+        raise Exception('Invalid input format %s' % input_format)
+    with open(outfile, 'w') as OF, open(infile, 'r') as IF:
+        for i, line in enumerate(IF):
             if (line[0] == 'D'):
                 l = line.split(',')
                 p = int(l[1]) # pressure in counts
                 # check to see if this line can be converted to new format
                 if np.abs(p) <= 12: 
-                    millis = l[0][1:] # millis count right after D
-                    new_pressure_code = ord(p + 109) # 0 is m, -12 is a, 12 is y
-                    new_millis_code = hex(millis % 2**12)[2:]
+                    millis = int(l[0][1:]) # millis count right after D
+                    new_pressure_code = chr(p + 109) # 0 is m, -12 is a, 12 is y
+                    new_millis_code = hex(millis % 2**12)[2:].upper()
                     OF.write(new_pressure_code + new_millis_code + '\n')
                 else: # this is a data line, but pressure is too high to convert
-                    OF.write(line + '\n')
-
+                    OF.write(line)
+            elif i == 0:
+                if line[:7] == '#GemCSV':
+                    OF.write('#GemCSV' + output_format + '\n')
+                    OF.write('#adcMSSAMP')
+                else:
+                    raise Exception('Corrupt input file head')
             else: # this is not a data line, so don't change it
-                OF.write(line + '\n')
+                OF.write(line)
                 
             
     
