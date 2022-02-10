@@ -373,7 +373,27 @@ def _interpolate_stream(st, gap_limit_sec = 0.1):
 
     return st
 
-            
-            
+def _convert_raw_091_095(infile, outfile):
+    ## example new data line: nA00 is D2560,1
+    ## new bytes: 5 = 1 (data) + 3 (millis) + 1 (\n)
+    ## old bytes: 8.5 = 1 (D) + 4 (millis) + 1 (,) + 1.5 (data) + 1 (\n)
+    ## consider removing \n: less readable but more compact
+    with open(outfile, 'a') as OF, open(infile, 'r') as IF:
+        for line in IF:
+            if (line[0] == 'D'):
+                l = line.split(',')
+                p = int(l[1]) # pressure in counts
+                # check to see if this line can be converted to new format
+                if np.abs(p) <= 12: 
+                    millis = l[0][1:] # millis count right after D
+                    new_pressure_code = ord(p + 109) # 0 is m, -12 is a, 12 is y
+                    new_millis_code = hex(millis % 2**12)[2:]
+                    OF.write(new_pressure_code + new_millis_code + '\n')
+                else: # this is a data line, but pressure is too high to convert
+                    OF.write(line + '\n')
+
+            else: # this is not a data line, so don't change it
+                OF.write(line + '\n')
+                
             
     
