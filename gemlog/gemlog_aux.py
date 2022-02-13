@@ -398,7 +398,44 @@ def _convert_raw_091_095(infile, outfile):
             elif i == 0:
                 if line[:7] == '#GemCSV':
                     OF.write('#GemCSV' + output_format + '\n')
-                    OF.write('#adcMSSAMP')
+                    OF.write('#adcMSSAMP\n')
+                else:
+                    raise Exception('Corrupt input file head')
+            else: # this is not a data line, so don't change it
+                OF.write(line)
+                
+            
+    
+def _convert_raw_091_110(infile, outfile):
+    ## new bytes: 3 = 1 (diff_data) + 1 (diff_millis) + 1 (\n)
+    ## old bytes: 8.5 = 1 (D) + 4 (millis) + 1 (,) + 1.5 (data) + 1 (\n)
+    ## also, each second gets 48 characters of M, and each GPS second gets ~142 characters of G+R+P (averaged to 0.5-2 bytes/sample)
+    ## consider removing \n in a future format version: less readable but more compact
+    output_format = '1.1'
+    input_format = gemlog.gemlog._read_format_version(infile)
+    if input_format not in ['0.85C', '0.9', '0.91']:
+        raise Exception('Invalid input format %s' % input_format)
+    millis_current = 0
+    with open(outfile, 'w') as OF, open(infile, 'r') as IF:
+        for i, line in enumerate(IF):
+            if (line[0] == 'D'):
+                l = line.split(',')
+                p = int(l[1]) # pressure in counts
+                millis_previous = millis_current
+                millis_current = int(l[0][1:]) # millis count right after D
+                diff_millis = (millis_current - millis_previous) % 2**13
+                # check to see if this line can be converted to new format
+                if (np.abs(p) <= 12) and (np.abs(diff_millis - 10) <= 12) and (i > 0): 
+                    new_pressure_code = chr(p + 109) # 0 is m, -12 is a, 12 is y
+                    #new_millis_code = hex(millis % 2**12)[2:].upper()
+                    new_millis_code = chr(diff_millis - 10 + 109) # 10 is m, 0 is c, 22 is y
+                    OF.write(new_millis_code + new_pressure_code + '\n')
+                else: # this is a data line, but pressure is too high to convert
+                    OF.write(line)
+            elif i == 0:
+                if line[:7] == '#GemCSV':
+                    OF.write('#GemCSV' + output_format + '\n')
+                    OF.write('#adcMSSAMP\n')
                 else:
                     raise Exception('Corrupt input file head')
             else: # this is not a data line, so don't change it

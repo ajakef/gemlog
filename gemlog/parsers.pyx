@@ -54,6 +54,7 @@ def parse_gemfile(filename):
     # make a view for faster indexing.
     # see https://cython.readthedocs.io/en/latest/src/userguide/numpy_tutorial.html#efficient-indexing-with-memoryviews
     cdef double[:, :] view = result_array
+    cdef double prev_dD_millis = 0, current_dD_millis = 0
 
     # 1-D array to store linetype (single chars)
     result_linetypes = np.zeros(n_row, dtype='c')
@@ -73,12 +74,22 @@ def parse_gemfile(filename):
             break
 
         line_type = line[0]
-        if line_type == 68:  # ord('D') == 68
+        if (line_type >= 97) and (line_type <= 122): # ord('a'), ord('z')
+            #n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC) # D lines
+            current_dD_millis = prev_dD_millis + 10 + line[0] - 109 # diff_millis
+            prev_dD_millis = current_dD_millis
+            millis_view[line_number] = current_dD_millis
+            view[line_number, 0] = line[1] - 109 # diff_ADC
+            #line_type = 'd' # distinct from capital D lines, which also show ADC data but in a longer and more general format
+            line_type = 68 # ord('D')
+	    
+        elif line_type == 68:  # ord('D') == 68
             # DmsSamp,ADC
             # D7780,-1
             n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
             view[line_number, 0] = ADC
             millis_view[line_number] = DmsSamp
+            prev_dD_millis = DmsSamp
 
         elif line_type == 71:  # ord('G') == 71
             # G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
