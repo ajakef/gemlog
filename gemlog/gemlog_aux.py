@@ -411,6 +411,15 @@ def _convert_raw_091_110(infile, outfile):
     ## old bytes: 8.5 = 1 (D) + 4 (millis) + 1 (,) + 1.5 (data) + 1 (\n)
     ## also, each second gets 48 characters of M, and each GPS second gets ~142 characters of G+R+P (averaged to 0.5-2 bytes/sample)
     ## consider removing \n in a future format version: less readable but more compact
+    ## runtime to read v1.1 is about 80% of v0.91:
+    #In [26]: %time for i in range(100): x = gemlog.gemlog._read_single('/home/jake/Dropbox/2022-01-23_SandiaSolarGems_4/raw/FILE0001.210') # v0.91
+    #CPU times: user 24.1 s, sys: 3.79 s, total: 27.9 s
+    #Wall time: 27.9 s
+    #In [27]: %time for i in range(100): x = gemlog.gemlog._read_single('FILE0001.210') # converted to v1.1
+    #CPU times: user 18.5 s, sys: 3.77 s, total: 22.2 s
+    #Wall time: 22.2 s
+
+
     output_format = '1.1'
     input_format = gemlog.gemlog._read_format_version(infile)
     if input_format not in ['0.85C', '0.9', '0.91']:

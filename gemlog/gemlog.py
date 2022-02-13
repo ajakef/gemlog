@@ -520,7 +520,7 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             fnList = fnList[1:] # 
         else:
             break
-    if version in ['0.85C', '0.9', '0.91']:
+    if version in ['0.85C', '0.9', '0.91', '1.10']:
         L = _read_several(fnList, require_gps = require_gps)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both

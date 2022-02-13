@@ -81,7 +81,7 @@ def parse_gemfile(filename):
             millis_view[line_number] = current_dD_millis
             view[line_number, 0] = line[1] - 109 # diff_ADC
             #line_type = 'd' # distinct from capital D lines, which also show ADC data but in a longer and more general format
-            line_type = 68 # ord('D')
+            line_type = 68 # ord('D') # because the D line is in an elif block, this is safe and the D line code won't be invoked
 	    
         elif line_type == 68:  # ord('D') == 68
             # DmsSamp,ADC

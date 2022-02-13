@@ -135,3 +135,24 @@ def test__read_single_v0_9_corrupt(reader_function):
 def test__read_single_v0_9_no_gps(reader_function):
     with pytest.raises(CorruptRawFileNoGPS):
         reader_function('../demo_missing_gps/raw_missing_gps/FILE0001.077')  # test a missing-gps file
+
+###############################
+
+## check that format v1.1 files can be read without error and that they give identical results to
+## corresponding v0.91 files
+
+def test_read_cython_v1_1_v0_91(): # at this point, only supporting cython reader
+    ## initial file with a long GPS run at the beginning
+    x = _read_with_cython('../data/v0.91/FILE0000.210')
+    y = _read_with_cython('../data/v1.10/FILE0000.210')
+    assert_gem_results_equal(_process_gemlog_data(x), _process_gemlog_data(y))
+
+    ## ending file: almost full length, normal GPS runs
+    x = _read_with_cython('../data/v0.91/FILE0001.210')
+    y = _read_with_cython('../data/v1.10/FILE0001.210')
+    assert_gem_results_equal(_process_gemlog_data(x), _process_gemlog_data(y))
+
+    ## short initial file
+    x = _read_with_cython('../data/v0.91/FILE0040.059')
+    y = _read_with_cython('../data/v1.10/FILE0040.059')
+    assert_gem_results_equal(_process_gemlog_data(x), _process_gemlog_data(y))
