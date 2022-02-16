@@ -1017,7 +1017,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
-            if str(version) in ['0.91', '0.9', '0.85C']:
+            if str(version) in ['1.10', '0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis, require_gps = require_gps)
             elif str(version) in ['0.8', '0.85']:
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)

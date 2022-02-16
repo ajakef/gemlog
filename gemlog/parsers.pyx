@@ -76,7 +76,7 @@ def parse_gemfile(filename):
         line_type = line[0]
         if (line_type >= 97) and (line_type <= 122): # ord('a'), ord('z')
             #n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC) # D lines
-            current_dD_millis = prev_dD_millis + 10 + line[0] - 109 # diff_millis
+            current_dD_millis = (prev_dD_millis + 10 + line[0] - 109) % (2**13) # diff_millis
             prev_dD_millis = current_dD_millis
             millis_view[line_number] = current_dD_millis
             view[line_number, 0] = line[1] - 109 # diff_ADC
