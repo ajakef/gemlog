@@ -901,4 +901,53 @@ called figures.""")
         pdf.output(f"{report_path}/{filename}.pdf")
         print("A pdf report has been generated")
     
+##############################################
+def print_call():
+    print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers>')
+    print('-i --inputdir: default ./raw/')
+    print('-s --serialnumbers: separate by commas (no spaces); default all')
+    print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
+    print('-h --help: print this message')
+    print('gemlog version: ' + gemlog.__version__)
 
+def main(argv = None):
+    #verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False, run_crosscorrelation_checks = False, generate_report = True)
+    if argv is None:
+        argv = sys.argv[1:]
+    #print(sys.executable)
+    inputdir = '.'
+    SN_list = ''
+    exclude = []
+    outputdir = None
+    gemlog._debug = True
+    try:
+        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:p:",["inputdir=","serialnumber="])
+    except getopt.GetoptError:
+        print_call()
+        sys.exit(2)
+    #print(2)
+    #print(opts)
+    for opt, arg in opts:
+        #print([opt, arg])
+        if opt in ('-h', '--help'):
+            print_call()
+            sys.exit()
+        elif opt in ("-d", "--debug"):
+            gemlog._debug = True
+        elif opt in ("-i", "--inputdir"):
+            inputdir = arg
+        elif opt in ("-s", "--serialnumbers"):
+            arg = arg.split(',')
+            #print(arg)
+            SN_list = arg
+        elif opt in ("-x", "--exclude_serialnumbers"):
+            arg = arg.split(',')
+            #print(arg)
+            exclude = arg
+  
+    verify_huddle_test(inputdir, SN_list, exclude)
+
+
+## this goes last: executable terminal command
+if __name__ == '__main__':
+    
