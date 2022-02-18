@@ -1,17 +1,17 @@
+#/usr/bin/env python
 import pandas as pd
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import os, glob, obspy, gemlog
+import os, glob, getopt, sys, shutil
+import obspy, gemlog
 import time
 import datetime
 from gemlog.gemlog_aux import check_lags
 from gemlog.gemlog_aux import _interpolate_stream
 from io import StringIO 
-import sys
 import pdb
-import shutil
 from fpdf import FPDF
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -950,4 +950,4 @@ def main(argv = None):
 
 ## this goes last: executable terminal command
 if __name__ == '__main__':
-    
+    main(sys.argv[1:])
