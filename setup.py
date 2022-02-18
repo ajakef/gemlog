@@ -88,7 +88,7 @@ ENTRY_POINTS = {
     'console_scripts': [
         'gem2ms = gemlog.gem2ms:main',
         'gemconvert = gemlog.gem2ms:main',
-        'gem_cat = gemlog.gem_cat:main'
+        'gem_cat = gemlog.gem_cat:main',
         'verify_huddle_test = gemlog.huddle_test:main'
     ]
 }
