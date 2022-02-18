@@ -3,7 +3,7 @@ from gemlog.gem_network import summarize_gps, read_gps, SummarizeAllGPS, make_ge
 from gemlog.gemlog_aux import make_db, calc_channel_stats, gem_noise, ims_noise
 from gemlog.gem_cat import gem_cat
 from gemlog.version import __version__
-
+from gemlog.huddle_test import verify_huddle_test
 try:
     from gemlog import parsers
 except ImportError:

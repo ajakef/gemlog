@@ -7,6 +7,7 @@ import os, glob, obspy, gemlog
 import time
 import datetime
 from gemlog.gemlog_aux import check_lags
+from gemlog.gemlog_aux import _interpolate_stream
 from io import StringIO 
 import sys
 import pdb
@@ -38,6 +39,17 @@ def _metadata_status(status, message, status_list, serial_num, dataframe = None,
     print(message)
     return(dataframe, status_list)
 
+def _min_starttime(SN_list, path):
+    t1 = []
+    t2 = []
+    for SN in SN_list:
+        stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
+        trace = stream[0]
+        t1.append(trace.starttime)
+        t2.append(trace.endtime)
+    # find maximum start time index
+    # find minimum end time index
+    # return max starttime and min endtime
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
@@ -156,7 +168,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             path = '/home/jake/Work/gemlog_python/demo_QC'
         else:
             print('unknown user, need to define path')
-        SN_list = ['058','061','065','077']
+        #SN_list = ['058','061','065','077']
+        SN_list = []
         SN_to_exclude = []
         individual_only = False
         run_crosscorrelation_checks = False
@@ -241,9 +254,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     # Create wiggle figures
     wave_fig = plt.figure()
-    wave_ax = wave_fig.subplots(len(SN_list))
-    wave_ax[0].set_title('Waveforms')
-    wave_fig.tight_layout()
+    wave_ax = wave_fig.subplots()
+    wave_ax.set_ylim([-1,len(SN_list)])  
+    wave_ax.set_yticks(np.arange(len(SN_list)))
+    wave_ax.set_yticklabels(SN_list)
+    wave_fig.suptitle('Normalized Detrended Waveforms')
+    # find minimum start time for each stream
     
         ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
@@ -542,6 +558,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## Individual SN waveform data:
         # Define parameters
         stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
+        stream = _interpolate_stream(stream, gap_limit_sec=0.1)
         stream.merge()
         # Check for clipping - if it is flatlined
         # filter then normalize right before plotting
@@ -551,28 +568,44 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         npts = trace.stats.npts # save shortcut to number of points from stats inside trace
         wave_start = trace.stats.starttime
         wave_end = trace.stats.endtime
-
         
         d = 1/sps # seconds per sample (space between each sample in time)
         max_seconds = npts / sps # calcalate total number of seconds (maximum time value)
         t = np.arange(0, max_seconds, d) # create evenly spaced time values from 0 until the maximum to match to data
-        
-        trim_seconds = 60 * 5
-        #trim_seconds = np.arange(0,trim_seconds, d)
-        
-        trace.trim(wave_start+trim_seconds, wave_end-trim_seconds)
+        if SN_index == 0:
+            trim_seconds = 60 * 10 #*100
+            trim_start = wave_start + trim_seconds
+            trim_end = wave_end - trim_seconds 
+            
+        trace.trim(trim_start, trim_end)
         trace.detrend()
         trace.normalize()
-        wave_ax[SN_index].plot(t[0:len(trace)],trace)
-        wave_ax[SN_index].set_ylim(-1,1)
-        wave_ax[SN_index].set_ylabel(SN)
-        plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0.30)
-        #### trim the stream to exclude the first and last 5 minutes
-        #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
-        #### SKIP FOR NOW: noise spectrum must exceed spec/2
-        #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
-        #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
-    
+        tr_offset = trace.data + SN_index
+        wave_ax.plot(trace.times("matplotlib"), tr_offset, color='black', linewidth = 0.5)
+        wave_ax.xaxis_date()
+        wave_fig.autofmt_xdate()
+        # wave_ax[SN_index].plot(trace.times("matplotlib"),trace)
+        # #trace.plot(fig= wave_fig, type='relative')
+        # wave_ax[SN_index].set_ylim(-1,1)
+        # wave_ax[SN_index].set_yticks([])
+        # wave_ax[SN_index].set_ylabel(SN)
+        # wave_ax[SN_index].set_xticks([])
+        # if SN_index == -1: 
+        #     wave_ax[SN_index].xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+        #     # TROUBLESHOOT: Xticks for date/time on bottom plot only
+        #     #wave_ax[SN_index].set_xticks([np.linspace(trim_start, trim_end, 8640000)])
+        #     #wave_ax[SN_index].xaxis.set_major_formatter(formatter)
+        #     wave_ax[SN_index].set_xlabel(xlabel)
+        #     wave_ax[SN_index].axis('off')
+        # plt.subplots_adjust(left=0.05, bottom=0.1, right=0.975, top=0.90, wspace=0, hspace=0.05)
+        # #### trim the stream to exclude the first and last 5 minutes
+        # #### dp/dt = 0 should occur for <1% of record (e.g. clipping, flatlining)
+        # #### SKIP FOR NOW: noise spectrum must exceed spec/2
+        # #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
+        # #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
+
+        wave_path = f"{path}/figures/waveforms.png"
+        wave_fig.savefig(wave_path, dpi=300)
     #Do not omit rows and columns when displaying in console
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
@@ -585,7 +618,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     
     print("\nSerial number tests complete.") 
-    
+#%%    
 # ============================================================================= 
     ## Group metadata tests:    
     ## If we're at this point, we have data from multiple loggers and are clear 
@@ -677,9 +710,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # might be operating dataframe functions on entire set, not by columns...
         temp_median = np.round(group_temp_df[column].median(),2)
         temp_range = np.round(group_temp_df[column].max() - group_temp_df[column].min(),2)
-        outliers = (np.where(any(group_temp_df[column]) > temp_median + 1 or any(group_temp_df[column] < temp_median - 1))[0])
+        outliers = (np.where(any(group_temp_df[column]) > temp_median + 1.5 or any(group_temp_df[column] < temp_median - 1.5))[0])
         # Find offending serial numbers outside of temperature range
-        x = (group_temp_df.index[group_temp_df[column] > temp_median + 1].tolist())       
+        x = (group_temp_df.index[group_temp_df[column] > temp_median + 1.5].tolist())       
         if len(x) > 0:
             error = True
             ts = int(times_checked[column])
@@ -806,7 +839,7 @@ called figures.""")
             p_width = 275
             # 25% larger images in landscape mode
             img_height = 150
-            img_width = 220
+            img_width = 175
             landscape = True
         else:
             pdf.add_page(orientation = 'P')
@@ -840,8 +873,6 @@ called figures.""")
         pdf.import_df(pstats_df,SN_list) # table values   
         
         ## Add figures into report
-        absc = pdf.get_x()
-        ordin = pdf.get_y()
         pdf.ln()
         pdf.image(batt_temp_fig_path, w = img_width , h = img_height) 
         pdf.ln()
@@ -849,7 +880,7 @@ called figures.""")
         pdf.ln()
         pdf.image(gps_fig_path, w = img_width, h = 135)
         pdf.ln()
-        
+        pdf.image(wave_path, w = img_width, h = img_height)
     ## Group test results
         pdf.heading("Group Test Results")
         pdf.import_list(group_err)    
