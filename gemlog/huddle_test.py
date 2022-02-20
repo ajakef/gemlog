@@ -149,7 +149,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     --results: data frame showing qualitative results for all tests
     """
     #%%
-    if True: ## set default input values in development; set to True if running the code line-by-line
+    if False: ## set default input values in development; set to True if running the code line-by-line
         if os.getlogin() == 'tamara':
             #path = '/home/tamara/gemlog/demo_QC'
             path = '/home/tamara/gem_tests/huddle_test/2022-02-17_labtest_stop_time_bug'
