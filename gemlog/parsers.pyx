@@ -49,7 +49,8 @@ def parse_gemfile(filename):
     cdef double ms = 0, batt = 0, temp = 0, A2 = 0, A3 = 0
 
     # array to store parsed data
-    n_row = 780000  # max number of rows to expect: 750000 + 15000 + 15000
+    #n_row = 780000  # max number of rows to expect: 750000 + 15000 + 15000
+    n_row = 1560000  # max number of rows to expect: 2*(750000 + 15000 + 15000)
     result_array = np.zeros((n_row, 11), dtype=np.double)
     # make a view for faster indexing.
     # see https://cython.readthedocs.io/en/latest/src/userguide/numpy_tutorial.html#efficient-indexing-with-memoryviews
@@ -75,19 +76,25 @@ def parse_gemfile(filename):
 
         line_type = line[0]
         if (line_type >= 97) and (line_type <= 122): # ord('a'), ord('z')
-            #n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC) # D lines
-            current_dD_millis = (prev_dD_millis + 10 + line[0] - 109) % (2**13) # diff_millis
+            if (line[1] < 97) or(line[1] > 122):
+                view[line_number, 0] = line[0] - 109 # diff_ADC
+                current_dD_millis = (prev_dD_millis + 10) % (2**13)
+            else:
+                current_dD_millis = (prev_dD_millis + 10 + line[0] - 109) % (2**13) # diff_millis
+                view[line_number, 0] = line[1] - 109 # diff_ADC
             prev_dD_millis = current_dD_millis
             millis_view[line_number] = current_dD_millis
-            view[line_number, 0] = line[1] - 109 # diff_ADC
-            #line_type = 'd' # distinct from capital D lines, which also show ADC data but in a longer and more general format
             line_type = 68 # ord('D') # because the D line is in an elif block, this is safe and the D line code won't be invoked
 	    
         elif line_type == 68:  # ord('D') == 68
             # DmsSamp,ADC
             # D7780,-1
             n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
-            view[line_number, 0] = ADC
+            if n_matched == 1: # failed to read the 2-element format, try just 1 element
+                view[line_number, 0] = DmsSamp
+                DmsSamp = (prev_dD_millis + 10) % (2**13)
+            else: # n_matched == 2
+                view[line_number, 0] = ADC
             millis_view[line_number] = DmsSamp
             prev_dD_millis = DmsSamp
 

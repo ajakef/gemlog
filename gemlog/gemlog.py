@@ -573,8 +573,8 @@ def _new_gem_var():
 
 def _read_SN(fn):
     try:
-        SN_line = pd.read_csv(fn, delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN'], encoding_errors='ignore')
-        SN = SN_line['SN'][0]
+        SN_lines = pd.read_csv(fn, delimiter = ',', skiprows = 3, nrows=4, dtype = 'str', names=['linetype', 'SN'], encoding_errors='ignore', comment = '#')
+        SN = SN_lines['SN'][SN_lines['linetype'] == 'S'][0]
     except:
         raise CorruptRawFile(fn + ': missing serial number')
     return SN
