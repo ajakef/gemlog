@@ -1,5 +1,7 @@
-# Installation: follow the directions [here](https://github.com/ajakef/gemlog/tree/main/Installation.md).
-# Getting started
+# [Installation](https://github.com/ajakef/gemlog/tree/main/Installation.md) 
+* Follow the directions [here](https://github.com/ajakef/gemlog/tree/main/Installation.md).
+
+# Getting started after installing gemlog
 * Most users will only need the `gemconvert` tool for converting data to standard formats. `gemconvert` is run from the terminal. This call will give you the syntax and options.
 ```
 gemconvert -h # print the help page
@@ -9,7 +11,7 @@ gemconvert -h # print the help page
 
 * If you have data files that lack GPS information (e.g., because they were recorded on a high-altitude balloon, indoors, or underground), AND you're ok with having imprecise sample timing, run [this demo](https://github.com/ajakef/gemlog/tree/main/demo_missing_gps) too.
 
-* If you've found a bug, please raise an issue on github. Please be sure that the conda environment is activated on your computer, that the dependencies are installed correctly, and that you're including information about your system and enough info for your issue to be reproduced. If you have an idea for an improvement, you can raise an issue for that too--especially if you're willing to implement it! gemlog has no dedicated employees and discretionary development time is limited in general.
+* If you've found a bug, please raise an issue on github. Please be sure that the conda environment is activated on your computer, that the dependencies are installed correctly, and that you're including information about your system and enough info for your issue to be reproduced. If you have an idea for an improvement, you can raise an issue for that too--especially if you're willing to implement it! 
 
 # Contributing
 User contributions are welcome! If you want to improve performance or address outstanding issues, please follow the guidelines below. Like any group that benefits from volunteers, we very much appreciate contributors but require that contributions follow this framework in order to be manageable.

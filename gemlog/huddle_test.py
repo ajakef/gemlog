@@ -163,7 +163,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #%%
     if False: ## set default input values in development; set to True if running the code line-by-line
         if os.getlogin() == 'tamara':
-            path = '/home/tamara/gemlog/demo_QC'
+            #path = '/home/tamara/gemlog/demo_QC'
+            path = '/home/tamara/gem_tests/huddle_test/2022-02-17_labtest_stop_time_bug'
         elif os.getlogin() == 'jake':
             path = '/home/jake/Work/gemlog_python/demo_QC'
         else:
@@ -641,26 +642,26 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     max_secs = max_mins * 60
     # Record all start and stop times in group test dataframe
     for SN_index, SN in enumerate(SN_list):
+        metadata = metadata_dict[SN]
         start_time = min(metadata.t)
         stop_time = max(metadata.t)
         group_df.loc[SN, "start time"] = start_time
         group_df.loc[SN, "end time"] = stop_time
     
     # Find the median and create a range within the max time distance for start and stop times
-    gps_start_med = np.median(group_df.iloc[:,0]) # find the median of start times
-    gps_stop_med = np.median(group_df.iloc[:,1]) # find the median of stop times
-    upper_start = gps_start_med + max_secs/2 # create an upper bound for start times
-    lower_start = gps_start_med - max_secs/2 # create a lower bound for start times
-    upper_stop = gps_stop_med + max_secs/2 # create an upper bound for stop times
-    lower_stop = gps_stop_med - max_secs/2 # create a lower bound for stop times
+    
+    gps_start_min = np.min(group_df.iloc[:,0]) # find the median of start times
+    gps_stop_max = np.max(group_df.iloc[:,1]) # find the median of stop times
+    upper_start = gps_start_min + max_secs # create an upper bound for start times
+    lower_stop = gps_stop_max - max_secs # create a lower bound for stop times
     
     # Check all SN start and stop times to ensure they are within range
     for SN_index, SN in enumerate(SN_list):
-        if not lower_start <= group_df.iloc[SN_index,0] <= upper_start:
-            err_message = (f"{SN} GROUP GPS ERROR: The start times are not within {max_mins} minutes of the median.")
+        if not group_df.iloc[SN_index,0] <= upper_start: # create bound for lower start times
+            err_message = (f"{SN} GROUP GPS ERROR: The start time is {np.round((group_df.iloc[SN_index,0]-upper_start)/60,2)} minutes after the acceptable start time range.")
             _metadata_status("error", err_message, group_err,SN)
-        if not lower_stop <= group_df.iloc[SN_index,1] < upper_stop:
-            err_message = (f"{SN} GROUP GPS ERROR: The stop times are not within {max_mins} minutes of the median.")
+        if not lower_stop <= group_df.iloc[SN_index,1]:
+            err_message = (f"{SN} GROUP GPS ERROR: The stop time is {np.round((lower_stop - group_df.iloc[SN_index,1])/60,2)} minutes before the acceptable end time range.")
             _metadata_status("error", err_message, group_err, SN)
     if len(group_err) == 0:
         note = "The start and stop times for all loggers agree."
@@ -674,10 +675,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
    
     
     # Determine start and stop times (Unix time)
-    mod = upper_start % df_width # modulus remainder to round start time to even minute
-    temp_start = upper_start - mod # start time on an even minute
-    mod = upper_stop % df_width
-    temp_end = upper_stop - mod - check_interval*10 # stop time on an even minute, ten minutes before end
+    mod = gps_start_min % df_width # modulus remainder to round start time to even minute
+    temp_start = gps_start_min - mod # start time on an even minute
+    mod = gps_stop_max % df_width
+    temp_end = gps_stop_max - mod - check_interval*10 # stop time on an even minute, ten minutes before end
     
     # Create dataframe to house temperatures to check
     column_index = np.arange(0,int((temp_end-temp_start)/df_width),1) # theoretically, the number of values between start and end
