@@ -1326,7 +1326,7 @@ def _reformat_GPS(G_in):
     return pd.DataFrame.from_dict(G_dict)
 
 def _find_breaks_(L):
-    #_breakpoint()
+    _breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -1340,30 +1340,31 @@ def _find_breaks_(L):
         L['gps'] = L['gps'].iloc[np.where(~badTags)[0],:]
     except:
         _breakpoint()
-    tD = np.array(L['data'][:,0])
-    dtD = np.diff(tD)
+    mD = np.array(L['data'][:,0]) # data millis
+    dmD = np.diff(mD)
     starts = np.array([])
     ends = np.array([])
-    dataBreaks = np.where((dtD > 25) | (dtD < 0))[0]
+    dataBreaks = np.where((dmD > 25) | (dmD < 0))[0]
     if 0 in dataBreaks:
-        tD = tD[1:]
-        dtD = dtD[1:]
+        mD = mD[1:]
+        dmD = dmD[1:]
         dataBreaks = dataBreaks[dataBreaks != 0] - 1
-    if (len(dtD) - 1) in dataBreaks:
-        tD = tD[:-1]
-        dtD = dtD[:-1]
-        dataBreaks = dataBreaks[dataBreaks != len(dtD)]
+    if (len(dmD) - 1) in dataBreaks:
+        mD = mD[:-1]
+        dmD = dmD[:-1]
+        dataBreaks = dataBreaks[dataBreaks != len(dmD)]
     #_breakpoint()
     for i in dataBreaks:
-        starts = np.append(starts, np.max(tD[(i-1):(i+2)]))
-        ends = np.append(ends, np.min(tD[(i-1):(i+2)]))
-    tG = np.array(L['gps'].t).astype('float')
-    mG = np.array(L['gps'].msPPS).astype('float')
+        starts = np.append(starts, np.max(mD[(i-1):(i+2)]))
+        ends = np.append(ends, np.min(mD[(i-1):(i+2)]))
+    tG = np.array(L['gps'].t).astype('float') # gps times
+    mG = np.array(L['gps'].msPPS).astype('float') # gps millis
     dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
-                         ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
-                         ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle
-                        )
+                            ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
+                            ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle (possibly due to leap second)
+    )
+    min_possible_start = mD.min() # this only changes if a GPS break around the first GPS sample invalidates preceding D samples
     for i in gpsBreaks:
         i = int(i)
         ## This part is tricky: what if a gpsEnd happens between a dataEnd and dataStart?
@@ -1377,14 +1378,21 @@ def _find_breaks_(L):
             ends[w] = max(np.append(ends[w], mG[(i-1):(i+2)].min()))
         else:
             wmin = np.argwhere(tG > tG[i])
+            ## If a file's very last gps fix triggered a break, an exception would be raised here.
+            ## This is unlikely and it's not clear now what the right thing to do is. So not implemented.
             try:
-                starts = np.append(starts, mG[wmin][tG[wmin] == tG[wmin].min()])
+                starts = np.append(starts, mG[wmin][tG[wmin] == tG[wmin].min()][-1]) # [-1] just in case tG values are repeated
             except:
                 _breakpoint()
             wmax = np.argwhere(tG < tG[i+1])
-            ends = np.append(ends, mG[wmax][tG[wmax] == tG[wmax].max()])
-    starts = np.append(tD.min(), starts)
-    ends = np.append(ends, tD.max())
+            ## It's possible for a gps break to occur so early that no good fixes occur before the
+            ## break (e.g., leap second change). In that case, pre-break data are unrecoverable.
+            if len(wmax) == 0: # empty wmax means no fixes before break
+                min_possible_start = tG[i+1]
+            else: # normal: add an end at this break
+                ends = np.append(ends, mG[wmax][tG[wmax] == tG[wmax].max()][-1]) # [-1] in case tG values are repeated
+    starts = np.append(min_possible_start, starts)
+    ends = np.append(ends, mD.max())
     return {'starts':starts, 'ends':ends}
 
 def _make_empty_header(fnList):

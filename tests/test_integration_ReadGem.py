@@ -59,3 +59,9 @@ def test_Convert_good_data():
     reference.trim(t1, t2)
     #assert output.__eq__(reference)
     assert np.std(output.data - reference.data) < 0.1 # counts
+
+def test_convert_edge_cases():
+    # test a raw file where a leap second change happens very early, triggering a GPS break with no good GPS data before it
+    # this just needs to run without crashing
+    convert('../data/test_data/early_leap_second/', SN = '232', convertedpath = 'test_output_mseed')
+
