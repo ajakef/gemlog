@@ -41,7 +41,7 @@ def _breakpoint():
 def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
             metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
             SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
-            file_length_hour = 1, station = '', network = '', location = '', output_format = 'MSEED'):
+            file_length_hour = 24, station = '', network = '', location = '', output_format = 'MSEED'):
     """
     Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
 
@@ -137,7 +137,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     """
     file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
-    
     ## make sure the raw directory exists and has real data
     if not os.path.isdir(rawpath):
         raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
@@ -275,7 +274,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
+    #hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format) # commented 2022-03-04; I don't think there's a need to do this here (vs in the loop later) and in edge cases it may cause data loss
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):

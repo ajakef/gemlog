@@ -547,7 +547,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         stream.merge()
         # Check for clipping - if it is flatlined
         # filter then normalize right before plotting
-        trace = stream[0]
+        trace = stream.split()[0] # make sure the result is not a masked array
         #trace.detrend()
         sps = trace.stats.sampling_rate
         npts = trace.stats.npts # save shortcut to number of points from stats inside trace

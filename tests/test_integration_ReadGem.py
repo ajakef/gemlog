@@ -47,9 +47,9 @@ def test_read_gem_good_data():
 
 ## Convert tests: ensure that it doesn't crash, and that the output mseed file is identical to a reference
 def test_Convert_good_data():
-    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'wav')
-    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'sac')
-    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed')
+    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'wav', file_length_hour = 1)
+    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'sac', file_length_hour = 1)
+    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', file_length_hour = 1)
     output = obspy.read('test_output_mseed/2020-04-24T22_00_00..077..HDF.mseed')[0]
     reference = obspy.read('../demo_missing_gps/converted_with_gps/2020-04-24T22_00_00..077..HDF.mseed')[0]
     #reference.stats.starttime += 0.01 ## correction
