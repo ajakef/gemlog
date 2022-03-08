@@ -169,6 +169,11 @@ def main(argv = None):
         logging.info(f'Dependencies: Python {platform.python_version()}, obspy {gemlog.gemlog.obspy.__version__}, pandas {gemlog.gemlog.pd.__version__}, scipy {gemlog.gemlog.scipy.__version__}, numpy {gemlog.gemlog.np.__version__}')
         logging.info(f'platform.uname(): {p.system}, {p.release}, {p.version}, {p.machine}, {p.processor}')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
+        logging.info(f'inputdir="{inputdir}"')
+        logging.info(f'outputdir="{outputdir}"')
+        logging.info(f'serial number list = {SN_list}')
+        logging.info(f'format="{output_format}", length_hours={output_length}, test={test}, parallel={num_processes}')
+        
         #for SN in SN_list:
         with ProcessPoolExecutor(max_workers=num_processes) as pool:
             args_list = [[inputdir, SN, outputdir, output_format, output_length] for SN in SN_list]
