@@ -167,7 +167,7 @@ def main(argv = None):
     if not test:
         logging.info(f'***Starting conversion (gemlog version {gemlog.__version__})***')
         p = platform.uname()
-        logging.info(f'Dependencies: Python {platform.python_version()}, obspy {gemlog.gemlog.obspy.__version__}, pandas {gemlog.gemlog.pd.__version__}, scipy {gemlog.gemlog.scipy.__version__}, numpy {gemlog.gemlog.np.__version__}')
+        logging.info(f'Dependencies: Python {platform.python_version()}, obspy {gemlog.core.obspy.__version__}, pandas {gemlog.core.pd.__version__}, scipy {gemlog.core.scipy.__version__}, numpy {gemlog.core.np.__version__}')
         logging.info(f'platform.uname(): {p.system}, {p.release}, {p.version}, {p.machine}, {p.processor}')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
         logging.info(f'inputdir="{inputdir}"')

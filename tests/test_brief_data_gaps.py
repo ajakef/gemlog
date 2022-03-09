@@ -1,5 +1,5 @@
-from gemlog.gemlog import _apply_segments, _interp_time, _read_several
-from gemlog.gemlog import * # * doesn't load functions that start with _
+from gemlog.core import _apply_segments, _interp_time, _read_several
+from gemlog.core import * # * doesn't load functions that start with _
 import pytest
 import shutil, os
 
@@ -17,15 +17,15 @@ def teardown_module():
 
 ## This test makes sure that spurious time gaps do not show up in converted data due to small
 ## timing errors in the conversion. The issue may have to do with max_step/min_step in
-## gemlog.gemlog._interp_time (which can make the function trigger-happy in finding data gaps) or
-## in gemlog.gemlog._robust_regress (which calculates a cubic regression between GPS-millis times).
+## gemlog.core._interp_time (which can make the function trigger-happy in finding data gaps) or
+## in gemlog.core._robust_regress (which calculates a cubic regression between GPS-millis times).
 ## Spurious data gaps appear between files due to discrepancies between their drift corrections.
 
 ## All pairs of raw files added to data/spurious_data_gaps should have resulted in a spurious data
 ## gap before. Files should always be in pairs.
 
 ## if a file has weird timing, try code like this (run from /home/jake/Work/gemlog_python/data/test_data/spurious_data_gaps/2022-01-19_169_4-5)
-# gemlog.gemlog._plot_drift(sorted(os.listdir('.')))
+# gemlog.core._plot_drift(sorted(os.listdir('.')))
 
 def test_all_spurious_data_gaps():
     print(os.listdir('../data/test_data'))

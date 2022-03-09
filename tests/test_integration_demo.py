@@ -3,7 +3,7 @@
 from gemlog import *
 import pytest
 import gemlog
-import gemlog.gem2ms
+import gemlog.gemconvert
 import obspy
 from obspy.clients.nrl import NRL
 import sys
@@ -26,7 +26,7 @@ def teardown_module():
 @pytest.mark.filterwarnings('ignore')
 def test_demo():
     ## following is drawn as directly as possible from demo/README.md
-    gemlog.gem2ms.main(['-i', '../demo/demo/raw/'])
+    gemlog.gemconvert.main(['-i', '../demo/demo/raw/'])
     ##########################
     coords = gemlog.summarize_gps('gps', output_file = 'project_coords.csv', station_info = '../demo/demo/station_info.txt')
     gemlog.rename_files('mseed/*', station_info = '../demo/demo/station_info.txt', output_dir = 'renamed_mseed')

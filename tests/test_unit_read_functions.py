@@ -1,5 +1,5 @@
-from gemlog.gemlog import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
-from gemlog.gemlog import (
+from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
+from gemlog.core import (
     _read_0_8_with_pandas, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data
 )
 import numpy as np

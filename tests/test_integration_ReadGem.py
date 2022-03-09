@@ -1,4 +1,4 @@
-from gemlog.gemlog import *
+from gemlog.core import *
 import pytest
 import shutil, os
 
