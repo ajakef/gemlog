@@ -41,7 +41,7 @@ def _breakpoint():
 def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
             metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
             SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
-            file_length_hour = 1, station = '', network = '', location = '', output_format = 'MSEED'):
+            file_length_hour = 24, station = '', network = '', location = '', output_format = 'MSEED'):
     """
     Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
 
@@ -137,7 +137,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     """
     file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
-    
     ## make sure the raw directory exists and has real data
     if not os.path.isdir(rawpath):
         raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
@@ -275,7 +274,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
+    #hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format) # commented 2022-03-04; I don't think there's a need to do this here (vs in the loop later) and in edge cases it may cause data loss
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -1327,7 +1326,7 @@ def _reformat_GPS(G_in):
     return pd.DataFrame.from_dict(G_dict)
 
 def _find_breaks_(L):
-    #_breakpoint()
+    _breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -1341,30 +1340,31 @@ def _find_breaks_(L):
         L['gps'] = L['gps'].iloc[np.where(~badTags)[0],:]
     except:
         _breakpoint()
-    tD = np.array(L['data'][:,0])
-    dtD = np.diff(tD)
+    mD = np.array(L['data'][:,0]) # data millis
+    dmD = np.diff(mD)
     starts = np.array([])
     ends = np.array([])
-    dataBreaks = np.where((dtD > 25) | (dtD < 0))[0]
+    dataBreaks = np.where((dmD > 25) | (dmD < 0))[0]
     if 0 in dataBreaks:
-        tD = tD[1:]
-        dtD = dtD[1:]
+        mD = mD[1:]
+        dmD = dmD[1:]
         dataBreaks = dataBreaks[dataBreaks != 0] - 1
-    if (len(dtD) - 1) in dataBreaks:
-        tD = tD[:-1]
-        dtD = dtD[:-1]
-        dataBreaks = dataBreaks[dataBreaks != len(dtD)]
+    if (len(dmD) - 1) in dataBreaks:
+        mD = mD[:-1]
+        dmD = dmD[:-1]
+        dataBreaks = dataBreaks[dataBreaks != len(dmD)]
     #_breakpoint()
     for i in dataBreaks:
-        starts = np.append(starts, np.max(tD[(i-1):(i+2)]))
-        ends = np.append(ends, np.min(tD[(i-1):(i+2)]))
-    tG = np.array(L['gps'].t).astype('float')
-    mG = np.array(L['gps'].msPPS).astype('float')
+        starts = np.append(starts, np.max(mD[(i-1):(i+2)]))
+        ends = np.append(ends, np.min(mD[(i-1):(i+2)]))
+    tG = np.array(L['gps'].t).astype('float') # gps times
+    mG = np.array(L['gps'].msPPS).astype('float') # gps millis
     dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
-                         ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
-                         ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle
-                        )
+                            ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
+                            ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle (possibly due to leap second)
+    )
+    min_possible_start = mD.min() # this only changes if a GPS break around the first GPS sample invalidates preceding D samples
     for i in gpsBreaks:
         i = int(i)
         ## This part is tricky: what if a gpsEnd happens between a dataEnd and dataStart?
@@ -1378,14 +1378,21 @@ def _find_breaks_(L):
             ends[w] = max(np.append(ends[w], mG[(i-1):(i+2)].min()))
         else:
             wmin = np.argwhere(tG > tG[i])
+            ## If a file's very last gps fix triggered a break, an exception would be raised here.
+            ## This is unlikely and it's not clear now what the right thing to do is. So not implemented.
             try:
-                starts = np.append(starts, mG[wmin][tG[wmin] == tG[wmin].min()])
+                starts = np.append(starts, mG[wmin][tG[wmin] == tG[wmin].min()][-1]) # [-1] just in case tG values are repeated
             except:
                 _breakpoint()
             wmax = np.argwhere(tG < tG[i+1])
-            ends = np.append(ends, mG[wmax][tG[wmax] == tG[wmax].max()])
-    starts = np.append(tD.min(), starts)
-    ends = np.append(ends, tD.max())
+            ## It's possible for a gps break to occur so early that no good fixes occur before the
+            ## break (e.g., leap second change). In that case, pre-break data are unrecoverable.
+            if len(wmax) == 0: # empty wmax means no fixes before break
+                min_possible_start = tG[i+1]
+            else: # normal: add an end at this break
+                ends = np.append(ends, mG[wmax][tG[wmax] == tG[wmax].max()][-1]) # [-1] in case tG values are repeated
+    starts = np.append(min_possible_start, starts)
+    ends = np.append(ends, mD.max())
     return {'starts':starts, 'ends':ends}
 
 def _make_empty_header(fnList):

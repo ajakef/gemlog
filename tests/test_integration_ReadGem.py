@@ -47,9 +47,9 @@ def test_read_gem_good_data():
 
 ## Convert tests: ensure that it doesn't crash, and that the output mseed file is identical to a reference
 def test_Convert_good_data():
-    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'wav')
-    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'sac')
-    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed')
+    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'wav', file_length_hour = 1)
+    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', output_format = 'sac', file_length_hour = 1)
+    convert('../demo_missing_gps/raw_with_gps', SN = '077', convertedpath = 'test_output_mseed', file_length_hour = 1)
     output = obspy.read('test_output_mseed/2020-04-24T22_00_00..077..HDF.mseed')[0]
     reference = obspy.read('../demo_missing_gps/converted_with_gps/2020-04-24T22_00_00..077..HDF.mseed')[0]
     #reference.stats.starttime += 0.01 ## correction
@@ -60,9 +60,14 @@ def test_Convert_good_data():
     #assert output.__eq__(reference)
     assert np.std(output.data - reference.data) < 0.1 # counts
 
-
 ## check that v1.10 data files are read to be identical to corresponding v0.91 files
 def test_v1_10_v0_91_read_gem():
     x = read_gem(path = '../data/v1.10/', SN = '210')
     y = read_gem(path = '../data/v0.91/', SN = '210')
     assert x['data'].__eq__(y['data'])
+
+def test_convert_edge_cases():
+    # test a raw file where a leap second change happens very early, triggering a GPS break with no good GPS data before it
+    # this just needs to run without crashing
+    convert('../data/test_data/early_leap_second/', SN = '232', convertedpath = 'test_output_mseed')
+

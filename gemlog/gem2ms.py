@@ -65,6 +65,7 @@ def print_call():
     print('-t --test: if used, print the files to convert, but do not actually run conversion')
     print('-p --parallel: number of processes to run in parallel (limited by your computer); default 1.')
     print('-h --help: print this message')
+    print('Problems: check/raise issues at https://github.com/ajakef/gemlog/issues/')
     print('alias: gem2ms. gemlog version: ' + gemlog.__version__)
 
 def parse_error(e):
