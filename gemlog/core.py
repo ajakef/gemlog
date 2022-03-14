@@ -572,7 +572,7 @@ def _new_gem_var():
 
 def _read_SN(fn):
     try:
-        SN_lines = pd.read_csv(fn, delimiter = ',', skiprows = 3, nrows=4, dtype = 'str', names=['linetype', 'SN'], encoding_errors='ignore', comment = '#')
+        SN_lines = pd.read_csv(fn, delimiter = ',', skiprows = 3, nrows=4, dtype = 'str', names=['linetype', 'SN'], encoding_errors='ignore', comment = '#', on_bad_lines = 'skip')
         SN = SN_lines['SN'][SN_lines['linetype'] == 'S'][0]
     except:
         raise CorruptRawFile(fn + ': missing serial number')
@@ -586,7 +586,7 @@ def _read_format_version(fn):
     #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
     #0.8: file extension .TXT, 1-hour files
     #"""
-    versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore')
+    versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore', on_bad_lines = 'skip')
     version = versionLine['s'][0][7:]
     return version
     
@@ -597,12 +597,16 @@ def _read_config(fn):
                     'adc_range' : 0,
                     'led_shutoff' : 0,
                     'serial_output' : 0}) ## default config: it's fairly safe to use this as the default because any other configuration would require ...
+    ## this is ugly but functional. pd.read_csv raises an exception when the number of columns is
+    ## wrong, and the number of columns will be wrong for all rows except the C rows
     for j in range(10):
-        line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', names = ['na', 'gps_mode','gps_cycle','gps_quota','adc_range','led_shutoff','serial_output'], encoding_errors='ignore')
-        if line.iloc[0,0] == 'C':
-            #config = line.iloc[0,1:]
-            config = {key:int(line[key]) for key in list(line.keys())[1:]}
-            break
+        try:
+            line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', names = ['na', 'gps_mode','gps_cycle','gps_quota','adc_range','led_shutoff','serial_output'], encoding_errors='ignore', on_bad_lines = 'skip')
+            if line.iloc[0,0] == 'C':
+                config = {key:int(line[key]) for key in list(line.keys())[1:]}
+                break
+        except:
+            pass
     return config
 
 
@@ -720,7 +724,8 @@ def _read_0_8_with_pandas(filename, require_gps = True):
     except Exception:
         try:
             df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
-                             error_bad_lines = False, warn_bad_lines = False, encoding_errors='ignore')
+                             on_bad_lines = 'skip', # replacement for error/warn_bad_lines, available since pandas 1.3.0
+                             encoding_errors='ignore')
         except:
             raise CorruptRawFile(filename)
     if df.shape[0] == 0:
@@ -749,7 +754,7 @@ def _read_with_pandas(filename, require_gps = True):
     except Exception:
         try:
             df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
-                             error_bad_lines = False, warn_bad_lines = False, encoding_errors='ignore')
+                             on_bad_lines = 'skip', encoding_errors='ignore')
         except:
             raise CorruptRawFile(filename)
     if df.shape[0] == 0:

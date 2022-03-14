@@ -1,6 +1,6 @@
 from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
 from gemlog.core import (
-    _read_0_8_with_pandas, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data
+    _read_0_8_with_pandas, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config
 )
 import numpy as np
 import pytest, shutil, os, obspy
@@ -26,6 +26,17 @@ def inputs():
     offset = 72000000.0 + 5263
     return '../data/v0.8/raw/FILE0000.TXT', offset
 
+def test_read_SN():
+    _read_SN('../data/v0.91/FILE0040.059')
+    _read_SN('../data/v1.10/FILE0001.210')
+
+def test_read_format():
+    _read_format_version('../data/v0.91/FILE0040.059')
+    _read_format_version('../data/v1.10/FILE0001.210')
+
+def test_read_config():
+    _read_config('../data/v0.91/FILE0040.059')
+    _read_config('../data/v1.10/FILE0001.210')
 
 @pytest.fixture(scope='session')
 def test_read_single_v0_8(inputs):

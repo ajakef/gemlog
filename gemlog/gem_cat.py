@@ -116,15 +116,6 @@ def AppendFile(infile, outfile, prev_infile):
     header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
     format = header[7:]
     if format in ['0.85C', '0.9', '0.91']:
-        #SN = scan(infile, skip = 4, sep = ',', what = list(character(), character()), nlines = 1, flush = TRUE)[[1]][2]
-        ## determine what the last ADC reading is before the start of this file
-        #if len(prev_infile) == 12:
-        #    path = '.'
-        #else:
-        #    path = prev_infile[0:-12]
-        ###########################################
-        #L = suppressWarnings(ReadGem(nums = num, path = path, units = 'counts')) # suppressWarnings because it'll warn that there's no GPS issue (which is kind of the point) or SN (which doesn't matter)
-        #p_start = L$p[length(L$p)]
         p_start = int(_read_single(prev_infile, require_gps = False, version = format)['data'][-1,1])
         ########################################
 
