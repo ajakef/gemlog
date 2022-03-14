@@ -1,4 +1,5 @@
-__version__ = '1.5.15' # another bug fix affecting edge case (many bad files at beginning) 
+__version__ = '1.6.0' # now supports raw format 1.10 (compact) 
+#__version__ = '1.5.15' # another bug fix affecting edge case (many bad files at beginning) 
 #__version__ = '1.5.14' # bug fix affecting edge case 
 #__version__ = '1.5.13' # added executable and automated test for verify_huddle_test 
 #__version__ = '1.5.12' # requires pandas<1.4 due to new conflict introduced in this version; fixed previous gemlog version name 
@@ -51,4 +52,4 @@ __version__ = '1.5.15' # another bug fix affecting edge case (many bad files at 
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive###########################################
+## List of old versions is not yet comprehensive############################################
