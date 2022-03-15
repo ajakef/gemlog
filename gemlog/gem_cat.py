@@ -30,7 +30,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
     None; file output only
     """
     if not os.path.isdir(input_dir):
-        raise Exception('Input path ' + output_dir + ' does not exist')
+        raise Exception('Input path ' + input_dir + ' does not exist')
     
     if not os.path.isdir(output_dir):
         try:
@@ -62,7 +62,8 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
             continue
 
         try:
-            lines = pd.read_csv(gem_files[k], delimiter = '\n', dtype = 'str', names = ['line'])
+            ## here and elsewhere, delimiter='\t' is used as a dummy to read each line as a whole string (read_csv doesn't accept '\n')
+            lines = pd.read_csv(gem_files[k], delimiter = '\t', dtype = 'str', names = ['line'])
         except:
             raise EmptyRawFile(gem_files[k])
         #gps_grep = grepl("^G.*-?\\d+\\.\\d+,-?\\d+\\.\\d+$", lines)
@@ -116,6 +117,15 @@ def AppendFile(infile, outfile, prev_infile):
     header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
     format = header[7:]
     if format in ['0.85C', '0.9', '0.91']:
+        #SN = scan(infile, skip = 4, sep = ',', what = list(character(), character()), nlines = 1, flush = TRUE)[[1]][2]
+        ## determine what the last ADC reading is before the start of this file
+        #if len(prev_infile) == 12:
+        #    path = '.'
+        #else:
+        #    path = prev_infile[0:-12]
+        ###########################################
+        #L = suppressWarnings(ReadGem(nums = num, path = path, units = 'counts')) # suppressWarnings because it'll warn that there's no GPS issue (which is kind of the point) or SN (which doesn't matter)
+        #p_start = L$p[length(L$p)]
         p_start = int(_read_single(prev_infile, require_gps = False, version = format)['data'][-1,1])
         ########################################
 
@@ -123,7 +133,7 @@ def AppendFile(infile, outfile, prev_infile):
         j=0
         while True:
             ###################
-            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\n', nrows=1, dtype = 'str', names=['s']).s[0][0]
+            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\t', nrows=1, dtype = 'str', names=['s']).s[0][0]
             ###############
             if linetype == 'D':
                 break
@@ -145,7 +155,7 @@ def AppendFile(infile, outfile, prev_infile):
         ## Find the end of the header and append the infile to the outfile past that point
         j=0
         while True:
-            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\n', nrows=1, dtype = 'str', names=['s']).s[0][0]
+            linetype = pd.read_csv(infile, skiprows = j, delimiter = '\t', nrows=1, dtype = 'str', names=['s']).s[0][0]
             if linetype == 'D':
                 break
             j += 1
