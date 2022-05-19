@@ -1045,9 +1045,8 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             if any(dMillis < 0) or any(dMillis > 1000):
                 raise CorruptRawFile(f'{fn} sample times are discontinuous, skipping this file')
 
-            #########################################################################################################
-            header_info = _calculate_drift(L, require_gps)
-            ############################################
+            header_info = _calculate_drift(L, fn, require_gps)
+
             if (not require_gps) or (L['gps'].shape[0] > 0) :
                 for key in header_info.keys():
                     header.loc[i, key] = header_info[key]
@@ -1076,7 +1075,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
 
 ##########
-def _calculate_drift(L, require_gps):
+def _calculate_drift(L, fn, require_gps):
     ## require_gps levels:
     ## 0 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 0 & at least one valid GPS: use GPS to estimate start time only, assume zero drift
