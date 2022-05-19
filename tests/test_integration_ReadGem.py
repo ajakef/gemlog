@@ -1,4 +1,5 @@
 from gemlog.core import *
+from gemlog.core import _convert_one_file
 import pytest
 import shutil, os
 
@@ -30,7 +31,7 @@ def test_read_gem_edge_cases():
         read_gem(nums = np.array([23]), path = '../data', SN = '096') 
 
     # test a differently-malformed file
-    with pytest.raises(CorruptRawFileNoGPS):
+    with pytest.raises(CorruptRawFileInadequateGPS):
         read_gem(nums = np.array([7]), path = '../data/test_data', SN = '138') 
 
     # test a mix of files with no gps, one gps line (that used to trigger a divide by zero warning), inadequate gps data, and normal gps data
@@ -71,3 +72,27 @@ def test_convert_edge_cases():
     # this just needs to run without crashing
     convert('../data/test_data/early_leap_second/', SN = '232', convertedpath = 'test_output_mseed')
 
+def test_read_no_gps():
+    ## ensure that the right exceptions are raised with files with gps issues
+    ## FILE0169 has no gps; FILE0170 has inadequate GPS
+    ## read_gem reads many files, so it can't tell the difference between no GPS and inadequate GPS
+    with pytest.raises(CorruptRawFileInadequateGPS): 
+        L = read_gem(path='../data/incomplete_gps_test_data', nums = [169], SN = '179', require_gps = True)
+    with pytest.raises(CorruptRawFileInadequateGPS):
+        L = read_gem(path='../data/incomplete_gps_test_data', nums = [170], SN = '179', require_gps = True)
+    with pytest.raises(CorruptRawFileInadequateGPS):
+        L = read_gem(path='../data/incomplete_gps_test_data', nums = [169,170], SN = '179', require_gps = True)
+
+    ## test the same files, with require_gps False
+    L = read_gem(path='../data/incomplete_gps_test_data', nums = [169], SN = '179', require_gps = False)
+    L = read_gem(path='../data/incomplete_gps_test_data', nums = [170], SN = '179', require_gps = False)
+
+    ## test convert_one_file with require_gps = False (should work)
+    _convert_one_file('../data/incomplete_gps_test_data/FILE0169.179', require_gps = False)
+    _convert_one_file('../data/incomplete_gps_test_data/FILE0170.179', require_gps = False)
+
+    ## test convert_one_file with require_gps = True (should raise exception)
+    with pytest.raises(CorruptRawFile):
+        _convert_one_file('../data/incomplete_gps_test_data/FILE0169.179', require_gps = True)
+    with pytest.raises(CorruptRawFile):
+        _convert_one_file('../data/incomplete_gps_test_data/FILE0170.179', require_gps = True)

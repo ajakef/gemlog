@@ -423,7 +423,7 @@ def _make_filename_converted(pp, output_format):
 
 ##############################################################
 ##############################################################
-def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False, require_gps = True):
+def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False, require_gps = True, gps_strict_level = 1):
     """
     Read raw Gem files.
 
@@ -528,9 +528,16 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
 
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
-        #return L
-        raise CorruptRawFileNoGPS('No GPS information in data files ' + str(nums) + ' for SN "' + SN + '" in raw directory ' + str(path))
+        raise CorruptRawFileInadequateGPS('Inadequate GPS information in data files ' + str(nums) + ' for SN "' + SN + '" in raw directory ' + str(path))
 
+    if L['gps'].shape[0] == 0:
+        for key in L['gps'].keys():
+            L['gps'][key] = [0]
+            L['gps']['year'] = [1970]
+            L['gps']['month'] = [1]
+            L['gps']['day'] = [1]
+            
+    
     L, timing_info = _assign_times(L)
     
     for tr in L['data']:
@@ -1021,77 +1028,130 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     for i,fn in enumerate(fnList):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
+            ## read the data file (using reader for this format version)
             if str(version) in ['1.10', '0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis, require_gps = require_gps)
             elif str(version) in ['0.8', '0.85']:
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
+            ## make sure the first millis is > startMillis
             if(L['data'][0,0] < startMillis):
                 L['metadata'].millis += 2**13
                 L['gps'].msPPS += 2**13
                 L['data'][:,0] += 2**13
-            dMillis = np.diff(L['data'][:,0])
             ## if the millis series is discontinuous, reject the file
+            dMillis = np.diff(L['data'][:,0])
             if any(dMillis < 0) or any(dMillis > 1000):
-                raise CorruptRawFile(f'{fn} samples times are discontinuous')
-            if len(L['gps'].t) == 0:
-                raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping')
+                raise CorruptRawFile(f'{fn} sample times are discontinuous, skipping this file')
 
-            ## make sure that the available GPS spans a significant fraction of the available
-            ## data samples; otherwise the time interpolation will be unreliable
-            ## the ratio threshold of 2 can be tuned. A threshold of 4 was too lax when tested on
-            ## 2021 Fuego data (SN 179), resulting in artificial discontinuities between files of
-            ## around 10-20 samples. A threshold less than 2 could make gemconvert refuse to convert
-            ## a short recording period just under 30 minutes (stops recording just before the 
-            ## second gps cycle)
-            if (len(L['gps']) == 1) or (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) > 2:
-                raise CorruptRawFileInadequateGPS(f'Insufficient GPS data in {fn}, skipping')
-            try:
-                ## run the GPS time vs millis regression
-                reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
-            except:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping')
-            if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
-               or (num_gps_nonoutliers < 10) \
-               or MAD_nonoutliers > 0.01:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping')
+            #########################################################################################################
+            header_info = _calculate_drift(L, require_gps)
+            ############################################
+            if (not require_gps) or (L['gps'].shape[0] > 0) :
+                for key in header_info.keys():
+                    header.loc[i, key] = header_info[key]
+                
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
 
-        except KeyboardInterrupt:
-            raise
-        except CorruptRawFileInadequateGPS:
-            print('Insufficient GPS data in ' + fn + ', skipping')
-        except CorruptRawFileNoGPS:
-            print('No GPS data in ' + fn + ', skipping')
-        except:
-            print('Failed to read ' + fn + ', skipping')
-            _breakpoint()
-        else:
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
-            #_breakpoint()
-            if L['gps'].shape[0] > 0:
-                ## this can result in an error if there aren't enough good GPS data points
-                startMillis = D[-1,0]
-                header.loc[i, 'lat'] = np.median(L['gps']['lat'])
-                header.loc[i, 'lon'] = np.median(L['gps']['lon'])
-                header.loc[i, 'start_ms'] = L['data'][0,0] # save this as a millis first, then convert
-                header.loc[i, 'end_ms'] = L['data'][-1,0]
-                header.loc[i, 'drift_deg3'] = reg[0]
-                header.loc[i, 'drift_deg2'] = reg[1]
-                header.loc[i, 'drift_deg1'] = reg[2]
-                header.loc[i, 'drift_deg0'] = reg[3]
-                header.loc[i, 'drift_resid_std'] = np.std(resid)
-                header.loc[i, 'drift_resid_MAD'] = np.max(np.abs(resid))
-                header.loc[i, 'num_gps_pts'] = len(L['gps'].msPPS)
-                header.loc[i, 'drift_resid_MAD_nonoutliers'] = MAD_nonoutliers
-                header.loc[i, 'num_gps_nonoutliers'] = num_gps_nonoutliers
+            startMillis = D[-1,0]
+            
+        except KeyboardInterrupt:
+            raise
+        except CorruptRawFileInadequateGPS:
+            print('Insufficient GPS data in ' + fn + ', skipping this file')
+        except CorruptRawFileNoGPS:
+            print('No GPS data in ' + fn + ', skipping this file')
+        except:
+            print('Failed to read ' + fn + ', skipping this file')
+            _breakpoint()
+        else:
+            pass
         ## end of fn loop
     #_breakpoint()
     return {'metadata':M, 'gps':G, 'data': D, 'header': header}
+
+##########
+def _calculate_drift(L, require_gps):
+    ## require_gps levels:
+    ## 0 & frequent valid GPS: use GPS data to estimate start time and drift
+    ## 0 & at least one valid GPS: use GPS to estimate start time only, assume zero drift
+    ## 0 & no valid GPS: use end of previous file + 0.01 sec as start time, assume zero drift
+    ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
+    ## 1, otherwise: exception
+    default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
+    _breakpoint()
+    if ('t' not in L['gps'].keys()) or (len(L['gps'].t) == 0):
+        any_gps = False
+        sufficient_gps = False
+    else:
+        any_gps = True
+        sufficient_gps = (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) < 2
+
+    if require_gps and not any_gps:
+        raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping this file')
+    if require_gps and not sufficient_gps:
+        raise CorruptRawFileInadequateGPS('Inadequate GPS data in ' + fn + ', skipping this file')
+
+    done = False
+    if sufficient_gps:
+        try:
+            ## run the GPS time vs millis regression
+            reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            ## ensure that the regression was successful
+            if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
+               or (num_gps_nonoutliers < 10) \
+               or MAD_nonoutliers > 0.01:
+                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+        except:
+            if require_gps:
+                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+        else: # if regression was successful, no need to try the zero-drift methods
+            done = True
+                
+    if not done: # if a regression couldn't be performed, assume zero drift
+        if any_gps:
+            gps_zero_drift_starts = L['gps'].t - default_deg1 * L['gps'].msPPS
+            deg0_estimate = np.mean(gps_zero_drift_starts)
+            reg = [0, 0, default_deg1, deg0_estimate]
+            resid = gps_zero_drift_starts - deg0_estimate
+            MAD_nonoutliers = np.max(np.abs(resid))
+            num_gps_nonoutliers = len(resid)
+        else:
+            reg = [0, 0, default_deg1, 0]
+            resid = np.nan
+            MAD_nonoutliers = np.nan
+            num_gps_nonoutliers = 0
+            
+    if any_gps:
+        lat = np.median(L['gps']['lat'])
+        lon = np.median(L['gps']['lon'])
+    else:
+        lat = np.nan
+        lon = np.nan
+
+    header_info = {
+        'lat' : lat,
+        'lon' : lon,
+        'start_ms' : L['data'][0,0], # save this as a millis first, then convert
+        'end_ms' : L['data'][-1,0],
+        'drift_deg3' : reg[0],
+        'drift_deg2' : reg[1],
+        'drift_deg1' : reg[2],
+        'drift_deg0' : reg[3],
+        'drift_resid_std' : np.std(resid),
+        'drift_resid_MAD' : np.max(np.abs(resid)),
+        'num_gps_pts' : len(L['gps'].msPPS),
+        'drift_resid_MAD_nonoutliers' : MAD_nonoutliers,
+        'num_gps_nonoutliers' : num_gps_nonoutliers,
+    }
+    return header_info
+
+########
 
 def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
     # goal: a quadratic regression that is robust to RARE outliers, especially for GPS data
@@ -1156,14 +1216,14 @@ def _apply_segments(x, model):
     return y
     
 def _assign_times(L):
-    #_breakpoint()
-    fnList = L['header'].file
-    if L['gps'].shape[0] == 0:
-        raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    _breakpoint()
+    fnList = np.array(L['header'].file)
+    #if L['gps'].shape[0] == 0:
+    #    raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
     
     G = _reformat_GPS(L['gps'])
     try:
-        breaks = _find_breaks_(L)
+        breaks = _find_breaks(L)
     except:
         raise CorruptRawFile('Problem between ' + fnList[0] + '-' + fnList[-1] + '; stopping before this interval. Break between recording periods? Corrupt files?')
     piecewiseTimeFit = L['header']
@@ -1330,7 +1390,8 @@ def _reformat_GPS(G_in):
               't': np.array(t)}
     return pd.DataFrame.from_dict(G_dict)
 
-def _find_breaks_(L):
+
+def _find_breaks(L):
     _breakpoint()
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
@@ -1436,4 +1497,28 @@ _time_corrections = { # milliseconds
     '0.9':8.93,
     '0.91':8.93
 }
+    
+def _convert_one_file(input_filename, output_filename = None, require_gps = True):
+    try:
+        L = _read_several([input_filename], require_gps = require_gps)
+
+        piecewiseTimeFit = L['header'].iloc[0,:]
+    
+        L['metadata']['t'] = _apply_fit(L['metadata']['millis'], piecewiseTimeFit)
+    
+        ## Interpolate data to equal spacing to make obspy trace.
+        ## Note that data gaps just get interpolated through as a straight line. Not ideal.
+        D = L['data']
+        D = np.hstack((D, _apply_fit(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
+        #timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
+        L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
+    except:
+        if not require_gps:
+            raise CorruptRawFile(f'Failed to convert file "{input_filename}", possibly due to inadequate GPS data')
+        else:
+            raise CorruptRawFile(f'Failed to convert file "{input_filename}"')
+            
+    if output_filename is None:
+        output_filename = os.path.split(input_filename)[-1] + '.mseed'
+    L['data'].write(output_filename)
     
