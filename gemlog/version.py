@@ -1,4 +1,5 @@
-__version__ = '1.6.2' # bug fix 
+__version__ = '1.6.3' # minor improvements/bug fixes for verify_huddle_test 
+#__version__ = '1.6.2' # bug fix 
 #__version__ = '1.6.1' # added new tools to convert data with no gps or inadequate gps (at user's own risk!) 
 #__version__ = '1.6.0' # now supports raw format 1.10 (compact) 
 #__version__ = '1.5.15' # another bug fix affecting edge case (many bad files at beginning) 
@@ -54,4 +55,4 @@ __version__ = '1.6.2' # bug fix
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not yet comprehensive##############################################
+## List of old versions is not yet comprehensive###############################################
