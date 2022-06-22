@@ -61,9 +61,11 @@ def _min_starttime(SN_list, path):
     # find maximum start time index
     # find minimum end time index
     # return max starttime and min endtime
+
 def unique(list1):
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
+
 cell_width = 16
 cell_height = 10
 class PDF(FPDF):
@@ -174,14 +176,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     """
     #%%
     if False: ## set default input values in development; set to True if running the code line-by-line
-        if os.getlogin() == 'tamara':
-            #path = '/home/tamara/gemlog/demo_QC'
-            path = '/home/tamara/gem_tests/huddle_test/2022-02-17_labtest_stop_time_bug'
-        elif os.getlogin() == 'jake':
+        if os.getlogin() == 'jake':
             path = '/home/jake/Work/gemlog_python/demo_QC'
         else:
             print('unknown user, need to define path')
-        #SN_list = ['058','061','065','077']
         SN_list = []
         SN_to_exclude = []
         individual_only = False
@@ -273,7 +271,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     wave_fig.suptitle('Normalized Detrended Waveforms')
     # find minimum start time for each stream
     
-        ## Individual Metadata tests:
+    ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
@@ -292,8 +290,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # Define battery voltage range
         batt_min = 1.7
         batt_max = 15
-        
-        
         
         # Save a few statistics from battery metadata
         pstats_df.loc[SN, "Battery min"] = min(metadata.batt)
@@ -321,7 +317,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             
         #slope of voltage decay
         
-    ##%%%%%##
+        ##%%%%%##
         ## Temperature must be within reasonable range
         
         # Save a few statistics from temperature metadata
@@ -348,7 +344,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN,"Temperature max"] = "OKAY" 
             
-    ##%%%%%##    
+        ##%%%%%##    
         ###Create plots for battery voltage and temperature
         dec_factor = 10 # decimation factor
         
@@ -378,7 +374,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         batt_temp_ax[1].xaxis.set_major_formatter(formatter)
         batt_temp_ax[1].set_xlabel(xlabel)
                   
-    ##%%%%%##         
+        ##%%%%%##         
         #### A2 and A3 must be within a specified range, and dV/dt = 0 should be true <1% of record
          
         ## A2
@@ -387,7 +383,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, "A2 flat"] = A2_zerodiff_proportion 
         # True/False test to see whether all data is within range
         within_A2_range = (all(metadata.A2 >= A_min) & all(metadata.A2 <= A_max))
-        #pstats_df.loc[SN, "A2 range"] = within_A2_range
         
         #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
         if pstats_df.loc[SN, "A2 flat"] > 0.99: 
@@ -401,20 +396,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             
        #Check A2 is within range
         if not within_A2_range:
-            #pstats_df.loc[SN, "A2 range"] = 0 #outside of range (false)
             err_message = f"{SN} A2 ERROR: A2 outside of range"
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name= "A2 range")
         else:
             #pstats_df.loc[SN,"A2 range"] = 1 #within range(true)
             errors_df.loc[SN,"A2 range"] = "OKAY" 
-    ##%%%%%## 
+        ##%%%%%## 
         ## A3
         # Calculate the proportion where A3 is zero
         A3_nonzero = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
         pstats_df.loc[SN,"A3 flat"] = A3_nonzero
         #True/False test to see whether all data is within range
         within_A3_range = (all(metadata.A3 >= A_min) & all(metadata.A3 <= A_max))
-        #pstats_df.loc[SN, "A3 range"] = within_A3_range
         
         #Check that A3 dV/dt == 0 less than 99% of time
         if pstats_df.loc[SN,"A3 flat"] > 0.99: 
@@ -428,14 +421,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             
        #Check A3 is within range     
         if not within_A3_range:
-            #pstats_df.loc[SN, "A3 range"] = 0 #outside of range (false)
             err_message = f"{SN} A3 ERROR: A3 outside of range."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 range")
         else:
-            #pstats_df.loc[SN, "A3 range"] = 1 #within range(true)
             errors_df.loc[SN, "A3 range"] = "OKAY" 
             
-    ##%%%%%## 
+        ##%%%%%## 
         ##format data to plot A2 and A3 metadata
         A2_ind = np.arange(len(metadata.A2)/dec_factor)*dec_factor
         A2_dec = metadata.A2[A2_ind]
@@ -454,7 +445,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         A2_A3_ax[1].set_xlabel(xlabel)
         
         
-    ##%%%%%##
+        ##%%%%%##
         #### maxFifoUsed should be less than soft limit 99% of the time, and should never exceed hard limit
         fifo_exceeds_soft_limit = np.sum(metadata.maxFifoUsed > fifo_soft_limit)/len(metadata.maxFifoUsed)
         pstats_df.loc[SN,"fifo over limit"] = fifo_exceeds_soft_limit
@@ -470,7 +461,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN, "Excessive FIFO use"] = "OKAY"
             
-    ##%%%%%##             
+        ##%%%%%##             
         #### maxOverruns should always be zero 
         pstats_df.loc[SN, "Max overruns"] = max(metadata.maxOverruns)
         if any(metadata.maxOverruns) !=0:
@@ -479,7 +470,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN, "Max overruns"] = "OKAY"
             
-    ##%%%%%##             
+        ##%%%%%##             
         #### unusedStack1 and unusedStackIdle should always be above some threshold 
         if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
             warn_message = f"UNUSED STACK WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
@@ -487,7 +478,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         else:
             errors_df.loc[SN, "Unused stack"] = "OKAY"
 
-    ##%%%%%##             
+        ##%%%%%##             
         #### find time differences among samples with gps off that are > 180 sec
         # subtract interval from gps_interval_lengths
         gps_interval_lengths = np.diff(metadata.t[metadata.gpsOnFlag == 0])[10:] # skip the first ten seconds and first GPS cycle, which is very long by design
@@ -517,7 +508,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         y_scale = np.round((max(bins[0])/2) + 1)
         gps_ax[SN_index].errorbar(gps_proportion, y_scale, yerr= y_scale, ecolor = 'r')
         gps_ax[SN_index].set_ylabel('#' + SN_list[SN_index])
-        #gps_ax[SN_index].set_xticks() # not working
         gps_ax[SN_index].axes.xaxis.set_ticklabels([])
         gps_ax[SN_index].xaxis.set_major_locator(plt.MultipleLocator(20))
         gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
@@ -602,7 +592,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ## Group metadata tests:    
     ## If we're at this point, we have data from multiple loggers and are clear 
     # to run group tests.
-# =============================================================================
+    # =============================================================================
     ## Before running the group tests, ensure that we actually have data more than one Gem!
     ## If not, add a warning, and return without conducting group tests.
     group_err = []
@@ -615,7 +605,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         _metadata_status("warning", warn_message, group_warn, SN)
         #return {'errors':errors, 'warnings':warnings, 'notes':notes}
         
-#### all loggers' first and last times should agree within 20 minutes
+    #### all loggers' first and last times should agree within 20 minutes
     max_mins = 20
     max_secs = max_mins * 60
     # Record all start and stop times in group test dataframe
@@ -645,8 +635,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         note = "The start and stop times for all loggers agree."
         _metadata_status("note", note, group_notes, SN)
 
-#### at every given time, temperature must agree within 2C for all loggers
-# interval of 061 and 065 is 10 seconds
+    #### at every given time, temperature must agree within 2C for all loggers
+    # interval of 061 and 065 is 10 seconds
     check_interval = 60 #seconds (time between checks)
     all_interval= interval_dict.values()
     df_width = check_interval / int(min(all_interval)) # use largest interval to calculate size
@@ -735,13 +725,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         time_lags_fig_path = f"{path}/figures/time_lags.png"
         time_lags_fig.savefig(time_lags_fig_path, dpi = 300)
 
-    #return {'errors':errors, 'warnings':warnings, 'notes':notes}
-    
-#%%
+    #%%
 
-# ============================================================================
+    # ============================================================================
     # Information on tests including thresholds to be printed in the report
-# ============================================================================
+    # ============================================================================
     info = []
     trouble = []
 
@@ -768,15 +756,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     info.append(f"""'GPS RUNTIME' and 'GPS ON-TIME RATIO' INFO: These tests ensure that the GPS runs for a reasonable length of time over the course of the test. The first GPS cycle is long (9-15 minutes) due to the need to listen to a complete almanac transmission from the satellites. Subsequent cycles are just long enough to record 20 GPS fixes; given the 10-30 seconds typically needed to find a fix, the GPS should run for about 30-50 seconds per 15-minute cycle. The 'GPS run time' stat is the average duration of GPS cycles after the first one, and the similar 'GPS ON-TIME RATIO' stat averages the run time of the GPS over the entire recording period in units of seconds per 15-minute GPS cycle.""")
     trouble.append(f"""GPS TROUBLESHOOTING: Ensure that the test site has good GPS signal (many sites that are secure and convenient for testing have very poor views of the sky). A GPS with a fix blinks red briefly once every 15 seconds, and the Gem connected to it should be blinking blue 3x/second if it's getting all the information from the GPS. If GPS signal is strong but a Gem is running for long periods of time, a communication issue between GPS and microcontroller is the most likely explanation. Check that all GPS terminal screws are tight and that the GPS does not somehow have a short circuit to another component. There may be a poor connection along the three GPS communication pins.""")
                  
-#%%
+    #%%
    
-# ============================================================================= 
+    # ============================================================================= 
     # Create a PDF output of plots with the date of report, errors warning and
     # notes list, and metadata summary dataframes
     # Create seperate package to reduce gemlog dependencies for detailed report
-# =============================================================================
-# To Do:   
-#  - side by side images
+    # =============================================================================
 
     if generate_report:
         report_path = os.path.join(path, "reports")
@@ -784,7 +770,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             os.mkdir(report_path)
         else:
             pass
-    ## Set up report pages and headings    
+        ## Set up report pages and headings    
         report_date = datetime.datetime.today()
         report_date = report_date.strftime("%Y-%m-%d")
         filename = str("Huddle_test_output_" + report_date)
@@ -805,7 +791,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pdf.cell(0,10, "Huddle Test Results", border=0, ln=1, align= 'C')
         pdf.cell(0,10, f"Date: {report_date}",border=0, ln=1, align= 'C')
     
-    ## Individual test results
+        ## Individual test results
         # Insert error and warning list
         pdf.heading("Errors and Warnings")
         pdf.import_list(errors)
@@ -835,18 +821,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pdf.image(wave_path, w = img_width, h = img_height)
         pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
         pdf.ln()
-    ## Group test results
+        ## Group test results
         pdf.heading("Group Test Results")
         pdf.import_list(group_err)    
         pdf.import_list(group_warn)
         pdf.import_list(group_notes)
         
-    ## add the time lags if they were actually calculated
+        ## add the time lags if they were actually calculated
         if run_crosscorrelation_checks:
             pdf.ln()
             pdf.image(time_lags_fig_path, w = img_width, h = img_height)
             pdf.ln()    
-    ## Test info and troubleshooting    
+        ## Test info and troubleshooting    
         pdf.heading('Test Info')
         for i, note in enumerate(info):
             pdf.multi_cell(p_width, 5, '%s' %info[i])
@@ -855,7 +841,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         for i, note in enumerate(trouble):
             pdf.multi_cell(p_width, 5, '%s' %trouble[i])
             pdf.ln()
-    ## Close and name file    
+        ## Close and name file    
         pdf.output(f"{report_path}/{filename}.pdf")
         print("A pdf report has been generated")
     
@@ -869,10 +855,8 @@ def print_call():
     print('gemlog version: ' + gemlog.__version__)
 
 def main(argv = None):
-    #verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False, run_crosscorrelation_checks = False, generate_report = True)
     if argv is None:
         argv = sys.argv[1:]
-    #print(sys.executable)
     inputdir = '.'
     SN_list = ''
     exclude = []
@@ -883,10 +867,7 @@ def main(argv = None):
     except getopt.GetoptError:
         print_call()
         sys.exit(2)
-    #print(2)
-    #print(opts)
     for opt, arg in opts:
-        #print([opt, arg])
         if opt in ('-h', '--help'):
             print_call()
             sys.exit()
@@ -896,11 +877,9 @@ def main(argv = None):
             inputdir = arg
         elif opt in ("-s", "--serialnumbers"):
             arg = arg.split(',')
-            #print(arg)
             SN_list = arg
         elif opt in ("-x", "--exclude_serialnumbers"):
             arg = arg.split(',')
-            #print(arg)
             exclude = arg
   
     verify_huddle_test(inputdir, SN_list, exclude)

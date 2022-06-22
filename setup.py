@@ -45,13 +45,19 @@ with open(version_path) as version_file:
 
 VERSION = version_dict['__version__']
 
+## Dependency notes:
+# pandas: >= 1.3 (2021-07; earlier versions are incompatible with all gemlog. >=1.4 only works for gemlog >= 1.6.1)
+# numpy: >=1.22 (2022-06-22; earlier versions have security issue https://github.com/advisories/GHSA-fpfv-jqm9-f5jm)
+# python: >=3.8 (2022-06-22; >=3.8 is required by numpy 1.22).
+# obspy: >=1.3 (2022-06-22; >=1.3 is required for numpy 1.22 compatibility)
+
 ## example range: pandas>=1.3.0,<1.4.0
 ## example exact: numpy==1.21
 INSTALL_REQUIRES = [
     'setuptools>=18.0', # 18.0 needed to handle cython in installation
-    'obspy>=1.2.2', # June 2020, earlier versions don't install
-    'numpy>=1.21', # earlier numpy has security issue; 1.2.2 is incompatible with obspy 1.2.2. Make this >= once obspy updates.
-    'pandas>=1.3.0', # July 2021, earlier versions are incompatible with gemlog. 1.4.0 has new exceptions raised in read_csv that cause problems and are not addressed yet.
+    'obspy>=1.2.2', 
+    'numpy>=1.21', 
+    'pandas>=1.3.0', 
     'scipy>=1.3.0', # May 2019
     'matplotlib>=3.2.0', # March 2020
     'cython', # used for reading raw files quickly
