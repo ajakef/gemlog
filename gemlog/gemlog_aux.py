@@ -257,6 +257,8 @@ def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, f
 
     Parameters
     ----------
+    model : str
+        Which IMS noise model to return; either 'high', 'medium', or 'low'.
     freq : numpy array
         Input frequencies for spectrum. If None, use default.
     spectype : str
@@ -271,7 +273,7 @@ def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, f
     Dictionary with following items:
     freqs: frequencies of output spectrum
     spectrum: low noise model (one-sided self-noise spectrum)
-    type: type of spectrum (power, amplitude, or dB, depends on spectrype input)
+    type: type of spectrum (power, amplitude, or dB, depends on spectype input)
     spectrum_units: units of spectrum (depends on spectype input)
     freq_min: lower bound of noise band
     freq_max: upper bound of noise band
