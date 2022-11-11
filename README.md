@@ -2,10 +2,12 @@
 * Follow the directions [here](https://github.com/ajakef/gemlog/tree/main/Installation.md).
 
 # Getting started after installing gemlog
-* Most users will only need the `gemconvert` tool for converting data to standard formats. `gemconvert` is run from the terminal. This call will give you the syntax and options.
+* Most users will only need the `gemconvert` tool for converting data to standard formats. `gemconvert` is run from the terminal. This call will give you the syntax, options, and version number.
 ```
 gemconvert -h # print the help page
 ```
+
+* Run `pip install --upgrade gemlog` on the command line to update gemlog to the newest version.
 
 * Run [this demo](https://github.com/ajakef/gemlog/tree/main/demo) to ensure that everything works on your system and as an example of a typical workflow.
 
