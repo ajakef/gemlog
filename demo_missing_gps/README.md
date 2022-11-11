@@ -6,12 +6,11 @@ This demo is intended only for datasets with GPS data at the beginning and end, 
 Warning: Frequent GPS fixes are essential for precise timekeeping, so sample times in the data converted with this method should NOT be considered precise. Typical clock drifts can be around 10-30 ppm.
 
 ### Installing the gemlog software (version 1.1.0 or higher)
-You must have anaconda or miniconda installed to proceed. If you don't have either and don't know which to use, install miniconda from [here](https://docs.conda.io/en/latest/miniconda.html).
-
-Then, follow the gemlog installation procedure [here](https://github.com/ajakef/gemlog/blob/main/README.md). Note that the resulting conda environment includes relevant packages like obspy and pandas.
+Follow the gemlog installation procedure [here](https://github.com/ajakef/gemlog/blob/main/README.md). Note that the resulting conda environment includes relevant packages like obspy and pandas.
 
 ### Getting Started
-First, download the zip file in the list of files above; this contains all the inputs needed for this demonstration. Move the file to some convenient folder, unzip it, and cd into the project folder.
+First, download the zip file in the list of files above; this contains all the inputs needed for this demonstration. Move the file to some convenient folder, unzip it, and cd into the project folder. Then, set your conda environment to whatever you set up during the installation using a terminal command like `conda activate gem`.
+
 
 This demo converts raw data where some files lack GPS fixes (contained in `raw_missing_gps`) and compares it to otherwise identical raw and converted data that do contain gps fixes. 
 ```
@@ -35,8 +34,15 @@ raw_missing_gps/FILE0003.077
 ```
 Gem data files have the Gem's serial number as the extension, meaning that we have data from Gem 077 only. Empty or nearly-empty data files (like those from quick tests between field campaigns) can cause problems in the data conversion. It's a good idea to start each field campaign with clean disks, and to inspect your raw files and remove bad files before converting them.
 
-### Merging the raw gem data
-Set your conda environment to whatever you set up during the installation using a terminal command like `conda activate gem`.
+
+### I have a raw file with no GPS info and I don't care about timekeeping, just give me the data!
+This is the simplest case. Use the `gemconvert_single` command to turn a single raw file into a single miniSEED file:
+
+```gemconvert_single -f -i raw_missing_gps/FILE0001.077```
+`-f` is needed to force the conversion even without GPS data. 
+
+
+### I have many contiguous raw files but some of them lack GPS data, and I want contiguous output data from it.
 
 The following terminal command determines whether each raw file contains GPS data, and merges the files so that every output file has gps data at the beginning (and the end, if possible).
 

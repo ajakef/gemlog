@@ -1499,8 +1499,9 @@ _time_corrections = { # milliseconds
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):
     try:
+        if not os.path.exists(input_filename):
+            raise MissingRawFiles(f'File "{input_filename}" not found')
         L = _read_several([input_filename], require_gps = require_gps)
-
         piecewiseTimeFit = L['header'].iloc[0,:]
     
         L['metadata']['t'] = _apply_fit(L['metadata']['millis'], piecewiseTimeFit)
@@ -1508,11 +1509,21 @@ def _convert_one_file(input_filename, output_filename = None, require_gps = True
         ## Interpolate data to equal spacing to make obspy trace.
         ## Note that data gaps just get interpolated through as a straight line. Not ideal.
         D = L['data']
+
+        if D.shape[0] == 0:
+            raise CorruptRawFileNoGPS(f'Failed to convert file "{input_filename}", due to no GPS data')
+        
         D = np.hstack((D, _apply_fit(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
         #timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
         L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
-    except:
-        if not require_gps:
+    except CorruptRawFileNoGPS:
+        if require_gps:
+            raise CorruptRawFileNoGPS(f'Failed to convert file "{input_filename}", due to no GPS data')
+        else:
+            raise CorruptRawFileNoGPS(f'Failed to convert file "{input_filename}" due to no GPS data, even though GPS data is not needed. This should not happen and indicates a bug.')
+
+    except CorruptRawFile:
+        if require_gps:
             raise CorruptRawFile(f'Failed to convert file "{input_filename}", possibly due to inadequate GPS data')
         else:
             raise CorruptRawFile(f'Failed to convert file "{input_filename}"')

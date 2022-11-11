@@ -6,6 +6,8 @@ import sys
 import os
 import shutil
 from gemlog import gem_cat, convert
+from gemlog.core import *
+from gemlog.core import _convert_one_file
 
 def setup_module():
     try:
@@ -22,7 +24,7 @@ def teardown_module():
     os.chdir('..')
     shutil.rmtree('tmp')
 
-def test_demo_missing_gps():
+def test_demo_gem_cat():
     ## following is drawn as directly as possible from demo/README.md
     gem_cat('../demo_missing_gps/raw_missing_gps/', './raw_merged', '077')
     convert(rawpath = './raw_merged', convertedpath = './converted', SN = '077')
@@ -41,4 +43,15 @@ def test_demo_missing_gps():
 #test_demo_missing_gps()
 
 
-    
+## check that gemconvert_single handles potential file problems correctly
+def test_demo_gemconvert_single():
+    with pytest.raises(MissingRawFiles):
+        _convert_one_file('../demo_missing_gps/raw_missing_gps/FILE9999.999') # does not exist
+
+    with pytest.raises(CorruptRawFileNoGPS):
+        _convert_one_file('../demo_missing_gps/raw_missing_gps/FILE0001.077', require_gps = True) # lacks GPS data
+
+    _convert_one_file('../demo_missing_gps/raw_missing_gps/FILE0001.077', require_gps = False) # lacks GPS data
+    _convert_one_file('../demo_missing_gps/raw_missing_gps/FILE0000.077', require_gps = True) # has GPS data
+
+

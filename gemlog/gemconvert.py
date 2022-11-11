@@ -1,9 +1,10 @@
 #/usr/bin/env python
-# conda create -n g1 python=3.7.6 numpy obspy rpy2 pandas matplotlib
+
 import sys # should always be available, doesn't need to be in "try"
 try:
     import numpy as np
-    import os, glob, getopt, logging, traceback, platform
+    import os, getopt, logging, platform
+    #import glob, traceback # apparently not needed anymore
     import gemlog
     from concurrent.futures import ProcessPoolExecutor
 except Exception as e:
@@ -12,22 +13,11 @@ except Exception as e:
     print(e)
     sys.exit(2)
 
-#%%
 def find_SN(x):
+    # find the serial number of a raw data file
     return x[9:13]
 
-# function to get unique values from list while preserving order (set-based shortcut doesn't do this)
-def old_unique(list1):  # O(n^2), bad
-    # intilize a null list 
-    unique_list = [] 
-    # traverse for all elements 
-    for x in list1: 
-        # check if exists in unique_list or not 
-        if x not in unique_list: 
-            unique_list.append(x) 
-    return unique_list
-
-def unique(list1): # thanks Kevin!
+def unique(list1): 
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
 
@@ -91,12 +81,13 @@ def main(argv = None):
     output_length = 24 # hours
     num_processes = 1
     gemlog._debug = True
+
+    ## parse options selected by user
     try:
         opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:p:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
         print_call()
         sys.exit(2)
-    #print(2)
     #print(opts)
     for opt, arg in opts:
         #print([opt, arg])
@@ -129,17 +120,20 @@ def main(argv = None):
             except:
                 'could not interpret number_of_processes ' + arg + ' as integer'
 
+    ## set up logging
     if outputdir is None:
         outputdir = output_format.lower()
     if gemlog._debug:
-        logging.basicConfig(level=logging.DEBUG, filename="gemconvert_logfile.txt", filemode="a+",
-                        format="%(asctime)-15s %(levelname)-8s %(message)s")
+        debug_level = logging.DEBUG
     else:
-        logging.basicConfig(level=logging.INFO, filename="gemconvert_logfile.txt", filemode="a+",
+        debug_level = logging.INFO
+
+    logging.basicConfig(level=debug_level, filename="gemconvert_logfile.txt", filemode="a+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
-        
+
+    ## check that data files can be found, and see which serial numbers are present
     try:
-        fn = os.listdir(inputdir)
+        file_list = os.listdir(inputdir)
     except:
         print("Problem opening input data folder " + inputdir + ". Did you give the right folder name after -i?")
         print("")
@@ -147,7 +141,7 @@ def main(argv = None):
         sys.exit()
 
     if(len(SN_list) == 0): # if user does not provide SN_list, take unique SNs in order
-        SN_list = unique([find_SN(fn[i]) for i in range(len(fn))]) # set takes unique values
+        SN_list = unique([find_SN(file_list[i]) for i in range(len(file_list))]) # set takes unique values
         SN_list.sort()
     else: # if user provided SNs, keep the order, but take unique values
         SN_list = unique(SN_list)
@@ -158,15 +152,17 @@ def main(argv = None):
         print_call()
         sys.exit()
 
+    ## remove excluded serial numbers from the list
     SN_list = [i for i in SN_list if i not in exclude]
-    
+
+    ## print info about job before starting
     print(f'gemlog version {gemlog.__version__}')
     print('inputdir ', inputdir)
     print('serial numbers ', SN_list)
     print('outputdir ', outputdir)
     if not test:
         logging.info(f'***Starting conversion (gemlog version {gemlog.__version__})***')
-        p = platform.uname()
+        p = platform.uname() # system info
         logging.info(f'Dependencies: Python {platform.python_version()}, obspy {gemlog.core.obspy.__version__}, pandas {gemlog.core.pd.__version__}, scipy {gemlog.core.scipy.__version__}, numpy {gemlog.core.np.__version__}')
         logging.info(f'platform.uname(): {p.system}, {p.release}, {p.version}, {p.machine}, {p.processor}')
         logging.info('Call: gemconvert ' + ' '.join(sys.argv[1:]))
@@ -174,8 +170,8 @@ def main(argv = None):
         logging.info(f'outputdir="{outputdir}"')
         logging.info(f'serial number list = {SN_list}')
         logging.info(f'format="{output_format}", length_hours={output_length}, test={test}, parallel={num_processes}')
-        
-        #for SN in SN_list:
+
+        ## loop through serial numbers. 'pool' allows running different SNs in parallel.
         with ProcessPoolExecutor(max_workers=num_processes) as pool:
             args_list = [[inputdir, SN, outputdir, output_format, output_length] for SN in SN_list]
             res = pool.map(convert_single_SN, args_list)
