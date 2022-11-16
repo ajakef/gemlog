@@ -8,7 +8,6 @@ version: 2
 # this "on" section seems like it doesn't work; it only runs on pushes to main
 on:
   push:
-    branches: [main, obspy311]
   pull_request:
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
