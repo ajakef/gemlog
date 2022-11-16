@@ -46,14 +46,6 @@ Like many geophysical data loggers, the Gem writes data in a non-standard raw fo
 - Data analysis and visualization in Python: several Python functions facilitate working with data, including plotting spectra of the Gem's self-noise and standard environmental noise specs set by the International Monitoring System, and deconvolving the Gem's instrument response from recordings. "gemlog" is well-integrated with the common seismic/infrasound data processing Python package "obspy" [@obspy] and uses its functions and classes when possible.
 
 
-If you want to cite a software repository URL (e.g. something on GitHub without a preferred
-citation) then you can do it with the example BibTeX entry below for @fidgit.
-
-For a quick reference, the following citation commands can be used:
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)"
-
 # Acknowledgements
 This work was funded by NSF award EAR-2122188. 
 
