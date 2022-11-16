@@ -10,7 +10,7 @@ from distutils.util import convert_path
 import sys
 
 # The minimum python version which can be used to run ObsPy
-MIN_PYTHON_VERSION = (3, 7)
+MIN_PYTHON_VERSION = (3, 8)
 
 # Fail fast if the user is on an unsupported version of python.
 if sys.version_info < MIN_PYTHON_VERSION:
@@ -46,8 +46,11 @@ with open(version_path) as version_file:
 VERSION = version_dict['__version__']
 
 ## Dependency notes:
+## Main version requirements
 # pandas: >= 1.3 (2021-07; earlier versions are incompatible with all gemlog. >=1.4 only works for gemlog >= 1.6.1)
-# numpy: >=1.22 (2022-06-22; earlier versions have security issue https://github.com/advisories/GHSA-fpfv-jqm9-f5jm)
+# numpy: >=1.22 (2022-06-22; earlier versions have security issue https://github.com/advisories/GHSA-fpfv-jqm9-f5jm).
+
+## Secondary requirements
 # python: >=3.8 (2022-06-22; >=3.8 is required by numpy 1.22).
 # obspy: >=1.3 (2022-06-22; >=1.3 is required for numpy 1.22 compatibility)
 
@@ -55,7 +58,7 @@ VERSION = version_dict['__version__']
 ## example exact: numpy==1.21
 INSTALL_REQUIRES = [
     'setuptools>=18.0', # 18.0 needed to handle cython in installation
-    'obspy>=1.2.2', 
+    'obspy>=1.3',
     'numpy>=1.22', 
     'pandas>=1.3.0', 
     'scipy>=1.3.0', # May 2019
@@ -81,7 +84,6 @@ CLASSIFIERS = [
     'Intended Audience :: Developers',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
