@@ -17,7 +17,7 @@ authors:
 affiliations:
  - name: Department of Geosciences, Boise State University, USA
    index: 1
- - name: National Renewable Energy Laboratory, USA
+ - name: Independent Researcher
    index: 2
 date: 18 November 2022
 bibliography: paper.bib
