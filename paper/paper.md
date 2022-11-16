@@ -26,7 +26,7 @@ bibliography: paper.bib
 
 # Summary
 
-Infrasound (low-frequency pressure waves in air) is widely used as a geophysical method for monitoring powerful, often hazardous processes like volcanic explosions, nuclear tests, bolides, avalanches, mudflows, and earthquakes. Infrasound can also be used to monitor changes in wind structures, and balloon-borne infrasound has been proposed as a means of seismic monitoring on planets like Venus that are not conducive to instrument survival on the ground. Infrasound is often recorded to disks in by unsupervised, non-telemetered instruments, and recordings must be converted to standard data formats before analysis. The "gemlog" package handles data conversion and facilitates data analysis for one instrument, the Gem Infrasound Logger.
+Infrasound (low-frequency pressure waves in air) is widely used as a geophysical method for monitoring powerful, often hazardous processes like volcanic explosions, nuclear tests, bolides, avalanches, mudflows, and earthquakes. Infrasound can also be used to monitor changes in wind structures, and balloon-borne infrasound has been proposed as a means of seismic monitoring on planets like Venus that are not conducive to instrument survival on the ground. Infrasound is often recorded to disks in by unsupervised, non-telemetered instruments, and recordings must be converted to standard data formats before analysis. The "gemlog" package handles data conversion and facilitates data analysis for an open-source instrument, the Gem Infrasound Logger.
 
 # Statement of need
 The Gem Infrasound Logger [@Anderson2018] is an approach to infrasound recording where the sensor and data logger are built into a single cable-free package that is easy to conceal and permits arbitrary sensor network geometries. Additionally, it is optimized for low cost, long battery life with small batteries, light weight, and simple, fast installation. These characteristics make it a good choice for temporary infrasound campaigns. By contrast, most campaigns that do not use the Gem use analog infrasound sensors that, via long cables, connect to multichannel data loggers built to record seismometers. This approach yields high-quality data but has several disadvantages: seismic data loggers are expensive, and sensor cables constrain the sensor network's geometry, make a station prone due animal damage and vandalism to their visibility and exposure, and account for a large share of a station's budgets for weight, bulk, and setup time. These disadvantages are especially acute for temporary recording campaigns (as opposed to permanent installations), which account for a large share of infrasound research.
@@ -50,6 +50,14 @@ Like many geophysical data loggers, the Gem writes data in a non-standard raw fo
 
 - Data analysis and visualization in Python: several Python functions facilitate working with data, including plotting spectra of the Gem's self-noise and standard environmental noise specs set by the International Monitoring System, and deconvolving the Gem's instrument response from recordings. "gemlog" is well-integrated with the common seismic/infrasound data processing Python package "obspy" [@obspy] and uses its functions and classes when possible.
 
+
+# Demonstrations
+
+- A typical data conversion, pre-processing, and inspection workflow, including using obspy tools to work with data and metadata.
+
+- Data conversion workflows that can be used for data lacking GPS data (typically recorded at high-altitude, indoors, or underground) in which normal timing corrections are impossible.
+
+- A quality-control workflow to inspect an infrasound dataset assumed to come from multiple instruments recording simultaneously in the same location, verifying that all instruments appear to work correctly and record the same data.
 
 # Acknowledgements
 This work was funded by NSF award EAR-2122188. 
