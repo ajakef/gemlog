@@ -79,7 +79,7 @@ git remote add upstream https://github.com/ajakef/gemlog
 ##### Change the existing "origin" remote (GitHub):
 This is where you upload your work to. If you don't have an ssh key created yet, you will need to make one with this command (changing the email address to the one you use for github: `ssh-keygen -t ed25519 -C "username@user.com"`. Each time it prompts you for an answer, accept the default by pressing enter (unless you want it to do something else).
 
-You then need to sign into GitHub and give it your public key so it knows to let you authenticate with your new ssh key. Open Settings>SSH and GPG keys, click the "New SSH key" button, use the name of your computer as the "Title" and copy the contents of ~/.ssh/id_ed25519.pub into the "Key" window (without the email address at the end). Click the green button to finish the process.
+You then need to sign into GitHub and give it your public key so it knows to let you authenticate with your new ssh key. Click the account button in the top right, open Settings>SSH and GPG keys, click the "New SSH key" button, use the name of your computer as the "Title" and copy the contents of ~/.ssh/id_ed25519.pub into the "Key" window (without the email address at the end). Click the green button to finish the process.
 
 If you're registered as a collaborator, you can push code directly to the primary repository (ajakef/gemlog). Otherwise, you can push code to your own gemlog fork on your own github site; in that case, just replace 'ajakef' below with your own github username.
 
