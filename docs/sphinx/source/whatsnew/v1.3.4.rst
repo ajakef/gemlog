@@ -1,0 +1,38 @@
+.. _whatsnew_v134:
+
+v1.3.4 (December 28, 2020)
+-------------------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+Deprecations
+~~~~~~~~~~~~
+
+
+Enhancements
+~~~~~~~~~~~~
+Support for raw format 0.91
+Enables writing day-long miniSEED files (instead of just hour-long)
+Switched to a cross-platform (windows-friendly) miniSEED file naming format that avoids colons
+
+
+Bug fixes
+~~~~~~~~~
+
+
+Testing
+~~~~~~~
+
+
+Documentation
+~~~~~~~~~~~~~
+- This sphinx documentation (:pull:`12`)
+
+Requirements
+~~~~~~~~~~~~
+
+
+Contributors
+~~~~~~~~~~~~

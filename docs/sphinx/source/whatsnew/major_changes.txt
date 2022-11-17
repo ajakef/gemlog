@@ -1,0 +1,8 @@
+starting with 1.1.2
+
+By 1.2.2: Doesn't crash when processing mix of good and bad raw files (bad being empty, or missing-GPS)
+By 1.3.1: Supports old raw format 0.8 and 0.85; improvements to gemconvert, and hosted on PyPI
+By 1.3.4: Supports format 0.91, allows day-long miniSEED files, and changes to a cross-platform (windows-friendly) miniSEED file naming format
+By 1.4.3: added new fields to inventory to meet IRIS requirements (elevation, start/end times, azimuth/dip), improvements to huddle_test, improved timing corrections (cubic interpolation), remove overlapping samples in output miniSEED files
+By 1.5.6: improve logs, add better UI for gem response and noise specs, detect insufficient GPS better, improve checks for malformed files, improve automated tests
+By 1.6.5: upgrade dependency version requirements due to numpy security issue, new tools to convert files with missing/inadequate GPS (at user's risk!), support raw format 1.10 (compact)
