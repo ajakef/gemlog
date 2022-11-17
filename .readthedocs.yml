@@ -10,6 +10,7 @@ on:
   push:
   pull_request:
 
+
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
   configuration: docs/sphinx/source/conf.py
