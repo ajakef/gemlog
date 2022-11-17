@@ -1,0 +1,38 @@
+.. _whatsnew_v143:
+
+v1.4.3 (August 5, 2021)
+-------------------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+Deprecations
+~~~~~~~~~~~~
+
+
+Enhancements
+~~~~~~~~~~~~
+Added new fields to inventories to meet IRIS requirements (elevation, start/end times, azimuth, dip)
+Improvements to huddle_test
+Improved timing corrections (cubic interpolation)
+Remove overlapping samples in output miniSEED files for user convenience
+
+Bug fixes
+~~~~~~~~~
+
+
+Testing
+~~~~~~~
+
+
+Documentation
+~~~~~~~~~~~~~
+- This sphinx documentation (:pull:`12`)
+
+Requirements
+~~~~~~~~~~~~
+
+
+Contributors
+~~~~~~~~~~~~

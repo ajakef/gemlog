@@ -1,0 +1,37 @@
+.. _whatsnew_v165:
+
+v1.6.5 (November 10, 2022)
+-------------------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+Upgrading dependency version requirements due to security issue in older numpy
+
+
+Deprecations
+~~~~~~~~~~~~
+
+
+Enhancements
+~~~~~~~~~~~~
+New tools to convert files with missing or inadequate GPS data (at user's risk!)
+Support for compact new raw format 1.10
+
+Bug fixes
+~~~~~~~~~
+
+
+Testing
+~~~~~~~
+
+
+Documentation
+~~~~~~~~~~~~~
+- This sphinx documentation (:pull:`12`)
+
+Requirements
+~~~~~~~~~~~~
+
+
+Contributors
+~~~~~~~~~~~~

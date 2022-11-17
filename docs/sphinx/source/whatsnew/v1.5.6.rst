@@ -1,0 +1,37 @@
+.. _whatsnew_v156:
+
+v1.5.6 (October 5, 2021)
+-------------------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+Deprecations
+~~~~~~~~~~~~
+
+
+Enhancements
+~~~~~~~~~~~~
+Improve logs
+Add better user interface for working with Gem response and accessing noise specs
+Improve checks to identify unusable raw files
+
+Bug fixes
+~~~~~~~~~
+
+
+Testing
+~~~~~~~
+Improvements to automated tests
+
+Documentation
+~~~~~~~~~~~~~
+- This sphinx documentation (:pull:`12`)
+
+Requirements
+~~~~~~~~~~~~
+
+
+Contributors
+~~~~~~~~~~~~
