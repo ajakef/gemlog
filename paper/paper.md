@@ -66,6 +66,7 @@ The Gem Infrasound Logger (including "gemlog") has been included in independent 
 - A quality-control workflow to inspect an infrasound dataset assumed to come from multiple instruments recording simultaneously in the same location, verifying that all instruments appear to work correctly and record the same data.
 
 ![Plot of example infrasound data created by the main data conversion workflow demonstration using the obspy plot method.](demo_waveform_figure.png)
+
 # Acknowledgements
 This work was funded by NSF award EAR-2122188. 
 
