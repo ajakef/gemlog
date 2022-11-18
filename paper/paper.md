@@ -62,11 +62,11 @@ The Gem Infrasound Logger (including gemlog) has been included in independent ev
 # Demonstrations
 gemlog includes three demonstrations of its functionality, including example data, example code, and explanations. These demonstrations cover the most common uses of gemlog.
 
-- A typical data conversion, pre-processing, and inspection workflow, including using obspy tools to process and plot data and metadata (figure \autoref{fig:example}).
+- A typical data conversion, pre-processing, and inspection workflow, including using obspy tools to process and plot data and metadata (\autoref{fig:example}).
 
 - Data conversion workflows that can be used for data lacking GPS data (typically recorded at high-altitude, indoors, or underground) in which normal timing corrections are impossible.
 
-- A quality-control workflow to inspect an infrasound dataset assumed to come from multiple instruments recording simultaneously in the same location, verifying that all instruments appear to work correctly and record the same data.
+- A quality-control workflow to inspect an infrasound dataset from multiple instruments recording simultaneously in the same location, verifying that all instruments appear to work correctly and record similar data.
 
 ![Plot of an obspy.Stream of example infrasound data created by the main data conversion workflow demonstration.\label{fig:example}](demo_waveform_figure.png)
 
