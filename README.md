@@ -32,3 +32,7 @@ User contributions are welcome! If you want to improve performance or address ou
 * After finishing your changes, commit them and push them to a gemlog fork on your github account. A suite of tests and style checks will run after the push. Your code must pass all automated checks before it can be considered for merging.
 * Send a pull request when your code is ready for review. This is often at the point when you think you're done, but it can be earlier if you need to share your code to get specific feedback.
 
+# Need help?
+* Check the demonstrations mentioned above to see if it addresses your issue.
+* Look through the issues in this github site to see if anyone else is having the same trouble you are.
+* If those don't work, email project lead Jake Anderson at jacobanderson152@boisestate.edu.
