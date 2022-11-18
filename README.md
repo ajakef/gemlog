@@ -1,3 +1,5 @@
+gemlog is a Python package including terminal commands for converting data recorded by the Gem Infrasound Logger, and Python functions to help process it. All Gem users will need to use this package to put their data in standard formats.
+
 # [Installation](https://github.com/ajakef/gemlog/tree/main/Installation.md) 
 * Follow the directions [here](https://github.com/ajakef/gemlog/tree/main/Installation.md).
 
@@ -13,7 +15,11 @@ gemconvert -h # print the help page
 
 * If you have data files that lack GPS information (e.g., because they were recorded on a high-altitude balloon, indoors, or underground), AND you're ok with having imprecise sample timing, run [this demo](https://github.com/ajakef/gemlog/tree/main/demo_missing_gps) too.
 
-* If you've found a bug, please raise an issue on github. Please be sure that the conda environment is activated on your computer, that the dependencies are installed correctly, and that you're including information about your system and enough info for your issue to be reproduced. If you have an idea for an improvement, you can raise an issue for that too--especially if you're willing to implement it! 
+* If you have multiple Gems that you'd like to validate, run [this demo](https://github.com/ajakef/gemlog/tree/main/demo_QC) to learn how to test them efficiently and comprehensively.
+
+* Documentation can be found at [Read the Docs](https://gemlog.readthedocs.io/en/latest/index.html), in the terminal command help pages (found using the `-h` option), and in the function docstrings when working in an iPython console.
+
+* If you've found a bug, please raise an issue on github. Please be sure that the conda environment is activated on your computer, that the dependencies are installed correctly, and that you're including information about your system and enough info for your issue to be reproduced. Info from the gemconvert_logfile.txt from that conversion run will be helpful. If you have an idea for an improvement, you can raise an issue for that too--especially if you're willing to implement it! 
 
 # Contributing
 User contributions are welcome! If you want to improve performance or address outstanding issues, please follow the guidelines below. Like any group that benefits from volunteers, we very much appreciate contributors but require that contributions follow this framework in order to be manageable.
