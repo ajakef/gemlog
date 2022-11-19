@@ -13,13 +13,16 @@ authors:
   - name: Kevin S. Anderson
     orcid: 0000-0002-1166-7957
     affiliation: 2
-  - name: Tamara Satterwhite
-    affiliation: 1
+  - name: Tamara Beschorner
+    affiliation: 3
+    orcid: 0000-0001-7792-8497
 affiliations:
  - name: Department of Geosciences, Boise State University, USA
    index: 1
  - name: Independent Researcher
    index: 2
+ - name: Oregon Hazards Lab, Earth Science Department, University of Oregon, USA
+   index: 3
 date: 18 November 2022
 bibliography: paper.bib
 
@@ -30,7 +33,7 @@ bibliography: paper.bib
 Infrasound (low-frequency pressure waves in air) is widely used as a geophysical method for monitoring powerful, often hazardous processes like volcanic explosions, nuclear tests, bolides, avalanches, mudflows, and earthquakes. Infrasound can also be used to monitor changes in atmospheric wind fields, and balloon-borne infrasound has been proposed as a means of seismic monitoring on planets like Venus where ground-based monitoring is impractical. In infrasound research campaigns, signals are typically recorded to disks by unsupervised, non-telemetered instruments, and recordings must be converted to standard data formats before analysis and distribution. The gemlog package handles data conversion and facilitates data analysis for an open-source instrument, the Gem Infrasound Logger.
 
 # Statement of need
-The Gem Infrasound Logger [@Anderson2018] is an approach to infrasound recording where the sensor and data logger are built into a single cable-free package that is easy to conceal and permits arbitrary sensor network geometries. Additionally, it is optimized for low cost, long battery life with small batteries, light weight, and simple, fast installation. These characteristics make it a good choice for temporary infrasound campaigns. By contrast, most campaigns that do not use the Gem use analog infrasound sensors that, via long cables, connect to multichannel data loggers built to record seismometers. This approach yields high-quality data but has several disadvantages: seismic data loggers are expensive, and sensor cables constrain the sensor network's geometry, make a station prone to animal damage and vandalism due to their visibility and exposure, and account for a large share of a recording site's budget for weight, bulk, and setup time. These disadvantages are especially acute for temporary recording campaigns (as opposed to permanent installations), which account for a large share of infrasound research.
+The Gem Infrasound Logger [@Anderson2018] is an approach to infrasound recording where the sensor and data logger are built into a single cable-free package that is easy to conceal and permits arbitrary sensor network geometries. Additionally, it has a low cost and weight, runs for months on alkaline batteries, and has a simple, fast installation procedure. These characteristics make it a good choice for temporary infrasound campaigns. By contrast, most campaigns that do not use the Gem use analog infrasound sensors that, via long cables, connect to multichannel data loggers built to record seismometers. This approach yields high-quality data but has several disadvantages: seismic data loggers are expensive, and sensor cables constrain the sensor network's geometry, make a station prone to animal damage and vandalism due to their visibility and exposure, and account for a large share of a recording site's budget for weight, bulk, and setup time. These disadvantages are especially acute for temporary recording campaigns (as opposed to permanent installations), which account for a large share of infrasound research.
 
 Like many geophysical data loggers, the Gem writes data in a non-standard raw format intended to balance firmware simplicity and performance, human readability, and compact file size. Although it is a human-readable text format that an expert can read and understand on a line-by-line basis, data files consist of hundreds of thousands of lines with complicated formatting, meaning that reading it as a spreadsheet or data frame is impractical. Further, operations like clock drift corrections, data decompression, and conversion to standard file formats or classes must be performed to make the data accessible in standard visualization and analysis software. Users often need to convert data from 10 or more infrasound loggers spanning several weeks, meaning that thousands of files including billions of data points must be processed efficiently. The gemlog Python package is a cross-platform tool to facilitate data conversion, and is essential for all Gem infrasound logger users.
 
