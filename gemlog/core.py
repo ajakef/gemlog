@@ -274,12 +274,11 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    #hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format) # commented 2022-03-04; I don't think there's a need to do this here (vs in the loop later) and in edge cases it may cause data loss
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
         ## check to see if we're done
-        if(n1 > np.max(nums)):# & len(p) == 0):
+        if(n1 > np.max(nums)):
             break # out of raw data to convert
         if((t1 > t2) & (not np.isnan(t1 > t2))):
             break # already converted the requested data

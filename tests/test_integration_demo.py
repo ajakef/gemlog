@@ -23,6 +23,7 @@ def teardown_module():
     os.chdir('..')
     shutil.rmtree('tmp')
 
+    
 @pytest.mark.filterwarnings('ignore')
 def test_demo():
     ## following is drawn as directly as possible from demo/README.md
@@ -66,3 +67,4 @@ def test_demo():
     ## plot the results
     #data.plot() # suppress plotting
 
+    
