@@ -195,7 +195,8 @@ def calc_channel_stats(DB, t1, t2):
         else:
             q1 = np.quantile(np.array(DB.amp_HP)[w], 0.25)
             q3 = np.quantile(np.array(DB.amp_HP)[w], 0.75)
-            out.append(pd.DataFrame([[sta, np.sum(np.array(DB.goodData)[w])/numHour, np.sum(np.array(DB.anyData)[w])/numHour, q1, q3]], columns = ['station', 'goodData', 'anyData', 'q1', 'q3']))
+            out = pd.concat([out,
+                             pd.DataFrame([[sta, np.sum(np.array(DB.goodData)[w])/numHour, np.sum(np.array(DB.anyData)[w])/numHour, q1, q3]], columns = ['station', 'goodData', 'anyData', 'q1', 'q3'])])
     out = pd.concat(out)
     return(out)
 
