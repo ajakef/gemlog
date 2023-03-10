@@ -1,18 +1,61 @@
 from obspy.signal.cross_correlation import correlate, xcorr_max
+import obspy
 import numpy as np
 import pandas as pd
 import glob, os
 from gemlog.gem_network import _unique
 
-xcorr_all(pattern = '*00..1*[0-3]', t1 = '2020-04-20', t2 = '2020-04-22')
+#data = xcorr_all(pattern = '*00..1*[0-3]', t1 = '2020-04-20', t2 = '2020-04-22')
 
-st = obspy.read('2020-04-20*00..10[0-3]*')
-output = xcorr_one_day(st)
+#st = obspy.read('2020-04-20*00..10[0-3]*')
+#output = xcorr_one_day(st)
+
 
 def xcorr_all(path = '.', pattern = '*', t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
     return loop_through_days(xcorr_one_day, path, pattern, t1, t2, IDs)
-    
 
+def invert_for_slowness(xcorr_df, locations):
+    """
+    locations: pd.DataFrame with columns x, y, and network/station/location (output of get_coordinates)
+    """
+    data_short_IDs = []
+    for key in xcorr_df.keys():
+        if re.search('rms', key):
+            data_short_IDs.append(key.split('_')[1])
+            
+    locations['ID'] = [f'{locations.network[i]}.{locations.station[i]}.{locations.location[i]}' for i in range(locations.shape[0])]
+    keep_indices = np.where(np.isin(locations.ID, data_short_IDs))[0]
+    locations = locations.iloc[keep_indices, :]
+    locations.sort_values('ID', inplace=True, ignore_index = True)
+
+    ## solve linear system G . s = t: G is x/y distances, s is slowness, and t is observed time lags
+    G = []
+    lag_keys = []
+    for key in xcorr_df.keys():
+        if re.search('lag', key):
+            lag_keys.append(key)
+            (short_ID_1, short_ID_2) = key.split('_')[1:]
+            index1 = np.where(locations.ID == short_ID_1)[0][0]
+            index2 = np.where(locations.ID == short_ID_2)[0][0]
+            G.append([locations.loc[index1, 'x'] - locations.loc[index2, 'x'],
+                      locations.loc[index1, 'y'] - locations.loc[index2, 'y']])
+
+    G = np.array(G)[:-1,:] # drop the last row because it's linearly dependent on the others
+    
+    ## Use the generalized inverse in case there are more than 3 sensors: (GTG)^-1 . GT . t = s
+    ## @ is matrix multiplication symbol
+    G_inv_gen = np.linalg.inv(G.T @ G) @ G.T
+
+    ## loop through all the time windows and make a slowness vector for each
+    n_windows = xcorr_df.shape[0]
+    azimuth = np.zeros(n_windows)
+    slowness = np.zeros(n_windows)
+    for i in range(n_windows):
+        lags = np.array([xcorr_df[lag_key][i] for lag_key in lag_keys])
+        slowness_vector = G_inv_gen @ lags
+        azimuth[i] = np.atan2(slowness_vector[0], slowness_vector[1])
+        slowness[i] = np.sqrt(np.sum(slowness_vector**2))
+    
 
 def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
     try:
@@ -27,20 +70,25 @@ def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2
     ## make a database of files
     file_metadata = {'filename':[], 't1':[], 't2':[], 'ID':[]}
     filenames = glob.glob(os.path.join(path, pattern))
+    if len(filenames) == 0:
+        raise Exception('No files found; check data files')
     for filename in filenames:
-        st = obspy.read(filename, headonly=True)
+        try:
+            st = obspy.read(filename, headonly=True)
+        except:
+            print(f'skipping unreadable file {filename}')
+            continue
         for tr in st:
             file_metadata['filename'].append(filename)
             file_metadata['t1'].append(tr.stats.starttime)
             file_metadata['t2'].append(tr.stats.endtime)
             file_metadata['ID'].append(tr.id)
-
+    
     file_metadata_df = pd.DataFrame.from_dict(file_metadata)
 
     t1 = np.max([t1, file_metadata_df.t1.min()])
     t2 = np.min([t2, file_metadata_df.t2.max()])
-    if IDs is None:
-        IDs = _unique(file_metadata_df.ID)
+    IDs = _check_input_IDs(IDs, file_metadata_df)
 
     rows_to_keep = np.where((file_metadata_df.t2 >= t1) & \
                     (file_metadata_df.t1 <= t2) & \
@@ -48,6 +96,9 @@ def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2
     file_metadata_df = file_metadata_df.iloc[rows_to_keep,:]
     file_metadata_df.sort_values('t1', ignore_index=True, inplace=True)
 
+    if file_metadata_df.shape[0] == 0:
+        raise Exception('No data files fit path/pattern/t1/t2/IDs criteria; check those inputs')
+    
     ## loop through days. be careful to avoid funny business with leap seconds.
     day_starts = [t1]
     while True:
@@ -95,8 +146,12 @@ def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2
     return pd.concat(output_list, ignore_index = True)
         
         
-def xcorr_one_day(st, fl = 1, fh = 40, win_length_sec = 10, overlap = 0):
+def xcorr_one_day(st, fl = 5, fh = 40, win_length_sec = 5, overlap = 0):
     st.detrend('linear')
+
+    ## de-step the beginning of the trace to prevent filter artifacts
+    for tr in st:
+        tr.data -= tr.data[0]
     st.filter('bandpass', freqmin = fl, freqmax = fh)
     output = apply_function_windows(st, xcorr_function, win_length_sec, overlap)
 
@@ -104,8 +159,9 @@ def xcorr_one_day(st, fl = 1, fh = 40, win_length_sec = 10, overlap = 0):
     #output['t_mid'] = [t.isoformat() for t in output['t_mid']]
     return pd.DataFrame.from_dict(output)
 
-def xcorr_function(st, maxshift_seconds = 1):
-    print(st)
+def xcorr_function(st, maxshift_seconds = 1, verbose = True):
+    if verbose:
+        print(st)
     dt = st[0].stats.delta
     st.detrend('linear')
     st.taper(0.05, 'hann') # Hann window, default taper for SAC
@@ -116,8 +172,10 @@ def xcorr_function(st, maxshift_seconds = 1):
         j = (i+1) % len(st)
         tr1 = st[i]
         tr2 = st[j]
-        output_dict[f'rms_{tr1.stats.station}_{tr1.stats.location}'] = tr1.std()
-        pair_name = f'{tr1.stats.station + tr1.stats.location}_{tr2.stats.station + tr2.stats.location}'
+        ID1 = f'{tr1.stats.network}.{tr1.stats.station}.{tr1.stats.location}'
+        ID2 = f'{tr2.stats.network}.{tr2.stats.station}.{tr2.stats.location}'
+        output_dict[f'rms_{ID1}'] = tr1.std()
+        pair_name = f'{ID1}_{ID2}'
         shift, value = xcorr_max(correlate(tr1.data, tr2.data, int(np.round(maxshift_seconds / dt))), abs_max = False)
         output_dict[f'lag_{pair_name}'] = shift * dt
         output_dict[f'r_{pair_name}'] = value
@@ -190,3 +248,92 @@ def apply_function_windows(st, f, win_length_sec, overlap = 0.5):
         output_dict['t_mid'].append(win_start + win_length_sec/2)
     output_dict = {key:np.array(output_dict[key]) for key in output_dict.keys()}
     return output_dict
+
+
+def _check_input_IDs(IDs, file_metadata_df):
+    """
+    Validate station IDs provided by user
+    """
+    found_IDs = _unique(file_metadata_df.ID)
+    ## if no IDs are provided by the user, assume that all IDs in the data are allowed
+    if (IDs is None) or (len(IDs) == 0):
+        output_IDs = found_IDs
+    else:
+        ## if the user does provide IDs, we need to validate all of them
+        output_IDs = []
+        for ID in IDs:
+            ID = str(ID)
+            ## first, check to see if the ID is formatted exactly per naming convention
+            ## if yes, pass it unmodified.
+            ## https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/
+            if re.match('\w{0,2}\.\w{1,5}\.\w{0,2}\.\w{3}', ID):
+                output_IDs.append(ID)
+
+            ## Next, search for IDs in the data that match the provided ID.
+            ## There's no reason the user can't provide a regex here.
+            else:
+                for found_ID in found_IDs:
+                    if re.search(ID, found_ID):
+                        output_IDs.append(found_ID)
+        output_IDs = _unique(output_IDs)
+    print(output_IDs)
+    return(output_IDs)
+
+def get_coordinates(x, y = None):
+    """
+    Finds sensor coordinates from various inputs
+    
+    Parameters:
+    -----------
+    x: either an array of x coordinates, obspy.Stream with trace.stats['coords'], or obspy.Inventory
+    y: either an array of y coordinates (if x is an array of x coordinates), or None
+
+    Returns:
+    --------
+    pandas.DataFrame with x, y, z, network, station, location fields. x and y are in km, z is in m.
+    """
+    import obspy.signal.array_analysis
+    if type(x) is obspy.Stream:
+        try:
+            ## Stream coordinates can either be lon/lat/z or x/y/z. x and y are km, z is m.
+            ## This line will work if x has lon/lat/z coordinates, and will raise an exception
+            ## if x has x/y/z coordinates.
+            geometry = obspy.signal.array_analysis.get_geometry(x, coordsys = 'lonlat',
+                                                              return_center = True)
+            coords = {'x':geometry[:-1,0],
+                      'y':geometry[:-1,1],
+                      'z':geometry[:-1,2] + geometry[-1,2]} # last row in 'geometry' is coordinates of reference point
+            # https://docs.obspy.org/packages/autogen/obspy.signal.array_analysis.get_geometry.html
+        except:
+            ## If we're here, then x is a stream with x/y/z coordinates. Extract them directly.
+            ## We don't want to use get_geometry because it will pick a new center and shift the
+            ## coordinates accordingly.
+            coords = {'x': np.array([tr.stats.coordinates['x'] for tr in x]),
+                      'y': np.array([tr.stats.coordinates['y'] for tr in x]),
+                      'z': np.array([tr.stats.coordinates['elevation'] for tr in x])}
+
+        coords['network'] = [tr.stats.network for tr in x]
+        coords['station'] = [tr.stats.station for tr in x]
+        coords['location'] = [tr.stats.location for tr in x]
+    elif type(x) is obspy.Inventory:
+        contents = x.get_contents()['channels']
+        lats = [x.get_coordinates(s)['latitude'] for s in contents]
+        lons = [x.get_coordinates(s)['longitude'] for s in contents]
+        zz = [x.get_coordinates(s)['elevation'] for s in contents]
+        xx = np.zeros(len(lats))
+        yy = np.zeros(len(lats))
+        for i, (lat, lon) in enumerate(zip(lats, lons)):
+            xx[i], yy[i] = obspy.signal.util.util_geo_km(np.mean(lons), np.mean(lats), lon, lat)
+        coords = {'x': xx, 'y': yy, 'z': zz,
+                  'network': [string.split('.')[0] for string in contents],
+                  'station': [string.split('.')[1] for string in contents],
+                  'location': [string.split('.')[2] for string in contents]}
+    else:
+        coords = {'x':x,
+                  'y':y,
+                  'z':None,
+                  'network':None,
+                  'station':None,
+                  'location':None}
+    return pd.DataFrame(coords)
+
