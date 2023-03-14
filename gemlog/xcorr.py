@@ -2,18 +2,36 @@ from obspy.signal.cross_correlation import correlate, xcorr_max
 import obspy
 import numpy as np
 import pandas as pd
-import glob, os
+import glob, os, traceback, sys, getopt, argparse
 from gemlog.gem_network import _unique
 
-#data = xcorr_all(pattern = '*00..1*[0-3]', t1 = '2020-04-20', t2 = '2020-04-22')
+def main():
+    parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('files', nargs='+', help='List of data files to process (wildcards are allowed)')
+    
+    parser.add_argument('-o', '--output_file', nargs = 1, default=None, help='Output file to write')
+    parser.add_argument('-i', '--include_IDs', default='', help='Station IDs to include in processing (default all)')
+    parser.add_argument('-x', '--exclude_IDs', default='', help='Station IDs to exclude from processing (default none)')
+    parser.add_argument('-1', '--t1', default='1970-01-01', help='Time to start processing data; default beginning of data')
+    parser.add_argument('-2', '--t2', default='9999-12-31', help='Time to stop processing data; default end of data')
+    parser.add_argument('-L', '--freq_low', default=5, help='Low corner frequency (default 5)')
+    parser.add_argument('-H', '--freq_high', default=40, help='High corner frequency (default 40)')
+    args = parser.parse_args()
+    
+    print(args.files)
+    if args.output_file is None:
+        raise(Exception('output_file is a required input'))
+    xcorr_df = xcorr_all(args.files, t1 = args.t1, t2 = args.t2)
+    xcorr_df.to_csv(args.output_file, sep = ',', index = False)
 
-#st = obspy.read('2020-04-20*00..10[0-3]*')
-#output = xcorr_one_day(st)
+    
 
 
-def xcorr_all(path = '.', pattern = '*', t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
-    return loop_through_days(xcorr_one_day, path, pattern, t1, t2, IDs)
-
+    
+def xcorr_all(files, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
+    return loop_through_days(xcorr_one_day, files, t1, t2, IDs)
+#########################################################
+#########################################################
 def invert_for_slowness(xcorr_df, locations):
     """
     locations: pd.DataFrame with columns x, y, and network/station/location (output of get_coordinates)
@@ -42,22 +60,27 @@ def invert_for_slowness(xcorr_df, locations):
 
     G = np.array(G)[:-1,:] # drop the last row because it's linearly dependent on the others
     
-    ## Use the generalized inverse in case there are more than 3 sensors: (GTG)^-1 . GT . t = s
+    ## Use the generalized inverse in case there are more than 3 sensors: (GTG)^-1 . GT . t = H . t = s
     ## @ is matrix multiplication symbol
-    G_inv_gen = np.linalg.inv(G.T @ G) @ G.T
+    H = np.linalg.inv(G.T @ G) @ G.T
 
     ## loop through all the time windows and make a slowness vector for each
     n_windows = xcorr_df.shape[0]
-    azimuth = np.zeros(n_windows)
+    backazimuth = np.zeros(n_windows)
     slowness = np.zeros(n_windows)
     for i in range(n_windows):
-        lags = np.array([xcorr_df[lag_key][i] for lag_key in lag_keys])
-        slowness_vector = G_inv_gen @ lags
-        azimuth[i] = np.atan2(slowness_vector[0], slowness_vector[1])
+        lags = np.array([xcorr_df[lag_key][i] for lag_key in lag_keys[:-1]])
+        slowness_vector = H @ lags
+        backazimuth[i] = np.arctan2(-slowness_vector[0], -slowness_vector[1]) * 180/np.pi
         slowness[i] = np.sqrt(np.sum(slowness_vector**2))
+    xcorr_df['backazimuth'] = backazimuth
+    xcorr_df['slowness'] = slowness
+    return xcorr_df
+#########################################################
+#########################################################
     
 
-def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
+def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
     try:
         t1 = obspy.UTCDateTime(t1)
     except:
@@ -69,7 +92,7 @@ def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2
     
     ## make a database of files
     file_metadata = {'filename':[], 't1':[], 't2':[], 'ID':[]}
-    filenames = glob.glob(os.path.join(path, pattern))
+    #filenames = glob.glob(os.path.join(path, pattern))
     if len(filenames) == 0:
         raise Exception('No files found; check data files')
     for filename in filenames:
@@ -109,7 +132,7 @@ def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2
             break
     day_starts = np.array(day_starts)
 
-    day_ends = [day_starts[1]]
+    day_ends = [day_starts[0]+86400]
     while True:
         new_time = (day_ends[-1]+86400+2).replace(hour=0, minute=0, second=0) # add 24 hours + 2 sec, then round down
         if new_time < t2:
@@ -140,9 +163,13 @@ def loop_through_days(function, path = '.', pattern = '*', t1 = '1970-01-01', t2
 
         ## finally, apply whatever function you have to the data
         ## the function will return a pd.DataFrame. append to a list, then merge at the end
-        day_output = function(st.slice(day_start, day_end))
-        output_list.append(day_output)
-    ## done looping. merge the output and return.
+        try:
+            day_output = function(st.slice(day_start, day_end))
+            output_list.append(day_output)
+        except:
+            print(f'Error on day {t1.isoformat()}, skipping')
+            print(traceback.format_exc())
+        ## done looping. merge the output and return.
     return pd.concat(output_list, ignore_index = True)
         
         
@@ -336,4 +363,8 @@ def get_coordinates(x, y = None):
                   'station':None,
                   'location':None}
     return pd.DataFrame(coords)
+
+
+if __name__ == '__main__':
+    main()
 

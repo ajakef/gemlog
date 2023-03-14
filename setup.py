@@ -99,7 +99,8 @@ ENTRY_POINTS = {
         'gemconvert_single = gemlog.gemconvert_single:main',
         'gem_cat = gemlog.gem_cat:main',
         'change_mseed_times = gemlog.change_mseed_times:main',
-        'verify_huddle_test = gemlog.huddle_test:main'
+        'verify_huddle_test = gemlog.huddle_test:main',
+        'waveform_xc = gemlog.xcorr:main'
     ]
 }
 
