@@ -2,34 +2,108 @@ from obspy.signal.cross_correlation import correlate, xcorr_max
 import obspy
 import numpy as np
 import pandas as pd
-import glob, os, traceback, sys, getopt, argparse
+import glob, os, traceback, sys, getopt, argparse, re
 from gemlog.gem_network import _unique
+import scipy.interpolate
 
-def main():
-    parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def xcorr_all_terminal():
+    parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter)
     parser.add_argument('files', nargs='+', help='List of data files to process (wildcards are allowed)')
     
     parser.add_argument('-o', '--output_file', nargs = 1, default=None, help='Output file to write')
-    parser.add_argument('-i', '--include_IDs', default='', help='Station IDs to include in processing (default all)')
-    parser.add_argument('-x', '--exclude_IDs', default='', help='Station IDs to exclude from processing (default none)')
-    parser.add_argument('-1', '--t1', default='1970-01-01', help='Time to start processing data; default beginning of data')
-    parser.add_argument('-2', '--t2', default='9999-12-31', help='Time to stop processing data; default end of data')
-    parser.add_argument('-L', '--freq_low', default=5, help='Low corner frequency (default 5)')
-    parser.add_argument('-H', '--freq_high', default=40, help='High corner frequency (default 40)')
+    parser.add_argument('-i', '--include_IDs', help='Station IDs to include in processing (default: all)')
+    parser.add_argument('-x', '--exclude_IDs', help='Station IDs to exclude from processing (default: none)')
+    parser.add_argument('-1', '--t1', default='1970-01-01', help='Time to start processing data (default: beginning of data)')
+    parser.add_argument('-2', '--t2', default='9999-12-31', help='Time to stop processing data (default: end of data)')
+    parser.add_argument('-L', '--freq_low', default=5, help='Low corner frequency (default: 5 Hz)', type = float)
+    parser.add_argument('-H', '--freq_high', default=40, help='High corner frequency (default: 40 Hz)', type = float)
+    parser.add_argument('-w', '--window_length_seconds', default=5, help='Length of time windows to cross-correlate (default: 5 seconds)', type = float)
+    parser.add_argument('-p', '--overlap', default=0, help='Window overlap fraction; 0 <= overlap < 1 (default: 0)', type = float)
+    parser.add_argument('-u', '--upsample_ratio', default=1, help='Ratio by which waveform data should be upsampled to improve time resolution (default: 1 for no upsampling)', type = float)
+    parser.add_argument('-q', '--quiet', action = 'store_true')
     args = parser.parse_args()
-    
-    print(args.files)
+
+    if args.include_IDs is not None:
+        include_IDs = args.include_IDs.split(',')
+    else:
+        include_IDs = None
+    if args.exclude_IDs is not None:
+        exclude_IDs = args.exclude_IDs.split(',')
+    else:
+        exclude_IDs = None
+
     if args.output_file is None:
         raise(Exception('output_file is a required input'))
-    xcorr_df = xcorr_all(args.files, t1 = args.t1, t2 = args.t2)
-    xcorr_df.to_csv(args.output_file, sep = ',', index = False)
+
+    try:
+        obspy.UTCDateTime(args.t1)
+    except:
+        raise Exception(f'Start time {args.t1} could not be interpreted as a UTC date-time')
+    try:
+        obspy.UTCDateTime(args.t2)
+    except:
+        raise Exception(f'End time {args.t2} could not be interpreted as a UTC date-time')
+
+
+    ## Print the arguments. For conciseness, skip input files. To avoid confusion, skip any "None".
+    print('')
+    args_dict = vars(args).copy()
+    args_dict.pop('files')
+    args_to_print = {key:value for key, value in args_dict.items() if value is not None}
+    print(args_to_print)
+    print('')
+    
+    xcorr_df = xcorr_all(args.files, t1 = args.t1, t2 = args.t2, IDs = include_IDs,
+                         exclude_IDs = exclude_IDs, fl = args.freq_low, fh = args.freq_high,
+                         win_length_sec = args.window_length_seconds, overlap = args.overlap,
+                         upsample_ratio = args.upsample_ratio, quiet = args.quiet)
+    xcorr_df.to_csv(args.output_file[0], sep = ',', index = False)
 
     
 
+def invert_for_slowness_terminal():
+    parser = argparse.ArgumentParser(description='Invert time lags found by cross-correlation to find backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter)
+    parser.add_argument('-i', '--input_file', nargs = 1, help='File with time lags created by waveform_xc')
+    parser.add_argument('-l', '--location_file', nargs = 1, help='stationXML file containing station locations')
+    parser.add_argument('-o', '--output_file', nargs = 1, help='Output file to write, including azimuth and horizontal slowness results')
+    args = parser.parse_args()
+    
+
+    if args.input_file is None:
+        raise(Exception('input_file is a required input'))
+    if args.location_file is None:
+        raise(Exception('location_file is a required input'))
+    if args.output_file is None:
+        raise(Exception('output_file is a required input'))
+    
+    ## check that the input files exist and are readable
+    try:
+        xcorr_df = pd.read_csv(args.input_file[0])
+    except:
+        raise Exception(f'Failed to open input_file {args.input_file[0]}')
+    try:
+        locations = get_coordinates(obspy.read_inventory(args.location_file[0]))
+    except:
+        raise Exception(f'Failed to open location_file {args.location_file[0]}')
+
+    ## check that the output file is writeable (do this before the inversion in case of long runtime)
+    try:
+        with open(args.output_file[0], 'w') as f:
+            pass
+    except:
+        raise Exception(f'Cannot write to output_file {args.output_file[0]}')
+
+    results = invert_for_slowness(xcorr_df, locations)
+    results.to_csv(args.output_file[0], sep = ',', index = False)
 
     
-def xcorr_all(files, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
-    return loop_through_days(xcorr_one_day, files, t1, t2, IDs)
+def xcorr_all(files, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_IDs = None, fl = 5, fh = 20, win_length_sec = 5, overlap = 0, upsample_ratio = 1, quiet = False):
+    _validate_inputs(fl, fh, win_length_sec, overlap, upsample_ratio)
+    args = {'fl':fl, 'fh':fh, 'window_length_sec':win_length_sec, 'overlap':overlap, 'upsample_ratio':upsample_ratio, 'quiet':quiet}
+    ## separate validations are needed here (to prevent awkward-to-resolve errors in loop_through_days)
+
+    return loop_through_days(xcorr_one_day, files, t1, t2, IDs, args = args)
+                             
 #########################################################
 #########################################################
 def invert_for_slowness(xcorr_df, locations):
@@ -44,7 +118,7 @@ def invert_for_slowness(xcorr_df, locations):
     locations['ID'] = [f'{locations.network[i]}.{locations.station[i]}.{locations.location[i]}' for i in range(locations.shape[0])]
     keep_indices = np.where(np.isin(locations.ID, data_short_IDs))[0]
     locations = locations.iloc[keep_indices, :]
-    locations.sort_values('ID', inplace=True, ignore_index = True)
+    locations = locations.sort_values('ID', ignore_index = True)
 
     ## solve linear system G . s = t: G is x/y distances, s is slowness, and t is observed time lags
     G = []
@@ -80,7 +154,7 @@ def invert_for_slowness(xcorr_df, locations):
 #########################################################
     
 
-def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None):
+def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_IDs = None, args = {}):
     try:
         t1 = obspy.UTCDateTime(t1)
     except:
@@ -92,7 +166,6 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
     
     ## make a database of files
     file_metadata = {'filename':[], 't1':[], 't2':[], 'ID':[]}
-    #filenames = glob.glob(os.path.join(path, pattern))
     if len(filenames) == 0:
         raise Exception('No files found; check data files')
     for filename in filenames:
@@ -111,7 +184,7 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
 
     t1 = np.max([t1, file_metadata_df.t1.min()])
     t2 = np.min([t2, file_metadata_df.t2.max()])
-    IDs = _check_input_IDs(IDs, file_metadata_df)
+    IDs = _check_input_IDs(file_metadata_df, IDs, exclude_IDs)
 
     rows_to_keep = np.where((file_metadata_df.t2 >= t1) & \
                     (file_metadata_df.t1 <= t2) & \
@@ -120,7 +193,7 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
     file_metadata_df.sort_values('t1', ignore_index=True, inplace=True)
 
     if file_metadata_df.shape[0] == 0:
-        raise Exception('No data files fit path/pattern/t1/t2/IDs criteria; check those inputs')
+        raise Exception('No data files fit t1/t2/IDs criteria; check those inputs')
     
     ## loop through days. be careful to avoid funny business with leap seconds.
     day_starts = [t1]
@@ -161,33 +234,82 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
             if tr.id not in IDs:
                 st.pop(tr)
 
-        ## finally, apply whatever function you have to the data
+        ## finally, apply whatever function you have to the data.
+        ## 'function' must accept two inputs: an obspy.Stream with data,
+        ## and a dictionary with function-specific arguments.
         ## the function will return a pd.DataFrame. append to a list, then merge at the end
         try:
-            day_output = function(st.slice(day_start, day_end))
+            day_output = function(st.slice(day_start, day_end), args)
             output_list.append(day_output)
         except:
             print(f'Error on day {t1.isoformat()}, skipping')
             print(traceback.format_exc())
-        ## done looping. merge the output and return.
-    return pd.concat(output_list, ignore_index = True)
+    ## done looping. merge the output and return.
+    if len(output_list) == 0:
+        return None
+    else:
+        return pd.concat(output_list, ignore_index = True)
         
+def _validate_inputs(fl, fh, win_length_sec, overlap, upsample_ratio):
+    try:
+        if (fl < 0) or (fh < 0) or (fl >= fh):
+            raise Exception(f'fl ({fl}) and fh ({fh}) must both be non-negative numbers or NaN, and fh > fl')
+    except:
+        raise Exception(f'fl ({fl}) and fh ({fh}) must both be non-negative numbers or NaN, and fh > fl')
+
+    try:
+        if win_length_sec <= 0:
+            raise Exception(f'win_length_sec ({win_length_sec}) must be a positive number')
+    except:
+        raise Exception(f'win_length_sec ({win_length_sec}) must be a positive number')
+
+    try:
+        if not ((overlap >= 0) and (overlap < 1)):
+            raise Exception('overlap must be a non-negative number strictly less than 1')
+    except:
+        raise Exception('overlap must be a non-negative number strictly less than 1')
+
+    try:
+        if not (upsample_ratio >= 1):
+            raise Exception('upsample_ratio must be at least 1')
+    except:
+        raise Exception('upsample_ratio must be at least 1')
+
+    return
+    
+def xcorr_one_day(st, args = {}):
+    ## check inputs and implement defaults
+    fl = args.get('fl') if args.get('fl') is not None else 5
+    fh = args.get('fh') if args.get('fh') is not None else 40
+    win_length_sec = args.get('win_length_sec') if args.get('win_length_sec') is not None else 5
+    overlap = args.get('overlap') if args.get('overlap') is not None else 0
+    upsample_ratio = args.get('upsample_ratio') if args.get('overlap') is not None else 1
+    _validate_inputs(fl, fh, win_length_sec, overlap, upsample_ratio)
+
+    if upsample_ratio != 1:
+        st = upsample_stream(st, args['upsample_ratio'])
         
-def xcorr_one_day(st, fl = 5, fh = 40, win_length_sec = 5, overlap = 0):
     st.detrend('linear')
 
     ## de-step the beginning of the trace to prevent filter artifacts
     for tr in st:
         tr.data -= tr.data[0]
     st.filter('bandpass', freqmin = fl, freqmax = fh)
-    output = apply_function_windows(st, xcorr_function, win_length_sec, overlap)
+    output = apply_function_windows(st, xcorr_function, win_length_sec, overlap, args)
 
     ## reformat UTCDateTimes as string
     #output['t_mid'] = [t.isoformat() for t in output['t_mid']]
     return pd.DataFrame.from_dict(output)
 
-def xcorr_function(st, maxshift_seconds = 1, verbose = True):
-    if verbose:
+def xcorr_function(st, args):
+    maxshift_seconds = args.get('maxshift_seconds')
+    if maxshift_seconds is None:
+        maxshift_seconds = 1
+
+    quiet = args.get('quiet')
+    if quiet is None:
+        quiet = False
+    if not quiet:
         print(st)
     dt = st[0].stats.delta
     st.detrend('linear')
@@ -214,7 +336,7 @@ def xcorr_function(st, maxshift_seconds = 1, verbose = True):
 
 
 
-def apply_function_windows(st, f, win_length_sec, overlap = 0.5):
+def apply_function_windows(st, f, win_length_sec, overlap = 0.5, args = {}):
     """
     Run an analysis (or suite of analyses) on overlapping windows for some dataset
     
@@ -224,7 +346,7 @@ def apply_function_windows(st, f, win_length_sec, overlap = 0.5):
     Stream including data to divide into windows and analyze
 
     f : function
-    Accepts single variable "st" (obspy.Stream), returns dictionary of results
+    Accepts variable "st" (obspy.Stream) and "args" (dict), returns dictionary of results
 
     win_length_sec : float
     Length of analysis windows [seconds]
@@ -250,11 +372,10 @@ def apply_function_windows(st, f, win_length_sec, overlap = 0.5):
     data_length_sec = t2 - t1
     num_windows = 1 + int(np.ceil((data_length_sec - win_length_sec) / (win_length_sec * (1 - overlap)) - eps))
     output_dict = {'t_mid':[]}
-    print(num_windows)
     for i in range(num_windows):
         win_start = t1 + i*(data_length_sec - win_length_sec) / (num_windows-1)
         st_tmp = st.slice(win_start-eps, win_start + win_length_sec - eps, nearest_sample = False)
-        win_dict = f(st_tmp)
+        win_dict = f(st_tmp, args)
         #if i == 0:
         #    output_dict = {key:[] for key in win_dict.keys()}
         #    output_dict['t_mid'] = []
@@ -277,7 +398,7 @@ def apply_function_windows(st, f, win_length_sec, overlap = 0.5):
     return output_dict
 
 
-def _check_input_IDs(IDs, file_metadata_df):
+def _check_input_IDs(file_metadata_df, IDs, exclude_IDs):
     """
     Validate station IDs provided by user
     """
@@ -303,7 +424,12 @@ def _check_input_IDs(IDs, file_metadata_df):
                     if re.search(ID, found_ID):
                         output_IDs.append(found_ID)
         output_IDs = _unique(output_IDs)
-    print(output_IDs)
+    if exclude_IDs is not None:
+        for ID in output_IDs:
+            for exclude_ID in exclude_ID:
+                if re.search(exclude_ID, ID):
+                    output_ID.pop(ID) 
+
     return(output_IDs)
 
 def get_coordinates(x, y = None):
@@ -364,6 +490,15 @@ def get_coordinates(x, y = None):
                   'location':None}
     return pd.DataFrame(coords)
 
+
+def upsample_stream(st, N):
+    for tr in st:
+        t_in = np.arange(tr.stats.npts)
+        t_out = np.arange(N * (tr.stats.npts - 1)) / N
+        spline = scipy.interpolate.CubicSpline(t_in, tr.data)
+        tr.data = spline(t_out)
+        tr.stats.delta /= N
+    return st
 
 if __name__ == '__main__':
     main()
