@@ -101,10 +101,14 @@ def calculate_direction_terminal(input = sys.argv[1:]):
     
 def xcorr_all(files, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_IDs = None, fl = 5, fh = 20, win_length_sec = 5, overlap = 0, upsample_ratio = 1, quiet = False):
     _validate_inputs(fl, fh, win_length_sec, overlap, upsample_ratio)
+
+    # arguments to be provided to xcorr_one_day.
+    # 'quiet' is provided to loop_through_days directly, as well as to xcorr_one_day via args.
     args = {'fl':fl, 'fh':fh, 'window_length_sec':win_length_sec, 'overlap':overlap, 'upsample_ratio':upsample_ratio, 'quiet':quiet}
+    
     ## separate validations are needed here (to prevent awkward-to-resolve errors in loop_through_days)
 
-    return loop_through_days(xcorr_one_day, files, t1, t2, IDs, args = args)
+    return loop_through_days(xcorr_one_day, files, t1, t2, IDs, quiet = quiet, args = args)
                              
 #########################################################
 #########################################################
@@ -158,7 +162,7 @@ def invert_for_slowness(xcorr_df, locations):
 #########################################################
     
 
-def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_IDs = None, args = {}):
+def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_IDs = None, quiet = False, args = {}):
     try:
         t1 = obspy.UTCDateTime(t1)
     except:
@@ -223,6 +227,8 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
     output_list = []
     st = obspy.Stream()
     for (day_start, day_end) in zip(day_starts, day_ends):
+        if not quiet:
+            print(f'Processing from {day_start} to {day_end}')
         indices = np.where((file_metadata_df.t1 <= day_end) &
                            (file_metadata_df.t2 >= day_start))[0]
         ## for efficiency, avoid reading files twice if they cover multiple days or IDs
@@ -313,8 +319,8 @@ def xcorr_function(st, args):
     quiet = args.get('quiet')
     if quiet is None:
         quiet = False
-    if not quiet:
-        print(st)
+    #if not quiet:
+    #    print(st)
     dt = st[0].stats.delta
     st.detrend('linear')
     st.taper(0.05, 'hann') # Hann window, default taper for SAC
@@ -430,9 +436,9 @@ def _check_input_IDs(file_metadata_df, IDs, exclude_IDs):
         output_IDs = _unique(output_IDs)
     if exclude_IDs is not None:
         for ID in output_IDs:
-            for exclude_ID in exclude_ID:
+            for exclude_ID in exclude_IDs:
                 if re.search(exclude_ID, ID):
-                    output_ID.pop(ID) 
+                    output_IDs.pop(ID) 
 
     return(output_IDs)
 
