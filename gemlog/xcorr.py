@@ -125,14 +125,16 @@ def invert_for_slowness(xcorr_df, locations):
     ## solve linear system G . s = t: G is x/y distances, s is slowness, and t is observed time lags
     G = []
     lag_keys = []
-    for key in xcorr_df.keys():
-        if re.search('lag', key):
-            lag_keys.append(key)
-            (short_ID_1, short_ID_2) = key.split('_')[1:]
-            index1 = np.where(locations.ID == short_ID_1)[0][0]
-            index2 = np.where(locations.ID == short_ID_2)[0][0]
-            G.append([locations.loc[index1, 'x'] - locations.loc[index2, 'x'],
-                      locations.loc[index1, 'y'] - locations.loc[index2, 'y']])
+    #for key in xcorr_df.keys():
+    #    if re.search('lag', key):
+    for i, short_ID_1 in enumerate(data_short_IDs):
+        short_ID_2 = data_short_IDs[(i+1) % len(data_short_IDs)]
+        lag_keys.append(f'lag_{short_ID_1}_{short_ID_2}')
+        #(short_ID_1, short_ID_2) = key.split('_')[1:]
+        index1 = np.where(locations.ID == short_ID_1)[0][0]
+        index2 = np.where(locations.ID == short_ID_2)[0][0]
+        G.append([locations.loc[index1, 'x'] - locations.loc[index2, 'x'],
+                  locations.loc[index1, 'y'] - locations.loc[index2, 'y']])
 
     G = np.array(G)[:-1,:] # drop the last row because it's linearly dependent on the others
     
@@ -416,7 +418,7 @@ def _check_input_IDs(file_metadata_df, IDs, exclude_IDs):
             ## first, check to see if the ID is formatted exactly per naming convention
             ## if yes, pass it unmodified.
             ## https://ds.iris.edu/ds/nodes/dmc/data/formats/seed/
-            if re.match('\w{0,2}\.\w{1,5}\.\w{0,2}\.\w{3}', ID):
+            if re.match(r'\w{0,2}\.\w{1,5}\.\w{0,2}\.\w{3}', ID):
                 output_IDs.append(ID)
 
             ## Next, search for IDs in the data that match the provided ID.
@@ -501,7 +503,4 @@ def upsample_stream(st, N):
         tr.data = spline(t_out)
         tr.stats.delta /= N
     return st
-
-if __name__ == '__main__':
-    main()
 
