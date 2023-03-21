@@ -350,14 +350,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         ##format data for plotting
         #decimate to speed up plotting time
-        batt_ind = np.arange(len(metadata.batt)/dec_factor)*dec_factor
-        batt_dec = metadata.batt[batt_ind]
         time_unix = round(metadata.t,0)
-        time_unix_ind = np.arange(len(time_unix)/dec_factor)*dec_factor
-        time_unix_dec = time_unix[time_unix_ind]
+        time_unix_non_nans = np.where(~np.isnan(time_unix))[0]
+        metadata_ind = time_unix_non_nans[::dec_factor]
+        time_unix_dec = time_unix[metadata_ind]
+        batt_dec = metadata.batt[metadata_ind]
         time_datestamp_dec = [datetime.datetime.utcfromtimestamp(int(t)) for t in time_unix_dec]
-        temp_ind = np.arange(len(metadata.temp)/dec_factor)*dec_factor
-        temp_dec = metadata.temp[temp_ind]
+        temp_dec = metadata.temp[metadata_ind]
         
         #Plot battery voltage
         batt_temp_ax[0].plot(time_datestamp_dec, batt_dec, label= int(SN))
@@ -428,10 +427,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             
         ##%%%%%## 
         ##format data to plot A2 and A3 metadata
-        A2_ind = np.arange(len(metadata.A2)/dec_factor)*dec_factor
-        A2_dec = metadata.A2[A2_ind]
-        A3_ind = np.arange(len(metadata.A3)/dec_factor)*dec_factor
-        A3_dec = metadata.A3[A3_ind]
+        A2_dec = metadata.A2[metadata_ind]
+        A3_dec = metadata.A3[metadata_ind]
         
         #Plot A2 data
         A2_A3_ax[0].plot(time_datestamp_dec, A2_dec)  
