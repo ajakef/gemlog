@@ -23,11 +23,11 @@ def xcorr_all_terminal(input = sys.argv[1:]):
     parser.add_argument('-q', '--quiet', action = 'store_true')
     args = parser.parse_args(input)
 
-    if args.include_IDs is not None:
+    if args.include_IDs is not None and type(args.include_IDs) is str:
         include_IDs = args.include_IDs.split(',')
     else:
         include_IDs = None
-    if args.exclude_IDs is not None:
+    if (args.exclude_IDs is not None) and type(args.exclude_IDs) is str:
         exclude_IDs = args.exclude_IDs.split(',')
     else:
         exclude_IDs = None
@@ -108,7 +108,7 @@ def xcorr_all(files, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_I
     
     ## separate validations are needed here (to prevent awkward-to-resolve errors in loop_through_days)
 
-    return loop_through_days(xcorr_one_day, files, t1, t2, IDs, quiet = quiet, args = args)
+    return loop_through_days(xcorr_one_day, files, t1, t2, IDs, exclude_IDs = exclude_IDs, quiet = quiet, args = args)
                              
 #########################################################
 #########################################################
@@ -192,7 +192,9 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
 
     t1 = np.max([t1, file_metadata_df.t1.min()])
     t2 = np.min([t2, file_metadata_df.t2.max()])
-    IDs = _check_input_IDs(file_metadata_df, IDs, exclude_IDs)
+    IDs = sorted(_check_input_IDs(file_metadata_df, IDs, exclude_IDs))
+
+    print('Processing data from channels ' + ', '.join(IDs))
 
     rows_to_keep = np.where((file_metadata_df.t2 >= t1) & \
                     (file_metadata_df.t1 <= t2) & \
@@ -240,9 +242,9 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
         st.merge()
         ## throw out data before the start of this day, and any unused traces
         st.trim(day_start, t2)
-        for tr in st:
+        for i, tr in enumerate(st):
             if tr.id not in IDs:
-                st.pop(tr)
+                st.pop(i) 
 
         ## finally, apply whatever function you have to the data.
         ## 'function' must accept two inputs: an obspy.Stream with data,
@@ -435,11 +437,15 @@ def _check_input_IDs(file_metadata_df, IDs, exclude_IDs):
                         output_IDs.append(found_ID)
         output_IDs = _unique(output_IDs)
     if exclude_IDs is not None:
-        for ID in output_IDs:
+        remaining_IDs = []
+        for i, ID in enumerate(output_IDs):
+            exclude_this_ID = False
             for exclude_ID in exclude_IDs:
                 if re.search(exclude_ID, ID):
-                    output_IDs.pop(ID) 
-
+                    exclude_this_ID = True
+            if not exclude_this_ID:
+                remaining_IDs.append(ID)
+        output_IDs = remaining_IDs
     return(output_IDs)
 
 def get_coordinates(x, y = None):

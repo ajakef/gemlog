@@ -1,5 +1,4 @@
-__version__ = '1.6.8' # added new waveform cross-correlation terminal command 
-#__version__ = '1.6.7' # bug fix in verify_huddle_test 
+__version__ = '1.6.7' # bug fix in verify_huddle_test 
 #__version__ = '1.6.6' # version described by JOSS paper 
 #__version__ = '1.6.5' # bug fixes and other minor improvements 
 #__version__ = '1.6.4' # upgrades dependencies due to moderate security issue in numpy: https://github.com/advisories/GHSA-fpfv-jqm9-f5jm 

@@ -61,7 +61,7 @@ def teardown_module():
     os.chdir('..')
     shutil.rmtree('tmp')
 
-def test_xcorr():
+def test_xcorr_accuracy():
     mseed_path_pattern = '1970*'
     t1 = '19700101_000000'
     t2 = '19700101_000010'
@@ -83,3 +83,21 @@ def test_calculate_direction():
     assert all(np.abs(directions.backazimuth + 135) < 3) # back-azimuth should be within 3 degrees of correct -135
     assert all(np.abs(directions.slowness/np.sqrt(8) - 1) < 0.05) # slowness should be correct to within 5%
     
+
+def test_xcorr_options():
+    mseed_path_pattern = '../data/test_data/huddle_test/mseed/*'
+    t1 = '2022-02-17_00:00:00'
+    t2 = '2022-02-17_00:01:00'
+    include = '199,200,400' # 400 isn't part of the dataset so it shouldn't end up in the results
+    exclude = '182,400'
+    ## check that '-i' included IDs are being processed correctly
+    gemlog.xcorr.xcorr_all_terminal([mseed_path_pattern, '-i', include, '-1', t1, '-2', t2, '-o', 'tmp.csv'])
+    xcorr_df = pd.read_csv('tmp.csv')
+    assert 'lag_.182._.199.' not in xcorr_df.keys()
+    assert 'lag_.199._.200.' in xcorr_df.keys()
+
+    ## check that '-x' excluded IDs are being processed correctly
+    gemlog.xcorr.xcorr_all_terminal([mseed_path_pattern, '-x', exclude, '-1', t1, '-2', t2, '-o', 'tmp.csv'])
+    xcorr_df = pd.read_csv('tmp.csv')
+    assert 'lag_.182._.199.' not in xcorr_df.keys()
+    assert 'lag_.199._.200.' in xcorr_df.keys()
