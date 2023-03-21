@@ -6,7 +6,7 @@ import glob, os, traceback, sys, getopt, argparse, re
 from gemlog.gem_network import _unique
 import scipy.interpolate
 
-def xcorr_all_terminal():
+def xcorr_all_terminal(input = sys.argv[1:]):
     parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter)
     parser.add_argument('files', nargs='+', help='List of data files to process (wildcards are allowed)')
     
@@ -21,7 +21,7 @@ def xcorr_all_terminal():
     parser.add_argument('-p', '--overlap', default=0, help='Window overlap fraction; 0 <= overlap < 1 (default: 0)', type = float)
     parser.add_argument('-u', '--upsample_ratio', default=1, help='Ratio by which waveform data should be upsampled to improve time resolution (default: 1 for no upsampling)', type = float)
     parser.add_argument('-q', '--quiet', action = 'store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(input)
 
     if args.include_IDs is not None:
         include_IDs = args.include_IDs.split(',')
@@ -61,12 +61,14 @@ def xcorr_all_terminal():
 
     
 
-def invert_for_slowness_terminal():
+def calculate_direction_terminal(input = sys.argv[1:]):
     parser = argparse.ArgumentParser(description='Invert time lags found by cross-correlation to find backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter)
     parser.add_argument('-i', '--input_file', nargs = 1, help='File with time lags created by waveform_xc')
     parser.add_argument('-l', '--location_file', nargs = 1, help='stationXML file containing station locations')
     parser.add_argument('-o', '--output_file', nargs = 1, help='Output file to write, including azimuth and horizontal slowness results')
-    args = parser.parse_args()
+    args = parser.parse_args(input)
+
+    print(args)
     
 
     if args.input_file is None:
