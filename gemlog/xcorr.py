@@ -7,7 +7,19 @@ from gemlog.gem_network import _unique
 import scipy.interpolate
 
 def xcorr_all_terminal(input = sys.argv[1:]):
-    parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter)
+    examples_text = '''
+    Examples: (replace '/' with '\' if using Windows)\n
+    # process all data in mseed_data between 2022-09-01 00:00:00 UTC and 05:00:00 UTC from stations 121, 122, and 123
+    waveform_calc_lags -1 2022-09-01 -2 2022-09-01_05:00:00 -i 121,122,123 -o output_file.csv mseed_data/* 
+
+    # process all data in mseed_data except stations 100 and 110, first filtering between 10-20 Hz instead of default frequencies
+    waveform_calc_lags -x 100,110 -L 10 -H 20 -o 10-20Hz_output_file.csv mseed_data/* 
+
+    # process all data in mseed_data, upsampling by 4x to improve precision, and using a 30-second window length
+    waveform_calc_lags -u 4 -w 30 -o upsampled_30sec_output_file.csv mseed_data/*'''
+    parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.',
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog = examples_text)
     parser.add_argument('files', nargs='+', help='List of data files to process (wildcards are allowed)')
     
     parser.add_argument('-o', '--output_file', nargs = 1, default=None, help='Output file to write')
