@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import glob, obspy, os, warnings, gemlog
+import glob, obspy, os, warnings, gemlog, sys
 #from obspy.clients.nrl import NRL
 #from contextlib import contextmanager,redirect_stderr,redirect_stdout
 #from os import devnull
@@ -503,3 +503,76 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
     return coords
     
 SummarizeAllGPS = summarize_gps # alias, v1.0.0
+
+def summarize_gps_terminal(inputs = sys.argv[1:]):
+    details='''
+    The required input gps_folder is the path to the folder where gemconvert saved the gps data.
+
+    t1 and t2 are useful for when the dataset includes data outside the deployment period (e.g., data
+    from preliminary or subsequent testing that was left on the disk and processed along with the 
+    field data).
+
+    The station_info csv file (optional) defines how the Gem sensors are assigned SEED codes.
+    The csv file must including at least the following columns: SN, station. 
+
+    Network and location columns are optional; if not provided, they are assumed to be blank ('').
+
+    Station code must be 1-5 characters; location and network must be 0-2 characters. 
+    All Gem recordings are assigned channel code HDF (infrasound sampled at 100 sps).
+    Because each Gem is its own data logger, it is recommended to assign each Gem a different station name
+    and to leave location codes blank. Additionally, if you plan on submitting your data to IRIS-DMC or
+    similar, you should plan to use a network code issued by the DMC for your whole dataset.
+
+    Elevation column (meters) is optional. The available GPS info does not contain elevations, but IRIS-DMC
+    requires elevation to be provided; to comply with that requirement, you must determine elevation
+    yourself and enter it as a column. If not provided, elevation will be assumed to be -9999.
+
+    For example, if the station_info file consists of the following:
+    SN,Network,Station,Location,Elevation
+    077,NM,LADR1,,1022
+    088,NM,LADR2,,1016
+
+    Then Gem #077 will be assigned SEED code NM.LADR1..HDF, and Gem #088 is NM.LADR2..HDF. You will
+    get identical results with the following station_info file that omits location (since they are all blank):
+    SN,Network,Station,Elevation
+    077,NM,LADR1,1022
+    088,NM,LADR2,1016
+    
+    Finally, the following file is the minimum information that can be processed. Note that this is not
+    compliant with IRIS-DMC's requirement for a network code and elevation.
+    sn,station
+    077,LADR1
+    088,LADR2
+    '''
+    parser = argparse.ArgumentParser(description='Summarize gps information to make ',
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog = details)
+    parser.add_argument('gps_folder', nargs='+', help='folder(s) containing gps files (wildcards are allowed)')
+    
+    parser.add_argument('-o', '--output_file', default='gem_network',
+                        help='Name (without file type extension) of output files to write')
+
+
+    parser.add_argument('-s', '--station_info_file', default=None, 'csv file containing additional info on station names (see details below)')
+
+    parser.add_argument('-i', '--include_SNs', help='Serial numbers to include in processing (default: all)')
+    parser.add_argument('-x', '--exclude_SNs', help='Serial numbers to exclude from processing (default: none)')
+
+    parser.add_argument('-1', '--t1', default='1970-01-01', help='Time to start processing data (default: beginning of data)')
+    parser.add_argument('-2', '--t2', default='9999-12-31', help='Time to stop processing data (default: end of data)')
+  
+    if args.include_SNs is not None and type(args.include_SNs) is str:
+        include_SNs = args.include_SNs.split(',')
+    else:
+        include_SNs = None
+    if (args.exclude_SNs is not None) and type(args.exclude_SNs) is str:
+        exclude_SNs = args.exclude_SNs.split(',')
+    else:
+        exclude_SNs = None
+
+    coords = summarize_gps(gps_folder, station_info = station_info_file, output_file + '.csv')
+    inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
+    inv.write(output_file + '.xml', format='STATIONXML') 
+    inv.write(output_file + '.kml', format = 'KML') # stations only; locs don't get separate points
+    
+    return
