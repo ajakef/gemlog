@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import glob, obspy, os, warnings, gemlog, sys
+import glob, obspy, os, warnings, gemlog, sys, argparse
 #from obspy.clients.nrl import NRL
 #from contextlib import contextmanager,redirect_stderr,redirect_stdout
 #from os import devnull
@@ -170,8 +170,12 @@ def _get_station_info(station_info):
                 raise Exception('invalid station_info file; must have 4 or 5 columns or valid header')
         ## if any keys are capitalized or abbreviated wrong, correct them
         station_info = _fix_station_info_keys(station_info)
-    elif (type(station_info) is not pd.DataFrame) or any([key not in station_info.keys() for key in required_keys]):
+    elif (type(station_info) is not pd.DataFrame):
         raise Exception('invalid station_info input')
+    else:
+        #station_info = _fix_station_info_keys(station_info)
+        if any([key not in station_info.keys() for key in required_keys]):
+            raise Exception('invalid station_info input')
     # if location and network fields are blank in file, they are interpreted as NaN and must be
     # turned back into blank
     if 'elevation' not in station_info.keys():
@@ -335,7 +339,7 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
         outfile_pattern = _fix_file_name_digits(outfile_pattern)
         output_file = outfile_pattern.format(**trace_info_dict)
         st.write(output_dir + '/' + output_file, format = output_format)
-        print(str(i) + ' of ' + str(len(infiles)) + ': ' + infile + ', ' + output_file)
+        print(str(i+1) + ' of ' + str(len(infiles)) + ': ' + infile + ', ' + output_file)
     return station_info
 
 def merge_files_day(infile_path, infile_pattern = '*', outfile_dir = 'merge_file_output'):
@@ -404,17 +408,25 @@ def read_gps(gps_dir_pattern, SN):
     pandas.DataFrame containing columns year, date (day of year), lat, lon (all floats), and column
     t (obspy.UTCDateTime).
     """
-    gpsDirList = sorted(glob.glob(gps_dir_pattern))
+    if type(gps_dir_pattern) is str:
+        gpsDirList = sorted(glob.glob(gps_dir_pattern))
+    elif type(gps_dir_pattern) is list:
+        gpsDirList = gps_dir_pattern
+    else:
+        raise Exception('invalid gps_dir_pattern type; must be list or str')
     gpsTable = pd.DataFrame(columns=['year', 'date', 'lat', 'lon', 't'])
     for gpsDir in gpsDirList:
-        fnList = sorted(glob.glob(gpsDir + '/' + SN + '*'))
+        if os.path.isdir(gpsDir):
+            fnList = sorted(glob.glob(gpsDir + '/' + SN + '*'))
+        else:
+            fnList = [gpsDir] # in case the user provides the gps filename directly
         if len(fnList) > 0: # if any gps files matching SN are found, read and append the last
             gpsTable = pd.concat([gpsTable,
                                   pd.read_csv(fnList[-1])], ignore_index=True)
     return gpsTable
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
-def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
+def summarize_gps(gps_dir_pattern, station_info = None, output_file = None, t1 = None, t2 = None, include_SN = None, exclude_SN = None):
     """
     Read up-to-date GPS data from all Gems in a project, estimate their locations using a robust
     trimmed-mean method.
@@ -431,6 +443,18 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
     output_file : str
         Path to file where output should be written (optional)
 
+    t1 : obspy.UTCDateTime or str
+        Start time; ignore gps data before t1 (e.g., '2022-12-31' or '2022-12-31_05:45:00')
+
+    t2 : obspy.UTCDateTime or str
+        End time; ignore gps data after t2
+
+    include_SN: list
+        Serial numbers to process (default all)
+
+    exclude_SN: list
+        Serial numbers not to process (default none)
+
     Returns
     -------
     pandas.DataFrame containing the following columns:
@@ -440,9 +464,11 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         - lon: calculated average longitude (float)
         - lat_SE: standard error of average latitude (float)
         - lon_SE: standard error of average longitude (float)
+        - elevation: elevation provided by user (-9999 if not provided) (float)
         - starttime: time of first GPS data (obspy.UTCDateTime)
         - endtime: time of last GPS data (obspy.UTCDateTime)
         - num_samples: number of GPS strings recorded 
+    
 
     If station_info is provided, then the following columns are also included:
 
@@ -451,21 +477,46 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         - location: location code (str)
         - elevation: elevation provided in station_info (str)
     """
-    gpsDirList = sorted(glob.glob(gps_dir_pattern))
-    gpsFileList = []
-    for gpsDir in gpsDirList:
-        gpsFileList += glob.glob(gpsDir + '/' + '*gps*txt')
+    if t1 is not None:
+        t1 = obspy.UTCDateTime(t1)
+    else:
+        t1 = obspy.UTCDateTime('1970-01-01')
+    if t2 is not None:
+        t2 = obspy.UTCDateTime(t2)
+    else:
+        t2 = obspy.UTCDateTime('9999-12-31')
+
+    if type(gps_dir_pattern) is str:
+        gpsDirList = sorted(glob.glob(gps_dir_pattern))
+        gpsFileList = []
+        for gpsDir in gpsDirList:
+            gpsFileList += glob.glob(gpsDir + '/' + '*gps*txt')
+    elif type(gps_dir_pattern) is list:
+        gpsFileList = []
+        for fn in gps_dir_pattern:
+            if os.path.isdir(fn):
+                gpsFileList += glob.glob(fn + '/*gps*txt')
+            else:
+                gpsFileList.append(fn)
+    else:
+        raise Exception(f'invalid type for gpsDirList {gpsDirList}; must be str or list')
+
+    gpsFileList = sorted(gpsFileList)
     snList = []
     for gpsFile in gpsFileList:
-        #snList.append(gpsFile.split('/')[-1][:3])
-        snList.append(gpsFile.split('/')[-1].split('gps')[0])
+        current_SN = gpsFile.split('/')[-1].split('gps')[0]
+        if ((include_SN is None) or (current_SN in include_SN)) and \
+           ((exclude_SN is None) or (current_SN not in exclude_SN)):
+            snList.append(current_SN)
+            
     snList = sorted(_unique(snList))
     coords = pd.DataFrame(columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
     avgFun = lambda x: np.mean(x)
     seFun = lambda x: np.std(x)/np.sqrt(len(x))
     for i, SN in enumerate(snList):
-        print(str(i) + ' of ' + str(len(snList)) + ': ' + SN)
+        print(str(i+1) + ' of ' + str(len(snList)) + ': ' + SN)
         gpsTable = _remove_outliers(read_gps(gps_dir_pattern, SN))
+        gpsTable = gpsTable.iloc[np.where((gpsTable.t >= t1) & (gpsTable.t <= t2))[0], :]
         if gpsTable.shape[0] > 0:
             coords = pd.concat([
                 coords,
@@ -498,13 +549,16 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         coords['station'] = station
         coords['location'] = location
         coords['elevation'] = elevation
+    else:
+        coords['elevation'] = [-9999 for SN in coords.SN]
+            
     if output_file is not None:
-        coords.to_csv(output_file)
+        coords.to_csv(output_file, index = False)
     return coords
     
 SummarizeAllGPS = summarize_gps # alias, v1.0.0
 
-def summarize_gps_terminal(inputs = sys.argv[1:]):
+def summarize_gps_terminal(input = sys.argv[1:]):
     details='''
     The required input gps_folder is the path to the folder where gemconvert saved the gps data.
 
@@ -547,20 +601,21 @@ def summarize_gps_terminal(inputs = sys.argv[1:]):
     parser = argparse.ArgumentParser(description='Summarize gps information to make ',
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog = details)
-    parser.add_argument('gps_folder', nargs='+', help='folder(s) containing gps files (wildcards are allowed)')
+    parser.add_argument('gps_folder', nargs='+', help='list of gps files (wildcards are allowed, e.g. gps/*)')
     
     parser.add_argument('-o', '--output_file', default='gem_network',
                         help='Name (without file type extension) of output files to write')
 
 
-    parser.add_argument('-s', '--station_info_file', default=None, 'csv file containing additional info on station names (see details below)')
+    parser.add_argument('-s', '--station_info_file', default=None, help = 'csv file containing additional info on station names (see details below)')
 
     parser.add_argument('-i', '--include_SNs', help='Serial numbers to include in processing (default: all)')
     parser.add_argument('-x', '--exclude_SNs', help='Serial numbers to exclude from processing (default: none)')
 
     parser.add_argument('-1', '--t1', default='1970-01-01', help='Time to start processing data (default: beginning of data)')
     parser.add_argument('-2', '--t2', default='9999-12-31', help='Time to stop processing data (default: end of data)')
-  
+    args = parser.parse_args(input)
+    
     if args.include_SNs is not None and type(args.include_SNs) is str:
         include_SNs = args.include_SNs.split(',')
     else:
@@ -570,8 +625,26 @@ def summarize_gps_terminal(inputs = sys.argv[1:]):
     else:
         exclude_SNs = None
 
-    coords = summarize_gps(gps_folder, station_info = station_info_file, output_file + '.csv')
-    inv = gemlog.make_gem_inventory('station_info.txt', coords, response)
+    gps_folder = args.gps_folder
+    station_info_file = args.station_info_file
+    output_file = args.output_file
+    
+    coords = summarize_gps(gps_folder, station_info = station_info_file,
+                           output_file = output_file + '.csv', t1 = args.t1, t2 = args.t2,
+                           include_SN = args.include_SNs, exclude_SN = args.exclude_SNs)
+    response = gemlog.get_gem_response(gain = 'high')
+    if 'station' not in coords.keys():
+        coords['station'] = coords['SN']
+    if 'elevation' not in coords.keys():
+        coords['elevation'] = [-9999 for SN in coords.SN]
+    if 'network' not in coords.keys():
+        coords['network'] = ['' for SN in coords.SN]
+    if 'location' not in coords.keys():
+        coords['location'] = ['' for SN in coords.SN]
+        
+    coords['sn'] = coords['SN'] # avoids an error in make_gem_inventory
+        
+    inv = gemlog.make_gem_inventory(coords, coords, response)
     inv.write(output_file + '.xml', format='STATIONXML') 
     inv.write(output_file + '.kml', format = 'KML') # stations only; locs don't get separate points
     

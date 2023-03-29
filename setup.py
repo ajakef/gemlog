@@ -101,7 +101,8 @@ ENTRY_POINTS = {
         'change_mseed_times = gemlog.change_mseed_times:main',
         'verify_huddle_test = gemlog.huddle_test:main',
         'waveform_calc_lags = gemlog.xcorr:xcorr_all_terminal',
-        'waveform_calc_directions = gemlog.xcorr:calculate_direction_terminal'
+        'waveform_calc_directions = gemlog.xcorr:calculate_direction_terminal',
+        'gem_make_inventory = gemlog.gem_network:summarize_gps_terminal'
     ]
 }
 
