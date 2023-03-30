@@ -4,10 +4,11 @@ import numpy as np
 import pandas as pd
 import glob, os, traceback, sys, getopt, argparse, re
 from gemlog.gem_network import _unique
+import gemlog
 import scipy.interpolate
 
 def xcorr_all_terminal(input = sys.argv[1:]):
-    examples_text = '''
+    examples_text = f'''
     Examples: (replace '/' with '\' if using Windows)\n
     # process all data in mseed_data between 2022-09-01 00:00:00 UTC and 05:00:00 UTC from stations 121, 122, and 123
     waveform_calc_lags -1 2022-09-01 -2 2022-09-01_05:00:00 -i 121,122,123 -o output_file.csv mseed_data/* 
@@ -16,7 +17,9 @@ def xcorr_all_terminal(input = sys.argv[1:]):
     waveform_calc_lags -x 100,110 -L 10 -H 20 -o 10-20Hz_output_file.csv mseed_data/* 
 
     # process all data in mseed_data, upsampling by 4x to improve precision, and using a 30-second window length
-    waveform_calc_lags -u 4 -w 30 -o upsampled_30sec_output_file.csv mseed_data/*'''
+    waveform_calc_lags -u 4 -w 30 -o upsampled_30sec_output_file.csv mseed_data/*    
+
+    gemlog version {gemlog.__version__}'''
     parser = argparse.ArgumentParser(description='Use cross-correlation to find delays between waveform files, and calculate backazimuth and horizontal slowness.',
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog = examples_text)
@@ -74,7 +77,8 @@ def xcorr_all_terminal(input = sys.argv[1:]):
     
 
 def calculate_direction_terminal(input = sys.argv[1:]):
-    parser = argparse.ArgumentParser(description='Invert time lags found by cross-correlation to find backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter)
+    epilog = f'gemlog version {gemlog.__version__}'
+    parser = argparse.ArgumentParser(description='Invert time lags found by cross-correlation to find backazimuth and horizontal slowness.', formatter_class=argparse.HelpFormatter, epilog = epilog)
     parser.add_argument('-i', '--input_file', nargs = 1, help='File with time lags created by waveform_xc')
     parser.add_argument('-l', '--location_file', nargs = 1, help='stationXML file containing station locations')
     parser.add_argument('-o', '--output_file', nargs = 1, help='Output file to write, including azimuth and horizontal slowness results')
@@ -254,10 +258,11 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
         st.merge()
         ## throw out data before the start of this day, and any unused traces
         st.trim(day_start, t2)
-        for i, tr in enumerate(st):
-            if tr.id not in IDs:
-                st.pop(i) 
-
+        #for i, tr in enumerate(st):
+        #    if tr.id not in IDs:
+        #        st.pop(i) 
+        st = obspy.Stream([tr for tr in st if tr.id in IDs])
+        
         ## finally, apply whatever function you have to the data.
         ## 'function' must accept two inputs: an obspy.Stream with data,
         ## and a dictionary with function-specific arguments.
