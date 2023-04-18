@@ -153,7 +153,8 @@ def _fix_station_info_keys(d):
 def _get_station_info(station_info):
     required_keys = ['sn', 'network', 'station', 'location']
     if type(station_info) == str:
-        print('Reading file %s' % station_info)
+        #print('Reading file %s' % station_info)
+        print(f'Reading file {station_info}')
         header_df = pd.read_csv(station_info, nrows = 1, header = None, index_col = False)
         header_list = [header_df[key][0] for key in header_df.keys()]
         if all([i.lower() in (required_keys + ['elevation']) for i in header_list]): # file has header line
@@ -239,7 +240,8 @@ def make_gem_inventory(station_info, coords, response = 'default'):
                     line = coords[(coords['network'] == network_name) & (coords['station'] == station_name) & (coords['location'] == location_name)]
                 ## if no GPS info for this station is found, skip it
                 if line.shape[0] == 0:
-                    print('No coords found for %s.%s.%s, skipping' % (network_name, station_name, location_name))
+                    #print('No coords found for %s.%s.%s, skipping' % (network_name, station_name, location_name))
+                    print(f'No coords found for {network_name}.{station_name}.{location_name}, skipping')
                     continue
                 ## We need to extract the coordinate and times for this location.
                 lat = line['lat'].iloc[0]
@@ -327,7 +329,6 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
             tr.stats.station = station
             tr.stats.location = location
             t1 = min(t1, tr.stats.starttime)
-        #outputFile = output_dir + '/' + '%s.%s.%s.%s.HDF.%s' % (fileParts[0], network, station, location, output_format)
         trace_info_dict = {'year':t1.year, 'mon':t1.month, 'day':t1.day,
                            'jd':t1.julday, 'hour':t1.hour, 'min':t1.minute,
                            'sec':t1.second, 'net':network, 'sta':station,

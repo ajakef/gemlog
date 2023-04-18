@@ -87,18 +87,22 @@ class PDF(FPDF):
     def import_df(self, dataframe, SN_list):
         self.set_font('helvetica', size=6)
         for i in range(0,len(dataframe)):
-           self.cell(8,cell_height, '%s' % SN_list[i])
+           #self.cell(8,cell_height, '%s' % SN_list[i])
+           self.cell(8,cell_height, f'{SN_list[i]}')
            for j in range(0,len(dataframe.columns)): 
                if type(dataframe.iloc[i,j]) is not str:
-                   self.cell(cell_width,cell_height, '%s' % np.round(dataframe.iloc[i,j],3), 1, 0, 'C')
+                   #self.cell(cell_width,cell_height, '%s' % np.round(dataframe.iloc[i,j],3), 1, 0, 'C')
+                   self.cell(cell_width,cell_height, f'{np.round(dataframe.iloc[i,j],3)}', 1, 0, 'C')
                else:
-                   self.cell(cell_width,cell_height, '%s' % dataframe.iloc[i,j], 1, 0, 'C')
+                   #self.cell(cell_width,cell_height, '%s' % dataframe.iloc[i,j], 1, 0, 'C')
+                   self.cell(cell_width,cell_height, f'{dataframe.iloc[i,j]}', 1, 0, 'C')
            self.ln()
            
     def import_list(self, list_name):
         self.set_font('helvetica', size=8)
         for i, value in enumerate(list_name):
-            self.cell(cell_width,4, '%s' % list_name[i], ln=1)
+            #self.cell(cell_width,4, '%s' % list_name[i], ln=1)
+            self.cell(cell_width,4, f'{list_name[i]}', ln=1)
             
     def table_col(self, dataframe):
         status_header = []
@@ -133,7 +137,8 @@ class PDF(FPDF):
             else:
                 self.cell(8,cell_height, ' ') #Other lines are blank in SN column heading
             for i, header in enumerate(status_header):
-                self.cell(cell_width, 5, '%s' % status_header[i][j]) # cell width, height
+                #self.cell(cell_width, 5, '%s' % status_header[i][j]) # cell width, height
+                self.cell(cell_width, 5, f'{status_header[i][j]}') # cell width, height
             self.ln() 
             
 def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False, run_crosscorrelation_checks = False, generate_report = True):
@@ -835,11 +840,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## Test info and troubleshooting    
         pdf.heading('Test Info')
         for i, note in enumerate(info):
-            pdf.multi_cell(p_width, 5, '%s' %info[i])
+            #pdf.multi_cell(p_width, 5, '%s' %info[i])
+            pdf.multi_cell(p_width, 5, f'{info[i]}')
             pdf.ln()
         pdf.heading('Test Troubleshooting')
         for i, note in enumerate(trouble):
-            pdf.multi_cell(p_width, 5, '%s' %trouble[i])
+            #pdf.multi_cell(p_width, 5, '%s' %trouble[i])
+            pdf.multi_cell(p_width, 5, f'{trouble[i]}')
             pdf.ln()
         ## Close and name file    
         pdf.output(f"{report_path}/{filename}.pdf")

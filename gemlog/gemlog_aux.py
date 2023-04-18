@@ -245,7 +245,8 @@ def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None,
     if(float(version) >= 0.97):
         noise_spec = pd.read_csv(os.path.join(_noise_path, 'Gem_v0.98_Noise_spec.txt'))
     else:
-        raise Exception('version %s not supported' % version)
+        #raise Exception('version %s not supported' % version)
+        raise Exception(f'version {version} not supported')
     freq_in = noise_spec['f']
     power_in = noise_spec['amp']**2
 
@@ -302,7 +303,8 @@ def ims_noise(model = 'low', freq = None, spectype = 'power', freq_min = None, f
     elif model.lower() in ['high', 'hi', 'max']:
         power_in = 10**noise_spec['max']
     else:
-        raise Exception('Invalid IMS model: %s' % model)
+        #raise Exception('Invalid IMS model: %s' % model)
+        raise Exception(f'Invalid IMS model: {model}')
     
     return _noise_spectrum_helper(freq_in, power_in, freq, spectype, freq_min, freq_max)
 
@@ -334,7 +336,8 @@ def _noise_spectrum_helper(freq_in, power_in, freq_out, spectype, freq_min, freq
         spec_units = 'dB Pa/sqrt(Hz)'
         noise_units = 'dB Pa'
     else:
-        raise Exception('spectype %s not supported' % spectype)
+        #raise Exception('spectype %s not supported' % spectype)
+        raise Exception(f'spectype {spectype} not supported')
 
     return {'freqs':freq_out, 'spectrum':spec, 'type':spectype, 'spectrum_units':spec_units, 'freq_min':freq_min, 'freq_max':freq_max, 'noise':noise, 'noise_units':noise_units}
 
@@ -383,7 +386,8 @@ def _convert_raw_091_095(infile, outfile):
     output_format = '0.95'
     input_format = gemlog.core._read_format_version(infile)
     if input_format not in ['0.85C', '0.9', '0.91']:
-        raise Exception('Invalid input format %s' % input_format)
+        #raise Exception('Invalid input format %s' % input_format)
+        raise Exception(f'Invalid input format {input_format}')
     with open(outfile, 'w') as OF, open(infile, 'r') as IF:
         for i, line in enumerate(IF):
             if (line[0] == 'D'):
@@ -425,7 +429,9 @@ def _convert_raw_091_110(infile, outfile):
     output_format = '1.1'
     input_format = gemlog.core._read_format_version(infile)
     if input_format not in ['0.85C', '0.9', '0.91']:
-        raise Exception('Invalid input format %s' % input_format)
+        #raise Exception('Invalid input format %s' % input_format)
+        raise Exception(f'Invalid input format {input_format}')
+
     millis_current = 0
     with open(outfile, 'w') as OF, open(infile, 'r') as IF:
         for i, line in enumerate(IF):

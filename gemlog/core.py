@@ -388,8 +388,11 @@ def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'
     if filename is None:
         datetime_str = tr.stats.starttime.strftime(time_format)
         s = tr.stats
-        station_str = '%s.%s.%s.%s' % (s.network, s.station, s.location, s.channel)
-        filename = datetime_str + '.' + station_str + '.wav'
+        #station_str = '%s.%s.%s.%s' % (s.network, s.station, s.location, s.channel)
+        station_str = f'{s.network}.{s.station}.{s.location}.{s.channel}'
+        #filename = datetime_str + '.' + station_str + '.wav'
+        filename = f'{datetime_str}.{station_str}.wav'
+
     ## having trouble with integer format, although it is allowed. force float
     ## format instead, which is probably more useful anyway. This needs to be
     ## centered about zero and scaled to fit in the -1 to 1 range.
