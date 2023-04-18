@@ -58,7 +58,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
                 out_file = output_dir + '/FILE9999.' + SN
                 shutil.copy(gem_files[k], out_file)
             else:
-                AppendFile(gem_files[k], out_file, gem_files[k-1])
+                append_file(gem_files[k], out_file, gem_files[k-1])
             continue
 
         try:
@@ -86,7 +86,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
             has_gps[k] = 1
             if has_gps[k - 1] == 0:
                 ## if this isn't the first file being processed and it does have GPS data but the previous file didn't, append it to the current outfile
-                AppendFile(gem_files[k], out_file, gem_files[k-1])
+                append_file(gem_files[k], out_file, gem_files[k-1])
             else:
                 ## if this isn't the first file being processed and it has gps data and the previous file did too, start a new outfile
                 #out_file = output_dir + "/FILE" + sprintf("%04d", counter) + "." + SN
@@ -100,7 +100,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
             #    next
             #else:
                 ##system(paste0("cat ", gem_files[k], " >> ",    out_file))
-            AppendFile(gem_files[k], out_file, gem_files[k-1])
+            append_file(gem_files[k], out_file, gem_files[k-1])
     return 
 
 #%%
@@ -108,7 +108,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
 #outfile = out_file
 #prev_infile = gem_files[0]
 #if True:
-def AppendFile(infile, outfile, prev_infile):
+def append_file(infile, outfile, prev_infile):
     # ensure that the output path exists
     outpath = os.path.dirname(outfile)
     if not os.path.exists(outpath):

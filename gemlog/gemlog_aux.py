@@ -5,7 +5,7 @@ import obspy, glob, gemlog, os
 import scipy.integrate
 import scipy.interpolate
 #from gemlog import *
-def PlotAmp(DB):
+def plot_amp(DB):
     allSta = DB.station.unique()
     allSta.sort()
     for sta in DB.station.unique():
@@ -17,7 +17,7 @@ def PlotAmp(DB):
     plt.show()
 
 import obspy
-def CheckDiscontinuity(files):
+def check_discontinuity(files):
     st = obspy.Stream()
     for fn in files:
         st += obspy.read(fn)
