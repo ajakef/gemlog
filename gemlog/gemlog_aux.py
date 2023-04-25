@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import obspy, glob, gemlog, os
+import obspy, glob, gemlog, os, pathlib
 import scipy.integrate
 import scipy.interpolate
 #from gemlog import *
@@ -199,7 +199,8 @@ def calc_channel_stats(DB, t1, t2):
     out = pd.concat(out)
     return(out)
 
-_noise_path = os.path.join(os.path.dirname(__file__), "data", "noise")
+#_noise_path = os.path.join(os.path.dirname(__file__), "data", "noise")
+_noise_path = os.path.join(pathlib.Path(__file__).parent, "data", "noise")
 
 def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None, freq_max = 50):
     """Calculate Gem self-noise as a one-sided spectrum, and integrated over 

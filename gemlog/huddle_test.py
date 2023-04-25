@@ -4,7 +4,7 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import os, glob, getopt, sys, shutil
+import os, glob, getopt, sys, shutil, pathlib
 import obspy, gemlog
 import time
 import datetime
@@ -193,9 +193,10 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
     ## Create folder for figures
     figure_path = os.path.join(path, "figures")
-    file_exists = os.path.exists(figure_path)
+    file_exists = pathlib.Path.is_dir(figure_path)
     if file_exists == False:    
-        os.mkdir(figure_path)
+        #os.mkdir(figure_path)
+        pathlib.Path(figure_path).mkdir(parents = True, exist_ok = True)
     else:
         pass
     
@@ -771,8 +772,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     if generate_report:
         report_path = os.path.join(path, "reports")
-        if not os.path.exists(report_path):
-            os.mkdir(report_path)
+        if not pathlib.Path.is_dir(report_path):
+            #os.mkdir(report_path)
+            pathlib.Path(report_path).mkdir(parents = True, exist_ok = True)
         else:
             pass
         ## Set up report pages and headings    

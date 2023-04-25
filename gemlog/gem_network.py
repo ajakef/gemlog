@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import glob, obspy, os, warnings, gemlog
+import glob, obspy, os, warnings, gemlog, pathlib
 #from obspy.clients.nrl import NRL
 #from contextlib import contextmanager,redirect_stderr,redirect_stdout
 #from os import devnull
@@ -107,7 +107,8 @@ def get_gem_response(gain = 'high', sensor_file = '', logger_file = ''):
     tr.remove_response()
     
     """
-    response_path = os.path.join(os.path.dirname(gemlog.__file__), 'data', 'response')
+    #response_path = os.path.join(os.path.dirname(gemlog.__file__), 'data', 'response')
+    response_path = os.path.join(pathlib.Path(gemlog.__file__).parent, 'data', 'response')
     if sensor_file == '':
         sensor_file = 'RESP.XX.IS025..BDF.GEMV1.26.0_0022'
     sensor_resp = _read_response(os.path.join(response_path, 'sensor', sensor_file))
@@ -306,8 +307,9 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     """
     station_info = _get_station_info(station_info)
     
-    if not os.path.isdir(output_dir):
-        os.makedirs(output_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then di
+    if not pathlib.Path.is_dir(output_dir):
+        #os.makedirs(output_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then di
+        pathlib.Path(output_dir).mkdir(parents = True, exist_ok = True)
     infiles = glob.glob(infile_pattern)
     infiles.sort()
     assert len(infiles) > 0, 'No input files provided'
@@ -340,8 +342,9 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     return station_info
 
 def merge_files_day(infile_path, infile_pattern = '*', outfile_dir = 'merge_file_output'):
-    if not os.path.isdir(outfile_dir):
-        os.makedirs(outfile_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir2
+    if not pathlib.Path.is_dir(outfile_dir):
+        #os.makedirs(outfile_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir2
+        pathlib.Path(outfile_dir).mkdir(parents = True, exist_ok = True)
     infiles = glob.glob(infile_path + '/' + infile_pattern)
     infiles.sort()
     ## find unique year, month, day lists for all files

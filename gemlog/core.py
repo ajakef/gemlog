@@ -2,7 +2,7 @@ import pdb
 import warnings
 import numpy as np
 from numpy import NaN, Inf
-import os, glob, csv, time, scipy
+import os, glob, csv, time, scipy, pathlib
 import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -138,7 +138,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     ## make sure the raw directory exists and has real data
-    if not os.path.isdir(rawpath):
+    if not pathlib.Path.is_dir(rawpath):
         raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
     if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
         raise MissingRawFiles('No data files found in directory ' + rawpath)
@@ -238,9 +238,10 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
   
     ## set up the gps and metadata files. create directories if necessary
     if(len(gpsfile) == 0):
-        if(not os.path.isdir(gpspath)):
+        if(not pathlib.Path.is_dir(gpspath)):
             try:
-                os.makedirs(gpspath) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir1/dir2 will be created
+                #os.makedirs(gpspath) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir1/dir2 will be created
+                pathlib.Path(gpspath).mkdir(parents = True, exist_ok = True)
             except:
                 print('Failed to make directory ' + gpspath)
                 sys.exit(2)
@@ -248,18 +249,20 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
   
     if(len(metadatafile) == 0):
-        if(not os.path.isdir(metadatapath)):
+        if(not pathlib.Path.is_dir(metadatapath)):
             try:
-                os.makedirs(metadatapath)
+                #os.makedirs(metadatapath)
+                pathlib.Path(gpspath).mkdir(parents = True, exist_ok = True)
             except:
                 print('Failed to make directory ' + metadatapath)
                 sys.exit(2)
         metadatafile = _make_filename(metadatapath, SN, 'metadata')
   
     ## if the converted directory does not exist, make it
-    if(not os.path.isdir(convertedpath)):
+    if(not pathlib.Path.is_dir(convertedpath)):
         try:
-            os.makedirs(convertedpath)
+            #os.makedirs(convertedpath)
+            pathlib.Path(convertedpath).mkdir(parents = True, exist_ok = True)
         except:
             print('Failed to make directory ' + convertedpath)
             sys.exit(2)
@@ -412,7 +415,7 @@ def _trunc_UTCDateTime(x, n=86400):
 def _make_filename(dir, SN, dirtype):
     n = 0
     fn = dir + '/' + SN + dirtype + '_'+ f'{n:03}' + '.txt'
-    while(os.path.exists(fn)):
+    while(pathlib.Path.is_file(fn)):
         n = n + 1
         fn = dir + '/' + SN + dirtype + '_' + f'{n:03}' + '.txt'
     return fn
@@ -1502,7 +1505,7 @@ _time_corrections = { # milliseconds
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):
     try:
-        if not os.path.exists(input_filename):
+        if not pathlib.Path.is_file(input_filename):
             raise MissingRawFiles(f'File "{input_filename}" not found')
         L = _read_several([input_filename], require_gps = require_gps)
         piecewiseTimeFit = L['header'].iloc[0,:]
