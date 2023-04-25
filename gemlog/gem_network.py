@@ -456,9 +456,13 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         print(str(i) + ' of ' + str(len(snList)) + ': ' + SN)
         gpsTable = _remove_outliers(read_gps(gps_dir_pattern, SN))
         if gpsTable.shape[0] > 0:
-            coords = coords.append(pd.DataFrame(
-                [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
-                columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples']), ignore_index = True)
+            coords = pd.concat([
+                coords,
+                pd.DataFrame(
+                    [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
+                    columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
+                ], ignore_index = True)
+                               
         else:
             print('No non-outliers remaining for gem {SN}')
     if station_info is not None:
