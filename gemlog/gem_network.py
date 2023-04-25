@@ -397,7 +397,9 @@ def read_gps(gps_dir_pattern, SN):
     for gpsDir in gpsDirList:
         fnList = glob.glob(gpsDir + '/' + SN + '*')
         if len(fnList) > 0: # if any gps files matching SN are found, read and append the last
-            gpsTable = gpsTable.append(pd.read_csv(sorted(fnList)[-1]), ignore_index=True)
+            gpsTable = pd.concat([gpsTable,
+                                  pd.read_csv(fnList[-1])], ignore_index=True)
+
     return gpsTable
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
