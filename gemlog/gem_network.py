@@ -1,19 +1,6 @@
 import numpy as np
 import pandas as pd
-import glob, obspy, os, warnings, gemlog, pathlib
-#from obspy.clients.nrl import NRL
-#from contextlib import contextmanager,redirect_stderr,redirect_stdout
-#from os import devnull
-#nrl = NRL()
-
-#response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'], datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0', '0 - 128000 counts/V'])
-
-#@contextmanager
-#def _suppress_stdout_stderr():
-#    """A context manager that redirects stdout and stderr to devnull"""
-#    with open(devnull, 'w') as fnull:
-#        with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
-#            yield (err, out)
+import glob, obspy, warnings, gemlog, pathlib
 
 def deconvolve_gem_response(data, gain = 'high', sensor_file = '', logger_file = ''):
     """
@@ -107,11 +94,10 @@ def get_gem_response(gain = 'high', sensor_file = '', logger_file = ''):
     tr.remove_response()
     
     """
-    #response_path = os.path.join(os.path.dirname(gemlog.__file__), 'data', 'response')
-    response_path = os.path.join(pathlib.Path(gemlog.__file__).parent, 'data', 'response')
+    response_path = pathlib.Path(gemlog.__file__).parent / 'data' / 'response'
     if sensor_file == '':
         sensor_file = 'RESP.XX.IS025..BDF.GEMV1.26.0_0022'
-    sensor_resp = _read_response(os.path.join(response_path, 'sensor', sensor_file))
+    sensor_resp = _read_response(response_path / 'sensor' / sensor_file)
 
     if logger_file == '':
         if gain.lower() == 'high':
@@ -120,7 +106,7 @@ def get_gem_response(gain = 'high', sensor_file = '', logger_file = ''):
             logger_file = 'RESP.XX.GM002..HHZ.GEMINFRAV1.0.100'
         else:
             raise ValueError(f'invalid gain: {gain}')
-    response = _read_response(os.path.join(response_path, 'datalogger', logger_file))
+    response = _read_response(response_path / 'datalogger' / logger_file)
 
     ## code copied from obspy's nrl.get_response() to merge sensor and logger responses
     response.response_stages.pop(0)
@@ -307,8 +293,7 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     """
     station_info = _get_station_info(station_info)
     
-    if not pathlib.Path.is_dir(output_dir):
-        #os.makedirs(output_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then di
+    if not pathlib.Path(output_dir).is_dir():
         pathlib.Path(output_dir).mkdir(parents = True, exist_ok = True)
     infiles = glob.glob(infile_pattern)
     infiles.sort()
@@ -343,7 +328,6 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
 
 def merge_files_day(infile_path, infile_pattern = '*', outfile_dir = 'merge_file_output'):
     if not pathlib.Path.is_dir(outfile_dir):
-        #os.makedirs(outfile_dir) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir2
         pathlib.Path(outfile_dir).mkdir(parents = True, exist_ok = True)
     infiles = glob.glob(infile_path + '/' + infile_pattern)
     infiles.sort()

@@ -2,7 +2,7 @@
 import sys # should always be available, doesn't need to be in "try"
 try:
     import numpy as np
-    import os, getopt, logging, platform
+    import getopt, logging, platform
     import gemlog
     from concurrent.futures import ProcessPoolExecutor
 except Exception as e:

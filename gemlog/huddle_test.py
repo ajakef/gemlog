@@ -4,7 +4,7 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import os, glob, getopt, sys, shutil, pathlib
+import glob, getopt, sys, shutil, pathlib
 import obspy, gemlog
 import time
 import datetime
@@ -54,7 +54,7 @@ def _min_starttime(SN_list, path):
     t1 = []
     t2 = []
     for SN in SN_list:
-        stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
+        stream = obspy.read(path / 'mseed' / ('*..' + SN + '..HDF.mseed'))
         trace = stream[0]
         t1.append(trace.starttime)
         t2.append(trace.endtime)
@@ -181,22 +181,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     """
     #%%
     if False: ## set default input values in development; set to True if running the code line-by-line
-        if os.getlogin() == 'jake':
-            path = '/home/jake/Work/gemlog_python/demo_QC'
-        else:
-            print('unknown user, need to define path')
+        #path = '/home/jake/Work/gemlog_python/demo_QC'
         SN_list = []
         SN_to_exclude = []
         individual_only = False
         run_crosscorrelation_checks = False
         generate_report = True
-        
+
+    path = pathlib.Path(path)
     ## Create folder for figures
-    figure_path = os.path.join(path, "figures")
-    file_exists = pathlib.Path.is_dir(figure_path)
+    figure_path = path / "figures"
+    file_exists = figure_path.is_dir()
     if file_exists == False:    
-        #os.mkdir(figure_path)
-        pathlib.Path(figure_path).mkdir(parents = True, exist_ok = True)
+        figure_path.mkdir(parents = True, exist_ok = True)
     else:
         pass
     
@@ -209,18 +206,18 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ## Huddle test performance requirements:
     #### >=3 loggers must have barbs facing each other and all within 15 cm, in a turbulence-suppressed semi-enclosed space, sitting on a shared hard surface on top of padding, with good GPS signal, in a site that is not next to a continuous noise source (duty cycle < 80%). Loggers should all start and stop acquisition within 1 minute of each other, and run for at least one week.
 
-    metadata_path = path + '/metadata'
-    gps_path = path + '/gps'
-    mseed_path = path + '/mseed'
+    metadata_path = path / 'metadata'
+    gps_path = path / 'gps'
+    mseed_path = path / 'mseed'
     for test_path in [metadata_path, gps_path, mseed_path]:
         try:
-            fn = os.listdir(test_path)
+            fn = [x.name for x in test_path.glob('*')]
         except:
-            raise(Exception(test_path + ' not found'))
+            raise(Exception(f'{test_path} not found'))
 
     ## identify the list of serial numbers to test, including user input to include/exclude
     if len(SN_list) == 0:
-        SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
+        SN_list = unique([filename[-14:-11] for filename in glob.glob(str(path / 'gps' / '*'))])
     SN_list = [SN for SN in SN_list if SN not in SN_to_exclude]
     print('Identified serial numbers ' + str(SN_list))
    
@@ -280,7 +277,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
         print('\nChecking metadata for ' + SN)
-        metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
+        metadata = pd.read_csv(path / 'metadata' / (SN + 'metadata_000.txt'), sep = ',')
         metadata_dict[SN] = metadata
         if len(metadata) < 86400: 
             formatter = mdates.DateFormatter('%H:%M')
@@ -525,7 +522,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
                                   arrowprops = dict(arrowstyle = '->', connectionstyle = "angle, angleA = 90, angleB = 0, rad = 10", color = 'r'))
         
            
-        gps = pd.read_csv(path +'/gps/' + SN + 'gps_000.txt', sep = ',')
+        gps = pd.read_csv(path / 'gps' / (SN + 'gps_000.txt'), sep = ',')
         gps.t = gps.t.apply(obspy.UTCDateTime)
         gps_dict[SN] = gps
         lat_deg_to_meters = 40e6 / 360 # conversion factor from degrees latitude to meters
@@ -538,7 +535,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
         ## Individual SN waveform data:
         # Define parameters
-        stream = obspy.read(path +'/mseed/*..' + SN + '..HDF.mseed')
+        stream = obspy.read(path / 'mseed' / ('*..' + SN + '..HDF.mseed'))
         stream = _interpolate_stream(stream, gap_limit_sec=0.1)
         stream.merge()
         # Check for clipping - if it is flatlined
@@ -574,12 +571,13 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     A2_A3_fig_path = f"{path}/figures/A2_A3.png"
     A2_A3_fig.savefig(A2_A3_fig_path, dpi = 300)
-    gps_fig_path = f"{path}/figures/gps_runtime.png"
+    #gps_fig_path = f"{path}/figures/gps_runtime.png"
+    gps_fig_path = path / 'figures'/ 'gps_runtime.png'
     gps_fig.tight_layout()
     gps_fig.savefig(gps_fig_path, dpi=300)#, bbox_inches = 'tight', pad_inches = 0.1)
-    batt_temp_fig_path = f"{path}/figures/batt_temp.png"
+    batt_temp_fig_path = path / 'figures' / 'batt_temp.png'
     batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
-    wave_path = f"{path}/figures/waveforms.png"
+    wave_path = path / 'figures' / 'waveforms.png'
     wave_fig.savefig(wave_path, dpi=300)
     #Do not omit rows and columns when displaying in console
     pd.set_option('display.max_rows', None)
@@ -705,7 +703,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     #### length of converted data should match among all loggers
     #### a "coherent window" has all cross-correlation coefficients > 0.9, passes consistency criterion, and has amplitude above noise spec. 90% of coherent windows should have only nonzero lags, and none should have persistently nonzero lags (define).
     if run_crosscorrelation_checks:
-        DB = gemlog.make_db(path + '/mseed', '*', 'tmp_db.csv')
+        DB = gemlog.make_db(path / 'mseed', '*', 'tmp_db.csv')
         DB = DB.loc[DB.station.isin(SN_list),:]
         [t, lag, xc_coef, consistency] = check_lags(DB, winlength=100)
         coherent_windows = (consistency == 0) & (np.median(xc_coef, 0) > 0.8)
@@ -728,7 +726,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         plt.legend() ## not sure how to do this
         plt.title('Time lags from cross-correlation')
         plt.ylabel('Time lag (samples)')
-        time_lags_fig_path = f"{path}/figures/time_lags.png"
+        time_lags_fig_path = path / 'figures' / 'time_lags.png'
         time_lags_fig.savefig(time_lags_fig_path, dpi = 300)
 
     #%%
@@ -771,9 +769,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # =============================================================================
 
     if generate_report:
-        report_path = os.path.join(path, "reports")
-        if not pathlib.Path.is_dir(report_path):
-            #os.mkdir(report_path)
+        report_path = path / "reports"
+        if not report_path.is_dir():
             pathlib.Path(report_path).mkdir(parents = True, exist_ok = True)
         else:
             pass
@@ -821,12 +818,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         ## Add figures into report
         pdf.ln()
-        pdf.image(batt_temp_fig_path, w = img_width , h = img_height) 
+        pdf.image(str(batt_temp_fig_path), w = img_width , h = img_height) 
         pdf.ln()
-        pdf.image(gps_fig_path, w = img_width, h = img_height)
+        pdf.image(str(gps_fig_path), w = img_width, h = img_height)
         pdf.ln()
-        pdf.image(wave_path, w = img_width, h = img_height)
-        pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
+        pdf.image(str(wave_path), w = img_width, h = img_height)
+        pdf.image(str(A2_A3_fig_path), w = img_width, h = img_height)
         pdf.ln()
         ## Group test results
         pdf.heading("Group Test Results")
@@ -837,7 +834,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## add the time lags if they were actually calculated
         if run_crosscorrelation_checks:
             pdf.ln()
-            pdf.image(time_lags_fig_path, w = img_width, h = img_height)
+            pdf.image(str(time_lags_fig_path), w = img_width, h = img_height)
             pdf.ln()    
         ## Test info and troubleshooting    
         pdf.heading('Test Info')
@@ -851,7 +848,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             pdf.multi_cell(p_width, 5, f'{trouble[i]}')
             pdf.ln()
         ## Close and name file    
-        pdf.output(f"{report_path}/{filename}.pdf")
+        pdf.output(report_path / f"{filename}.pdf")
         print("A pdf report has been generated")
     
 ##############################################

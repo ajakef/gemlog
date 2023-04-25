@@ -3,7 +3,7 @@ import pdb
 import warnings
 import numpy as np
 from numpy import NaN, Inf
-import os, glob, csv, time, scipy, pathlib
+import glob, csv, time, scipy, pathlib
 import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -29,12 +29,11 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
     -------
     None; file output only
     """
-    if not pathlib.Path.is_dir(input_dir):
+    if not pathlib.Path(input_dir).is_dir():
         raise Exception('Input path ' + input_dir + ' does not exist')
     
-    if not pathlib.Path.is_dir(output_dir):
+    if not pathlib.Path(output_dir).is_dir():
         try:
-            #os.makedirs(output_dir)
             pathlib.Path(output_dir).mkdir(parents = True, exist_ok = True)
         except:
             raise Exception('Output path ' + output_dir + ' does not exist and cannot be created')
@@ -111,11 +110,9 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
 #if True:
 def append_file(infile, outfile, prev_infile):
     # ensure that the output path exists
-    #outpath = os.path.dirname(outfile)
     outpath = pathlib.Path(outfile).parent
-    if not pathlib.Path.is_file(outpath):
-        #os.makedirs(outpath)
-        pathlib.Path(output).mkdir(parents = True, exist_ok = True)
+    if not pathlib.Path(outpath).is_file():
+        pathlib.Path(outpath).mkdir(parents = True, exist_ok = True)
         
     header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
     format = header[7:]
@@ -202,7 +199,7 @@ def main(argv = None):
         elif opt in ("-e", "--ext"):
             ext = arg
     try:
-        fn = os.listdir(inputdir)
+        fn = [str(x) for x in pathlib.Path(inputdir).glob('*')]
     except:
         print("Problem opening input data folder " + inputdir + ". Did you give the right folder name after -i?")
         print("")

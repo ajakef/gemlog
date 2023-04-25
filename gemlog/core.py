@@ -2,7 +2,7 @@ import pdb
 import warnings
 import numpy as np
 from numpy import NaN, Inf
-import os, glob, csv, time, scipy, pathlib
+import glob, csv, time, scipy, pathlib
 import pandas as pd
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -138,7 +138,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     ## make sure the raw directory exists and has real data
-    if not pathlib.Path.is_dir(rawpath):
+    if not pathlib.Path(rawpath).is_dir():
         raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
     if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
         raise MissingRawFiles('No data files found in directory ' + rawpath)
@@ -238,9 +238,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
   
     ## set up the gps and metadata files. create directories if necessary
     if(len(gpsfile) == 0):
-        if(not pathlib.Path.is_dir(gpspath)):
+        if(not pathlib.Path(gpspath).is_dir()):
             try:
-                #os.makedirs(gpspath) # makedirs vs mkdir means if gpspath = dir1/dir2, and dir1 doesn't exist, that dir1 will be created and then dir1/dir2 will be created
                 pathlib.Path(gpspath).mkdir(parents = True, exist_ok = True)
             except:
                 print('Failed to make directory ' + gpspath)
@@ -249,19 +248,17 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
   
     if(len(metadatafile) == 0):
-        if(not pathlib.Path.is_dir(metadatapath)):
+        if(not pathlib.Path(metadatapath).is_dir()):
             try:
-                #os.makedirs(metadatapath)
-                pathlib.Path(gpspath).mkdir(parents = True, exist_ok = True)
+                pathlib.Path(metadatapath).mkdir(parents = True, exist_ok = True)
             except:
                 print('Failed to make directory ' + metadatapath)
                 sys.exit(2)
         metadatafile = _make_filename(metadatapath, SN, 'metadata')
   
     ## if the converted directory does not exist, make it
-    if(not pathlib.Path.is_dir(convertedpath)):
+    if(not pathlib.Path(convertedpath).is_dir()):
         try:
-            #os.makedirs(convertedpath)
             pathlib.Path(convertedpath).mkdir(parents = True, exist_ok = True)
         except:
             print('Failed to make directory ' + convertedpath)
@@ -415,7 +412,7 @@ def _trunc_UTCDateTime(x, n=86400):
 def _make_filename(dir, SN, dirtype):
     n = 0
     fn = dir + '/' + SN + dirtype + '_'+ f'{n:03}' + '.txt'
-    while(pathlib.Path.is_file(fn)):
+    while pathlib.Path(fn).is_file():
         n = n + 1
         fn = dir + '/' + SN + dirtype + '_' + f'{n:03}' + '.txt'
     return fn
@@ -652,7 +649,7 @@ def _find_nonmissing_files(path, SN, nums):
     ## make sure they aren't empty
     goodNonemptyFnList = []
     for fn in goodFnList:
-        if os.path.getsize(fn) > 10: # to be safe, anything under 10 bytes is treated as empty 
+        if pathlib.Path(fn).stat().st_size > 10: # to be safe, anything under 10 bytes is treated as empty
             goodNonemptyFnList.append(fn)
     if(len(goodNonemptyFnList) == 0):
         ## warning
@@ -1505,7 +1502,7 @@ _time_corrections = { # milliseconds
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):
     try:
-        if not pathlib.Path.is_file(input_filename):
+        if not pathlib.Path(input_filename).is_file():
             raise MissingRawFiles(f'File "{input_filename}" not found')
         L = _read_several([input_filename], require_gps = require_gps)
         piecewiseTimeFit = L['header'].iloc[0,:]
@@ -1535,6 +1532,6 @@ def _convert_one_file(input_filename, output_filename = None, require_gps = True
             raise CorruptRawFile(f'Failed to convert file "{input_filename}"')
             
     if output_filename is None:
-        output_filename = os.path.split(input_filename)[-1] + '.mseed'
+        output_filename = str(pathlib.Path(input_filename).name) + '.mseed'
     L['data'].write(output_filename)
     

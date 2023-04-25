@@ -3,7 +3,7 @@
 import sys # should always be available, doesn't need to be in "try"
 try:
     import numpy as np
-    import os, getopt, logging, platform
+    import getopt, logging, platform, pathlib
     #import glob, traceback # apparently not needed anymore
     import gemlog
     from concurrent.futures import ProcessPoolExecutor
@@ -15,7 +15,7 @@ except Exception as e:
 
 def find_SN(x):
     # find the serial number of a raw data file
-    return x[9:13]
+    return str(x)[9:13]
 
 def unique(list1): 
     unique, index = np.unique(list1, return_index=True)
@@ -133,7 +133,7 @@ def main(argv = None):
 
     ## check that data files can be found, and see which serial numbers are present
     try:
-        file_list = os.listdir(inputdir)
+        file_list = [x.name for x in pathlib.Path(inputdir).glob('*')]
     except:
         print("Problem opening input data folder " + inputdir + ". Did you give the right folder name after -i?")
         print("")
