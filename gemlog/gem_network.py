@@ -300,8 +300,8 @@ def rename_files(infile_pattern, station_info, output_dir, output_format = 'msee
     assert len(infiles) > 0, 'No input files provided'
     for i, infile in enumerate(infiles):
         st = obspy.read(infile)
-        fileParts = infile.split('/')[-1].split('.')
-        SN = fileParts[2]
+        file_parts = infile.split('/')[-1].split('.')
+        SN = file_parts[2]
         try:
             w = np.where(station_info.SN == SN)[0][0]
         except:
@@ -392,15 +392,15 @@ def read_gps(gps_dir_pattern, SN):
     pandas.DataFrame containing columns year, date (day of year), lat, lon (all floats), and column
     t (obspy.UTCDateTime).
     """
-    gpsDirList = sorted(glob.glob(gps_dir_pattern))
-    gpsTable = pd.DataFrame(columns=['year', 'date', 'lat', 'lon', 't'])
-    for gpsDir in gpsDirList:
-        fnList = glob.glob(gpsDir + '/' + SN + '*')
-        if len(fnList) > 0: # if any gps files matching SN are found, read and append the last
-            gpsTable = pd.concat([gpsTable,
-                                  pd.read_csv(fnList[-1])], ignore_index=True)
+    gps_dir_list = sorted(glob.glob(gps_dir_pattern))
+    gps_table = pd.DataFrame(columns=['year', 'date', 'lat', 'lon', 't'])
+    for gps_dir in gps_dir_list:
+        fn_list = glob.glob(gps_dir + '/' + SN + '*')
+        if len(fn_list) > 0: # if any gps files matching SN are found, read and append the last
+            gps_table = pd.concat([gps_table,
+                                  pd.read_csv(fn_list[-1])], ignore_index=True)
 
-    return gpsTable
+    return gps_table
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
 def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
@@ -440,26 +440,25 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None):
         - location: location code (str)
         - elevation: elevation provided in station_info (str)
     """
-    gpsDirList = sorted(glob.glob(gps_dir_pattern))
-    gpsFileList = []
-    for gpsDir in gpsDirList:
-        gpsFileList += glob.glob(gpsDir + '/' + '*gps*txt')
-    snList = []
-    for gpsFile in gpsFileList:
-        #snList.append(gpsFile.split('/')[-1][:3])
-        snList.append(gpsFile.split('/')[-1].split('gps')[0])
-    snList = sorted(_unique(snList))
+    gps_dir_list = sorted(glob.glob(gps_dir_pattern))
+    gps_file_list = []
+    for gps_dir in gps_dir_list:
+        gps_file_list += glob.glob(gps_dir + '/' + '*gps*txt')
+    sn_list = []
+    for gps_file in gps_file_list:
+        sn_list.append(gps_file.split('/')[-1].split('gps')[0])
+    sn_list = sorted(_unique(sn_list))
     coords = pd.DataFrame(columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
-    avgFun = lambda x: np.mean(x)
-    seFun = lambda x: np.std(x)/np.sqrt(len(x))
-    for i, SN in enumerate(snList):
-        print(str(i) + ' of ' + str(len(snList)) + ': ' + SN)
-        gpsTable = _remove_outliers(read_gps(gps_dir_pattern, SN))
-        if gpsTable.shape[0] > 0:
+    avg_fun = lambda x: np.mean(x)
+    se_fun = lambda x: np.std(x)/np.sqrt(len(x))
+    for i, SN in enumerate(sn_list):
+        print(str(i) + ' of ' + str(len(sn_list)) + ': ' + SN)
+        gps_table = _remove_outliers(read_gps(gps_dir_pattern, SN))
+        if gps_table.shape[0] > 0:
             coords = pd.concat([
                 coords,
                 pd.DataFrame(
-                    [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
+                    [[SN, avg_fun(gps_table.lat), avg_fun(gps_table.lon), se_fun(gps_table.lat), se_fun(gps_table.lon), gps_table.t.min(), gps_table.t.max(), gps_table.shape[0]]],
                     columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
                 ], ignore_index = True)
                                

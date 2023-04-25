@@ -6,14 +6,14 @@ import scipy.integrate
 import scipy.interpolate
 #from gemlog import *
 def plot_amp(DB):
-    allSta = DB.station.unique()
-    allSta.sort()
+    all_stations = DB.station.unique()
+    all_stations.sort()
     for sta in DB.station.unique():
         w = np.where(DB.station == sta)[0]
         w.sort()
         plt.plot(DB.t1.iloc[w], np.log10(DB.amp_HP.iloc[w]), '.')
         print(str(sta) + ' ' + str(np.quantile(DB.amp_HP.iloc[w], 0.25)))
-    plt.legend(allSta)
+    plt.legend(all_stations)
     plt.show()
 
 import obspy
@@ -131,12 +131,12 @@ def make_db(path, pattern = '*', savefile = None, verbose = False):
         except:
             print('failed to read ' + file + ', skipping')
             continue
-        maxVal = tr.data.max()
-        minVal = tr.data.min()
+        max_val = tr.data.max()
+        min_val = tr.data.min()
         tr.detrend('linear')
         tr.filter('highpass', freq=0.5)
         amp_HP = tr.std()
-        row = pd.DataFrame([[file, tr.stats.station, tr.stats.location, amp_HP, maxVal, minVal, tr.stats.starttime, tr.stats.endtime]], columns = ['filename', 'station', 'location', 'amp_HP', 'max', 'min', 't1', 't2'])
+        row = pd.DataFrame([[file, tr.stats.station, tr.stats.location, amp_HP, max_val, min_val, tr.stats.starttime, tr.stats.endtime]], columns = ['filename', 'station', 'location', 'amp_HP', 'max', 'min', 't1', 't2'])
         DB.append(row)
         if((count % 100) == 0 and verbose):
             print(str(count) + ' of ' + str(len(files)))

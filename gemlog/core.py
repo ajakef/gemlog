@@ -33,6 +33,7 @@ class MissingRawFiles(Exception):
     pass
 
 
+
 def _breakpoint():
     if _debug: # skip if we aren't in debug mode
         pdb.set_trace()
@@ -139,16 +140,16 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     ## make sure the raw directory exists and has real data
     if not pathlib.Path(rawpath).is_dir():
-        raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
+        raise MissingRawFiles(f'Raw directory {rawpath} does not exist')
     if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
-        raise MissingRawFiles('No data files found in directory ' + rawpath)
+        raise MissingRawFiles(f'No data files found in directory {rawpath}')
     try:
         SN = str(SN)
         int(SN) # make sure it's number-like
     except:
         raise Exception('Invalid serial number')
     if len(SN) != 3:
-        raise Exception('Invalid serial number; SN type is length-'+ str(len(SN)) +' ' + str(type(SN)) + ', not length-3 str')
+        raise Exception(f'Invalid serial number; SN type is length-{str(len(SN))} {str(type(SN))}, not length-3 str')
     
     ## make sure bitweight is a scalar
     if((type(nums) is int) or (type(nums) is float)):
@@ -187,9 +188,9 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## Catch if rawpath doesn't contain any files from SN. This won't catch files ending in TXT.
     if len(nums) == 0:
         if corrupt_files_flag:
-            raise CorruptRawFile('No non-corrupt data files for SN "' + SN + '" found in raw directory ' + rawpath)
+            raise CorruptRawFile(f'No non-corrupt data files for SN "{SN}" found in raw directory {rawpath}')
         else:
-            raise MissingRawFiles('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
+            raise MissingRawFiles(f'No data files for SN "{SN}" found in raw directory {rawpath}')
 
     ## start at the first file in 'nums'
     nums.sort()
@@ -242,7 +243,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             try:
                 pathlib.Path(gpspath).mkdir(parents = True, exist_ok = True)
             except:
-                print('Failed to make directory ' + gpspath)
+                print(f'Failed to make directory {gpspath}')
                 sys.exit(2)
         gpsfile = _make_filename(gpspath, SN, 'gps')
 
@@ -252,7 +253,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             try:
                 pathlib.Path(metadatapath).mkdir(parents = True, exist_ok = True)
             except:
-                print('Failed to make directory ' + metadatapath)
+                print(f'Failed to make directory {metadatapath}')
                 sys.exit(2)
         metadatafile = _make_filename(metadatapath, SN, 'metadata')
   
@@ -261,7 +262,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         try:
             pathlib.Path(convertedpath).mkdir(parents = True, exist_ok = True)
         except:
-            print('Failed to make directory ' + convertedpath)
+            print(f'Failed to make directory {convertedpath}')
             sys.exit(2)
   
     ## start metadata and gps files
@@ -274,7 +275,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    #hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format) # commented 2022-03-04; I don't think there's a need to do this here (vs in the loop later) and in edge cases it may cause data loss
     
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
@@ -304,7 +304,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             if(any(L['header'].SN != SN) | any(L['header'].SN.apply(len) == 0)):
                 #_breakpoint()
                 w = np.where((L['header'].SN != SN) | (L['header'].SN.apply(len) == 0))[0]
-                #print('Wrong or missing serial number(s): ' + L['header'].SN[w] + ' : numbers ' + str(nums[np.logical_and(nums >= n1, nums < (n1 + (12*blockdays)))][w]))
                 for i in w:
                     print('Problem with files, skipping: ' + L['header'].file[i])
 
@@ -388,9 +387,7 @@ def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'
     if filename is None:
         datetime_str = tr.stats.starttime.strftime(time_format)
         s = tr.stats
-        #station_str = '%s.%s.%s.%s' % (s.network, s.station, s.location, s.channel)
         station_str = f'{s.network}.{s.station}.{s.location}.{s.channel}'
-        #filename = datetime_str + '.' + station_str + '.wav'
         filename = f'{datetime_str}.{station_str}.wav'
 
     ## having trouble with integer format, although it is allowed. force float
@@ -403,7 +400,7 @@ def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'
     ## sample rate must be an int
     if int(tr.stats.sampling_rate) != tr.stats.sampling_rate:
         raise TypeError('sample rate must be an integer')
-    wavfile.write(path + '/' + filename, int(tr.stats.sampling_rate), tr.data)
+    wavfile.write(pathlib.Path(path) / filename, int(tr.stats.sampling_rate), tr.data)
     
 
 def _trunc_UTCDateTime(x, n=86400):
@@ -411,17 +408,17 @@ def _trunc_UTCDateTime(x, n=86400):
 
 def _make_filename(dir, SN, dirtype):
     n = 0
-    fn = dir + '/' + SN + dirtype + '_'+ f'{n:03}' + '.txt'
-    while pathlib.Path(fn).is_file():
+    fn = pathlib.Path(dir) / f'{SN}{dirtype}_{n:03}.txt'
+    while fn.is_file():
         n = n + 1
-        fn = dir + '/' + SN + dirtype + '_' + f'{n:03}' + '.txt'
+        fn = pathlib.Path(dir) / f'{SN}{dirtype}_{n:03}.txt'
     return fn
 
 
 def _make_filename_converted(pp, output_format):
     t0 = pp.stats.starttime
     ## colons separating H:M:S would be more readable, but are not allowed in Windows filenames
-    return f'{t0.year:04}' + '-' +f'{t0.month:02}' + '-' +f'{t0.day:02}' + 'T' + f'{t0.hour:02}' + '_' + f'{t0.minute:02}' + '_' + f'{t0.second:02}' + '.' + pp.id + '.' + output_format.lower()
+    return f'{t0.year:04}-{t0.month:02}-{t0.day:02}T{t0.hour:02}_{t0.minute:02}_{t0.second:02}.{pp.id}.{output_format.lower()}'
 
 
 ##############################################################
@@ -507,31 +504,31 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         nums = np.array([nums])
     if(len(station) == 0):
         station = SN
-    fnList = _find_nonmissing_files(path, SN, nums)
+    fn_list = _find_nonmissing_files(path, SN, nums)
 
     ## at this point, if we don't have any files, raise a missing file exception
-    if len(fnList) == 0:
-        raise MissingRawFiles(str(path) + ': ' + str(nums))
+    if len(fn_list) == 0:
+        raise MissingRawFiles(f'{str(path)}: {str(nums)}')
     while True:
-        if len(fnList) == 0: # at this point, if we have no files, they're all corrupt. 
-            raise CorruptRawFile(str(path) + ': ' + str(nums))
+        if len(fn_list) == 0: # at this point, if we have no files, they're all corrupt. 
+            raise CorruptRawFile(f'{str(path)}: {str(nums)}')
         try:
-            version = _read_format_version(fnList[0])
-            config = _read_config(fnList[0])
+            version = _read_format_version(fn_list[0])
+            config = _read_config(fn_list[0])
         except: # if we can't read the config for the first file here, drop it and try the next one
-            fnList = fnList[1:] # 
+            fn_list = fn_list[1:] # 
         else:
             break
     if version in ['0.85C', '0.9', '0.91', '1.10']:
-        L = _read_several(fnList, require_gps = require_gps)# same function works for all
+        L = _read_several(fn_list, require_gps = require_gps)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
-        L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
+        L = _read_several(fn_list, version = version, require_gps = require_gps) # same function works for both
     else:
-        raise Exception(fnList[0] + ': Invalid or missing data format')
+        raise Exception(f'{fn_list[0]}: Invalid or missing data format')
 
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
-        raise CorruptRawFileInadequateGPS('Inadequate GPS information in data files ' + str(nums) + ' for SN "' + SN + '" in raw directory ' + str(path))
+        raise CorruptRawFileInadequateGPS(f'Inadequate GPS information in data files {str(nums)} for SN "{SN}" in raw directory {str(path)}')
 
     if L['gps'].shape[0] == 0:
         for key in L['gps'].keys():
@@ -585,7 +582,7 @@ def _read_SN(fn):
         SN_lines = pd.read_csv(fn, delimiter = ',', skiprows = 3, nrows=4, dtype = 'str', names=['linetype', 'SN'], encoding_errors='ignore', comment = '#', on_bad_lines = 'skip')
         SN = SN_lines['SN'][SN_lines['linetype'] == 'S'][0]
     except:
-        raise CorruptRawFile(fn + ': missing serial number')
+        raise CorruptRawFile(f'{fn}: missing serial number')
     return SN
 
 def _read_format_version(fn):
@@ -596,8 +593,8 @@ def _read_format_version(fn):
     #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
     #0.8: file extension .TXT, 1-hour files
     #"""
-    versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore', on_bad_lines = 'skip')
-    version = versionLine['s'][0][7:]
+    version_line = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore', on_bad_lines = 'skip')
+    version = version_line['s'][0][7:]
     return version
     
 def _read_config(fn):
@@ -622,49 +619,49 @@ def _read_config(fn):
 
 def _find_nonmissing_files(path, SN, nums):
     ## list all Gem files in the path
-    #fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
-    fnList = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].???')
-    fnList.sort()
-    fnList = np.array(fnList)
+    #fn_list = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].[0-9][0-9][0-9]')
+    fn_list = glob.glob(path + '/' + 'FILE[0-9][0-9][0-9][0-9].???')
+    fn_list.sort()
+    fn_list = np.array(fn_list)
     
     ## find out what all the files' SNs are
-    ext = np.array([x[-3:] for x in fnList])
+    ext = np.array([x[-3:] for x in fn_list])
     for i in range(len(ext)):
         if ext[i] == 'TXT':
             try:
-                ext[i] = _read_SN(fnList[i])
+                ext[i] = _read_SN(fn_list[i])
             except: # if we're here, it's a corrupt/empty file
-                pass # do nothing--it won't make it into goodFnList
+                pass # do nothing--it won't make it into good_fn_list
             ## check the files for SN and num
-    goodFnList = []
-    for i, fn in enumerate(fnList):
+    good_fn_list = []
+    for i, fn in enumerate(fn_list):
         fnNum = int(fn[-8:-4])
         fnSN = ext[i]
         if (fnNum in nums) & (fnSN == SN):
-            goodFnList.append(fn)
-    if len(goodFnList) == 0:
-        print('No good data files found for specified nums and SN ' + SN)
+            good_fn_list.append(fn)
+    if len(good_fn_list) == 0:
+        print(f'No good data files found for specified nums and SN {SN}')
         return []
         ## fix this to be an exception or warning?
     ## make sure they aren't empty
-    goodNonemptyFnList = []
-    for fn in goodFnList:
+    good_nonempty_fn_list = []
+    for fn in good_fn_list:
         if pathlib.Path(fn).stat().st_size > 10: # to be safe, anything under 10 bytes is treated as empty
-            goodNonemptyFnList.append(fn)
-    if(len(goodNonemptyFnList) == 0):
+            good_nonempty_fn_list.append(fn)
+    if(len(good_nonempty_fn_list) == 0):
         ## warning
         print('No non-empty files')
         return []
-    if(len(goodNonemptyFnList) < len(goodFnList)):
+    if(len(good_nonempty_fn_list) < len(good_fn_list)):
         print('Some files are empty, skipping')
-    return goodNonemptyFnList    
+    return good_nonempty_fn_list    
 
 
 
-def _unwrap_millis(new, old, maxNegative = 2**12, rollover = 2**13):
-    ## maxNegative is the greatest allowable negative difference.
+def _unwrap_millis(new, old, max_negative = 2**12, rollover = 2**13):
+    ## max_negative is the greatest allowable negative difference.
     ## negative differences can happen between data and GPS lines, or between metadata and data lines.
-    return old + ((new - (old % rollover) + maxNegative) % rollover) - maxNegative
+    return old + ((new - (old % rollover) + max_negative) % rollover) - max_negative
 
 def _check_gps(line): # return True if GPS line is good
     #G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
@@ -977,13 +974,13 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
         for line in lines:
             ## determine the line type, and skip if it's not necessary data (e.g. debugging info)
             try:
-                lineType = line[0][0] # if this fails, it means the line is empty or at least invalid
+                line_type = line[0][0] # if this fails, it means the line is empty or at least invalid
             except:
                 continue
-            if not (lineType in ['D', 'G', 'M']):
+            if not (line_type in ['D', 'G', 'M']):
                 continue
             ## remove the line type ID and make into a nice array
-            if lineType == 'D':
+            if line_type == 'D':
                 line[0] = line[0][1:]
             else:
                 line = line[1:]
@@ -992,13 +989,13 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
             millis = _unwrap_millis(line[0], millis)
             line[0] = millis
             ## write the line to its matrix
-            if lineType == 'D':
+            if line_type == 'D':
                 D[d_index,:] = line
                 d_index += 1
-            elif lineType == 'M':
+            elif line_type == 'M':
                 M[m_index,:] = line
                 m_index += 1
-            elif (lineType == 'G') and _check_gps(line):
+            elif (line_type == 'G') and _check_gps(line):
                 G[g_index,:10] = line
                 G[g_index,10] = _make_gps_time(line)
                 g_index += 1
@@ -1019,27 +1016,27 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
-def _read_several(fnList, version = 0.9, require_gps = True):
+def _read_several(fn_list, version = 0.9, require_gps = True):
     ## initialize the output variables
     D = np.ndarray([0,2]) # expected number 7.2e5
-    header = _make_empty_header(fnList)
+    header = _make_empty_header(fn_list)
     G = _make_empty_gps()
     M = _make_empty_metadata()
     
     ## loop through the files
-    startMillis = 0
-    for i,fn in enumerate(fnList):
-        print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
+    start_millis = 0
+    for i,fn in enumerate(fn_list):
+        print(f'File {str(i+1)} of {str(len(fn_list))}: {fn}')
         try:
             ## read the data file (using reader for this format version)
             if str(version) in ['1.10', '0.91', '0.9', '0.85C']:
-                L = _read_single(fn, startMillis, require_gps = require_gps)
+                L = _read_single(fn, start_millis, require_gps = require_gps)
             elif str(version) in ['0.8', '0.85']:
-                L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
+                L = _read_single(fn, start_millis, require_gps = require_gps, version = version)
             else:
-                raise CorruptRawFile('Invalid raw file format version: ' + str(version))
-            ## make sure the first millis is > startMillis
-            if(L['data'][0,0] < startMillis):
+                raise CorruptRawFile(f'Invalid raw file format version: {str(version)}')
+            ## make sure the first millis is > start_millis
+            if(L['data'][0,0] < start_millis):
                 L['metadata'].millis += 2**13
                 L['gps'].msPPS += 2**13
                 L['data'][:,0] += 2**13
@@ -1060,16 +1057,16 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
-            startMillis = D[-1,0]
+            start_millis = D[-1,0]
             
         except KeyboardInterrupt:
             raise
         except CorruptRawFileInadequateGPS:
-            print('Insufficient GPS data in ' + fn + ', skipping this file')
+            print(f'Insufficient GPS data in {fn}, skipping this file')
         except CorruptRawFileNoGPS:
-            print('No GPS data in ' + fn + ', skipping this file')
+            print(f'No GPS data in {fn}, skipping this file')
         except:
-            print('Failed to read ' + fn + ', skipping this file')
+            print(f'Failed to read {fn}, skipping this file')
             _breakpoint()
         else:
             pass
@@ -1095,9 +1092,9 @@ def _calculate_drift(L, fn, require_gps):
         sufficient_gps = (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) < 2
 
     if require_gps and not any_gps:
-        raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping this file')
+        raise CorruptRawFileNoGPS(f'No GPS data in {fn}, skipping this file')
     if require_gps and not sufficient_gps:
-        raise CorruptRawFileInadequateGPS('Inadequate GPS data in ' + fn + ', skipping this file')
+        raise CorruptRawFileInadequateGPS(f'Inadequate GPS data in {fn}, skipping this file')
 
     done = False
     if sufficient_gps:
@@ -1108,10 +1105,10 @@ def _calculate_drift(L, fn, require_gps):
             if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
                or (num_gps_nonoutliers < 10) \
                or MAD_nonoutliers > 0.01:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+                raise CorruptRawFileInadequateGPS(f'No useful GPS data in {fn}, skipping this file')
         except:
             if require_gps:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+                raise CorruptRawFileInadequateGPS(f'No useful GPS data in {fn}, skipping this file')
         else: # if regression was successful, no need to try the zero-drift methods
             done = True
                 
@@ -1219,27 +1216,25 @@ def _apply_segments(x, model):
     
 def _assign_times(L):
     _breakpoint()
-    fnList = np.array(L['header'].file)
-    #if L['gps'].shape[0] == 0:
-    #    raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
+    fn_list = np.array(L['header'].file)
     
     G = _reformat_GPS(L['gps'])
     try:
         breaks = _find_breaks(L)
     except:
-        raise CorruptRawFile('Problem between ' + fnList[0] + '-' + fnList[-1] + '; stopping before this interval. Break between recording periods? Corrupt files?')
-    piecewiseTimeFit = L['header']
-    L['metadata']['t'] = _apply_segments(L['metadata']['millis'], piecewiseTimeFit)
+        raise CorruptRawFile(f'Problem between {fn_list[0]}-{fn_list[-1]}; stopping before this interval. Break between recording periods? Corrupt files?')
+    piecewise_time_fit = L['header']
+    L['metadata']['t'] = _apply_segments(L['metadata']['millis'], piecewise_time_fit)
     header = L['header']
-    header['t1'] = _apply_segments(header.start_ms, piecewiseTimeFit)
-    header['t2'] = _apply_segments(header.end_ms, piecewiseTimeFit)
+    header['t1'] = _apply_segments(header.start_ms, piecewise_time_fit)
+    header['t2'] = _apply_segments(header.end_ms, piecewise_time_fit)
     L['header'] = header
     
     ## Interpolate data to equal spacing to make obspy trace.
     ## Note that data gaps just get interpolated through as a straight line. Not ideal.
     D = L['data']
-    D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
-    timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
+    D = np.hstack((D, _apply_segments(D[:,0], piecewise_time_fit).reshape([D.shape[0],1])))
+    timing_info = [L['gps'], L['data'], breaks, piecewise_time_fit]
     L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
     L['gps'] = G
     return (L, timing_info)
@@ -1347,11 +1342,11 @@ def get_gem_specs(SN):
         - bitweight_V : voltage resolution for this Gem version [Volts per count]
         - bitweight_Pa : pressure resolution for this Gem version [Pascals per count]
     """
-    versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
+    version_table = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
                     'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
                     'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.Inf])
     }
-    version = versionTable['version'][(int(SN) >= versionTable['min_SN']) & (int(SN) <= versionTable['max_SN'])][0]
+    version = version_table['version'][(int(SN) >= version_table['min_SN']) & (int(SN) <= version_table['max_SN'])][0]
     bitweight_V = 0.256/2**15/__gain__(version)
     sensitivity = __AVCC__(version)/7.0 * 45.13e-6 # 45.13 uV/Pa is with 7V reference from Marcillo et al., 2012
     return { 'version': version,
@@ -1412,28 +1407,28 @@ def _find_breaks(L):
     dmD = np.diff(mD)
     starts = np.array([])
     ends = np.array([])
-    dataBreaks = np.where((dmD > 25) | (dmD < 0))[0]
-    if 0 in dataBreaks:
+    data_breaks = np.where((dmD > 25) | (dmD < 0))[0]
+    if 0 in data_breaks:
         mD = mD[1:]
         dmD = dmD[1:]
-        dataBreaks = dataBreaks[dataBreaks != 0] - 1
-    if (len(dmD) - 1) in dataBreaks:
+        data_breaks = data_breaks[data_breaks != 0] - 1
+    if (len(dmD) - 1) in data_breaks:
         mD = mD[:-1]
         dmD = dmD[:-1]
-        dataBreaks = dataBreaks[dataBreaks != len(dmD)]
+        data_breaks = data_breaks[data_breaks != len(dmD)]
     #_breakpoint()
-    for i in dataBreaks:
+    for i in data_breaks:
         starts = np.append(starts, np.max(mD[(i-1):(i+2)]))
         ends = np.append(ends, np.min(mD[(i-1):(i+2)]))
     tG = np.array(L['gps'].t).astype('float') # gps times
     mG = np.array(L['gps'].msPPS).astype('float') # gps millis
     dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
-    gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
+    gps_breaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
                             ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
                             ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle (possibly due to leap second)
     )
     min_possible_start = mD.min() # this only changes if a GPS break around the first GPS sample invalidates preceding D samples
-    for i in gpsBreaks:
+    for i in gps_breaks:
         i = int(i)
         ## This part is tricky: what if a gpsEnd happens between a dataEnd and dataStart?
         ## Let's be conservative: if either the gpsEnd or gpsStart is within a bad data interval, or what if they bracket a bad data interval?
@@ -1463,10 +1458,10 @@ def _find_breaks(L):
     ends = np.append(ends, mD.max())
     return {'starts':starts, 'ends':ends}
 
-def _make_empty_header(fnList):
-    num_filler = np.zeros(len(fnList))
-    return pd.DataFrame.from_dict({'file': fnList,
-                                   'SN':['' for fn in fnList],
+def _make_empty_header(fn_list):
+    num_filler = np.zeros(len(fn_list))
+    return pd.DataFrame.from_dict({'file': fn_list,
+                                   'SN':['' for fn in fn_list],
                                    'lat': num_filler,
                                    'lon': num_filler,
                                    'start_ms': num_filler,
@@ -1505,9 +1500,9 @@ def _convert_one_file(input_filename, output_filename = None, require_gps = True
         if not pathlib.Path(input_filename).is_file():
             raise MissingRawFiles(f'File "{input_filename}" not found')
         L = _read_several([input_filename], require_gps = require_gps)
-        piecewiseTimeFit = L['header'].iloc[0,:]
+        piecewise_time_fit = L['header'].iloc[0,:]
     
-        L['metadata']['t'] = _apply_fit(L['metadata']['millis'], piecewiseTimeFit)
+        L['metadata']['t'] = _apply_fit(L['metadata']['millis'], piecewise_time_fit)
     
         ## Interpolate data to equal spacing to make obspy trace.
         ## Note that data gaps just get interpolated through as a straight line. Not ideal.
@@ -1516,8 +1511,8 @@ def _convert_one_file(input_filename, output_filename = None, require_gps = True
         if D.shape[0] == 0:
             raise CorruptRawFileNoGPS(f'Failed to convert file "{input_filename}", due to no GPS data')
         
-        D = np.hstack((D, _apply_fit(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
-        #timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
+        D = np.hstack((D, _apply_fit(D[:,0], piecewise_time_fit).reshape([D.shape[0],1])))
+        #timing_info = [L['gps'], L['data'], breaks, piecewise_time_fit]
         L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
     except CorruptRawFileNoGPS:
         if require_gps:
