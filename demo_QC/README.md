@@ -55,6 +55,6 @@ Explanations for all failure conditions and recommended troubleshooting tips are
 
 - Copy the data to your computer and convert it, resulting in a folder structure as shown above.
 
-- Visually inspect some waveform data (this task is difficult to automate) using a viewer like PQL or the `Stream.plot()` method in obspy. A high-pass filter of at least 1 Hz is generally needed to find events efficiently. Find an event that is highly coherent among the different Gems' traces. Data should agree in timing (down to 0.01 sec), waveform shape, and spectrum shape.
+- Visually inspect some waveform data (this task is difficult to automate) using a viewer like PQL or the `Stream.plot()` method in obspy. A high-pass filter of at least 1 Hz is generally needed to find events efficiently. Find an event that is highly coherent among the different Gems' traces. Data should agree in timing (down to 0.01 sec); this can be checked visually by zooming in on a high-frequency event (e.g., door slam) and filtering above 20 Hz. Additionally, data should agree in waveform shape and spectrum shape.
 
 - Finally, run `verify_huddle_test` as above, and check the report.

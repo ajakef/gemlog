@@ -2,6 +2,7 @@
 * Follow the directions [here](https://github.com/ajakef/gemlog/tree/main/Installation.md).
 
 # Getting started after installing gemlog
+* Click [here](https://sites.google.com/view/geminfrasound) for more info on the Gem Infrasound Logger, including information for loans and purchases.
 * Most users will only need the `gemconvert` tool for converting data to standard formats. `gemconvert` is run from the terminal. This call will give you the syntax, options, and version number.
 ```
 gemconvert -h # print the help page
@@ -9,7 +10,7 @@ gemconvert -h # print the help page
 
 * Run `pip install --upgrade gemlog` on the command line to update gemlog to the newest version.
 
-* Run [this demo](https://github.com/ajakef/gemlog/tree/main/demo) to ensure that everything works on your system and as an example of a typical workflow.
+* Run [this demo](https://github.com/ajakef/gemlog/tree/main/demo) to ensure that everything works on your system and as an example of a typical workflow. On a typical laptop, conversion may take on the order of 10 wall-clock seconds per day of data for one station (or, a unitless ratio of approximately 10^-4 between conversion time and data duration).
 
 * If you have data files that lack GPS information (e.g., because they were recorded on a high-altitude balloon, indoors, or underground), AND you're ok with having imprecise sample timing, run [this demo](https://github.com/ajakef/gemlog/tree/main/demo_missing_gps) too.
 

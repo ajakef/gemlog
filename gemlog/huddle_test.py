@@ -300,20 +300,20 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
        
         # Battery voltage minimum tests
         if pstats_df.loc[SN, "Battery min"] < batt_min:
-            err_message = f"{SN} BATTERY ERROR: lowest battery level ({min(metadata.batt):.2f}V) is below limit (1.7V)."
+            err_message = f"{SN} BATTERY ERROR: lowest battery level ({min(metadata.batt):.2f}V) is below limit ({batt_min}V)."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "Battery min")
-        elif pstats_df.loc[SN, "Battery min"] < batt_min + 1.5:
-            warn_message = f"{SN} BATTERY WARNING: lowest battery level ({min(metadata.batt):.2f}V) is within 0.5V of limit (1.7V)."
+        elif pstats_df.loc[SN, "Battery min"] < batt_min + 0.5:
+            warn_message = f"{SN} BATTERY WARNING: lowest battery level ({min(metadata.batt):.2f}V) is within 0.5V of limit ({batt_min}V)."
             _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "Battery min")
         else:
             errors_df.loc[SN, "Battery min"] = "OKAY"
             
         # Battery voltage maximum tests    
         if pstats_df.loc[SN, "Battery max"] > batt_max:
-            err_message = f"{SN} BATTERY ERROR: highest battery level ({max(metadata.batt):.2f} V) is above maximum threshold (15V)."
+            err_message = f"{SN} BATTERY ERROR: highest battery level ({max(metadata.batt):.2f} V) is above maximum threshold ({batt_max}V)."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name="Battery max")
-        elif pstats_df.loc[SN, "Battery max"] > batt_max - 0.05:
-            warn_message = f"{SN} BATTERY WARNING: highest battery level ({max(metadata.batt):.2f} V) is within 0.5V of limit (15V)."
+        elif pstats_df.loc[SN, "Battery max"] > batt_max - 0.5:
+            warn_message = f"{SN} BATTERY WARNING: highest battery level ({max(metadata.batt):.2f} V) is within 0.5V of limit ({batt_max}V)."
             _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name="Battery max")
         else:
             errors_df.loc[SN, "Battery max"] = "OKAY"  

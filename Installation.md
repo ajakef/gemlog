@@ -30,10 +30,12 @@ conda create -y -n gem python=3.10 numpy obspy pandas matplotlib scipy cython py
 ```
 conda activate gem
 git clone https://github.com/ajakef/gemlog/
-pip install --upgrade ./gemlog
+pip install --upgrade -e ./gemlog # -e flag means your edits directly affect the installed version
 ```
 
 If you are new to git, checkout the [git cheat sheet](https://github.com/ajakef/gemlog/tree/main/git_instructions.md).
+
+Finally, if you plan on contributing code or otherwise running the automated tests, install the pytest module with `pip install pytest`.
 
 ## Supported Python versions:
 Minimum 3.7. Python 2.7 (obsolete) is not supported and will not be supported in the future. 
