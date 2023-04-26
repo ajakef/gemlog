@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import glob, obspy, os, warnings, gemlog, sys, argparse
+import glob, obspy, os, warnings, gemlog, sys, argparse, pathlib
 #from obspy.clients.nrl import NRL
 #from contextlib import contextmanager,redirect_stderr,redirect_stdout
 #from os import devnull
@@ -419,7 +419,11 @@ def read_gps(gps_dir_pattern, SN):
         if os.path.isdir(gpsDir):
             fnList = sorted(glob.glob(gpsDir + '/' + SN + '*'))
         else:
-            fnList = [gpsDir] # in case the user provides the gps filename directly
+            # in case the user provides the gps filename directly. requires that the filename start with SN.
+            if pathlib.Path(gpsDir).name[:3] == SN:
+                fnList = [gpsDir]
+            else:
+                fnList = []
         if len(fnList) > 0: # if any gps files matching SN are found, read and append the last
             gpsTable = pd.concat([gpsTable,
                                   pd.read_csv(fnList[-1])], ignore_index=True)
@@ -500,7 +504,7 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None, t1 =
                 gpsFileList.append(fn)
     else:
         raise Exception(f'invalid type for gpsDirList {gpsDirList}; must be str or list')
-
+    
     gpsFileList = sorted(gpsFileList)
     snList = []
     for gpsFile in gpsFileList:
@@ -628,7 +632,7 @@ def summarize_gps_terminal(input = sys.argv[1:]):
     gps_folder = args.gps_folder
     station_info_file = args.station_info_file
     output_file = args.output_file
-    
+
     coords = summarize_gps(gps_folder, station_info = station_info_file,
                            output_file = output_file + '.csv', t1 = args.t1, t2 = args.t2,
                            include_SN = args.include_SNs, exclude_SN = args.exclude_SNs)
