@@ -420,7 +420,7 @@ def rename_files(
         outfile_pattern = _fix_file_name_digits(outfile_pattern)
         output_file = outfile_pattern.format(**trace_info_dict)
         st.write(output_dir + "/" + output_file, format=output_format)
-        print(str(i) + " of " + str(len(infiles)) + ": " + infile + ", " + output_file)
+        print(str(i+1) + " of " + str(len(infiles)) + ": " + infile + ", " + output_file)
     return station_info
 
 
@@ -564,7 +564,7 @@ def summarize_gps(gps_dir_pattern, station_info=None, output_file=None):
     avg_fun = lambda x: np.mean(x)
     se_fun = lambda x: np.std(x) / np.sqrt(len(x))
     for i, SN in enumerate(sn_list):
-        print(str(i) + " of " + str(len(sn_list)) + ": " + SN)
+        print(str(i+1) + " of " + str(len(sn_list)) + ": " + SN)
         gps_table = _remove_outliers(read_gps(gps_dir_pattern, SN))
         if gps_table.shape[0] > 0:
             coords = pd.concat(
