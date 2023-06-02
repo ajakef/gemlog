@@ -25,11 +25,11 @@ def teardown_module():
 
 @pytest.mark.filterwarnings('ignore')
 def test_demo():
-    ## following is drawn as directly as possible from demo/README.md
-    gemlog.gemconvert.main(['-i', '../demo/demo/raw/'])
+    ## following is drawn as directly as possible from demo_conversion/README.md
+    gemlog.gemconvert.main(['-i', '../demo_conversion/demo_conversion/raw/'])
     ##########################
-    coords = gemlog.summarize_gps('gps', output_file = 'project_coords.csv', station_info = '../demo/demo/station_info.txt')
-    gemlog.rename_files('mseed/*', station_info = '../demo/demo/station_info.txt', output_dir = 'renamed_mseed')
+    coords = gemlog.summarize_gps('gps', output_file = 'project_coords.csv', station_info = '../demo_conversion/demo_conversion/station_info.txt')
+    gemlog.rename_files('mseed/*', station_info = '../demo_conversion/demo_conversion/station_info.txt', output_dir = 'renamed_mseed')
     #nrl = NRL()
     #response = nrl.get_response(sensor_keys = ['Gem', 'Gem Infrasound Sensor v1.0'],
     #datalogger_keys = ['Gem', 'Gem Infrasound Logger v1.0',
@@ -40,7 +40,7 @@ def test_demo():
     coords['elevation'] = [1983, 1983, 1988, 1983, 1986, 1987] # from google earth
     
     ## create an inventory of all sensors used in this project--may cause warnings
-    inv = gemlog.make_gem_inventory('../demo/demo/station_info.txt', coords, response)
+    inv = gemlog.make_gem_inventory('../demo_conversion/demo_conversion/station_info.txt', coords, response)
     inv.write('NM_inventory.xml', format='STATIONXML')
     
     ## read the data
