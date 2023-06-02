@@ -26,7 +26,7 @@ conda config --add channels conda-forge
 conda create -y -n gem python=3.10 numpy obspy pandas matplotlib scipy cython pytest
 ```
 
-* Next, from the right project folder, clone and install the gemlog python package from github. If you don't have a compiler for `pip` to use (e.g., gcc), you may need to install one.
+* Next, create a folder to contain the package, cd into it and clone and install the gemlog python package from github. If you don't have a compiler for `pip` to use (e.g., gcc), you may need to install one.
 ```
 conda activate gem
 git clone https://github.com/ajakef/gemlog/

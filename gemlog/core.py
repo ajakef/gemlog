@@ -761,7 +761,7 @@ def _read_config(fn):
                 on_bad_lines="skip",
             )
             if line.iloc[0, 0] == "C":
-                config = {key: int(line[key]) for key in list(line.keys())[1:]}
+                config = {key: int(line.loc['key', 0]) for key in list(line.keys())[1:]}
                 break
         except:
             pass
