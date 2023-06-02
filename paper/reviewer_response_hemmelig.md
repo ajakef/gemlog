@@ -1,20 +1,24 @@
 I’ve gone through the JOSS checklist and, bar where indicated below, everything looks in order to me. The manuscript set out the motivations for—and capabilities of—the gemlog package in a clear manner.
 
 On a purely stylish note, would it be possible to highlight the package name and command line utility names with inline code formatting in the manuscript?
+
 *Done.*
 
 The reference list seems thorough, though my knowledge of the infrasound field is somewhat limited. The Data Report (line 115 of the original proof, Dannemann Dugick and Bowman) should probably read “TurboWave I and II…” as opposed to “TurboWave i and II”.
+
 *Done.*
 
 You might indicate somewhere (probably in the documentation, rather than setting it in stone in the JOSS paper) a rough definition of ‘low-cost’, based on the prices of the components used.
+
 *I agree that setting it in stone is unwise as it tends to change. I added a link to the Gem website where info on purchasing can be found. Like most (all?) geophysical instrument manufacturers that I know of, my prices and availability are dynamic enough that I currently only provide prices by request via quotes, though I do intend to begin posting estimated prices publicly on the website this year.*
 
 General comments
 Who is TLSatterwhite? They have made some contributions to the code in the repository. Besides that, the contribution and authorship looks good to me.
+
 *TLSatterwhite is the third author.*
 
 You might consider releasing the code and assigning it its own DOI using something like Zenodo.
-
+*I might start doing that for future major releases. You're right that it would be more directly citeable that way.*
 
 Per the GitHub Community Standards tab (under Insights), the repository is missing a few items:
 
@@ -30,10 +34,11 @@ The repository readme does include (good + clear) information about contribution
 
 
 You might consider incorporating the documentation (e.g. for installation, for the demos, etc) into the existing readthedocs. You could then add some of the information from the paper regarding the problem the software is designed for/target audience to the landing page of the readthedocs site.
+
 *This is a good idea that I will implement in a future version.*
 
-
 How long does it take to convert, say, a 1 month campaign, per station? Just a ballpark figure would be useful (minutes, hours, days?). I get a rough estimate on the order of 10 minutes per station.
+
 *We added this info to the README.md and to the paper (on the order of 10 seconds per station-day).*
 
 Installation
@@ -41,6 +46,7 @@ The installation process was smooth and clearly documented. I was able to instal
 
 Tests
 Again, the authors use a GitHub Actions to automatically test and lint any changes made and pushed to either a branch of the main repo, or a fork. However, in order to run these tests locally on my own machine, I had to install pytest (and also had to clone the source repo). You might consider adding some information to the documentation detailing what someone might need to do to test any changes made locally, without having to push changes to a remote repo.
+
 *Done; we added more explicit info on pytest to Installation.md and CONTRIBUTING.md.*
 
 Tests all ran locally without any issues, though there were a number of warnings that seemed to be about the implementation of the tests themselves.
@@ -52,25 +58,32 @@ In general, you might consider converting these markdown files to a series of Ju
 
 Demo 1
 How might a user determine whether a file is bad?
+
 *I added some explanation.*
 
 Is there a reason why you can’t specify a station_info.txt file as an input to the gemconvert tool that will populate the SEED headers at this stage? Rather than
+
 *That's a good idea and it's on the to-do list.*
 
 summarize_gps indexes from 0 rather than 1—presumably an i rather than i + 1 in the print statement.
+
 *Fixed.*
 
 Demo 2
 Great concept, love to see it. Something we’ve been meaning to do for some time with a number of the QC scripts we have developed over the years for seismic network data validation/huddle tests/pre-archive QC! The explainers at the end of the report are excellent, but I think should ultimately have a dedicated section in the online docs?
+
 *I added an explanation section to the workflow notebook.*
 
 Point the reader to the data convert tutorial as a reminder.
+
 *Done.*
 
 061 BATTERY WARNING – this doesn’t seem to be correct? Claiming 2.81 V is within 0.5 V of limit (1.7 V).
+
 *That was a bug; it's fixed now.*
 
 Is there a way you suggest validating whether data agree in timing? Visually assessing the waveform similarity is fine, but validating down to 0.01 s is a little more difficult.
+
 *It's actually not hard if you have a high-frequency event like a door slam and filter the data above 20 Hz. I added this info to the demo text.*
 
 Comments on the code
@@ -78,12 +91,15 @@ Below I’ve listed some general comments that I consider important enough to wa
 
 
 I think it would be worth providing a set of aliases for the command line tools that are all prefixed by gem. This would make things more consistent and avoid any potential namespace clashes (though unlikely). Further to this, you might consider adding something like gemlog as an entry point that lists all of the entry point options?
+
 *Good idea; done.*
 
 See previous comment about providing the demos as Jupyter notebooks.
+
 *Done.*
 
 The default library package pathlib is preferable over os.path. I’ve not tested the package on Windows, but I did note a number of instances of hardcoded path delimiters (/) that might fail if someone tries to use the package on Windows. No requirement to support Windows, but could be useful to be aware of this.
+
 *I refactored the code to completely replace os with pathlib without changing functionality.*
 
 --------------------------
@@ -96,6 +112,7 @@ Apply some form of autoformatting, e.g. black (can be installed with pip install
 
 [tool.black]
 line-length = 100
+
 *Thank you for this suggestion; I've run black on the code and set up the config file you provided.*
 
 The import section in many of the files is a bit disorganised, often with a number of unnecessary imports. I don’t think there’s a definitive PEP standard for how to format this part of a Python source file, but often something like the following is used:
@@ -113,9 +130,11 @@ Many(/all) of the top-level functions are documented, but many of the underlying
 Many bare exceptions – might make things easier in short term, but might create latent issues that are hard to pick up on/track down.
 
 Mixed use of getopt and argparse—I think the latter is slightly nicer to work with/idiomatic.
+
 *I agree and am using argparse for new code. I am leaving the getopt code in place because it's already written, works well, and doesn't cause maintenance problems.*
 
 fstrings make for cleaner print statements, and also implicitly handle conversion of variables to their string representation.
+
 *I changed most old formatted strings with % to fstrings.*
 
 Some function names don’t follow PEP conventions (snake_case)—a quick example is in gem_cat.py with the AppendFile function.
