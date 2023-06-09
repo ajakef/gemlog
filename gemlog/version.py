@@ -1,4 +1,4 @@
-__version__ = "1.6.5.joss"  # release for JOSS paper; branched off main sequence of versions.
+__version__ = "1.6.5.0"  # release for JOSS paper; branched off main sequence of versions.
 # __version__ = "1.6.5"  # bug fixes and other minor improvements
 # __version__ = '1.6.4' # upgrades dependencies due to moderate security issue in numpy: https://github.com/advisories/GHSA-fpfv-jqm9-f5jm
 # __version__ = '1.6.3' # minor improvements/bug fixes for verify_huddle_test
