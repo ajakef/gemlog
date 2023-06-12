@@ -48,9 +48,9 @@ The Gem Infrasound Logger (including `gemlog`) has been included in independent 
 
 - Infrasound monitoring from high-altitude balloons [@BowmanAlbert2018; @Young2018; @Bowman2020; @Krishnamoorthy2020; @Brissaud2021]
 
-- River rapid infrasound monitoring [@Ronan2017; @Gauvain2021]
+- River rapid infrasound monitoring [@Ronan2017; @Gauvain_inprep; @Tatum_submitted; @Scamfer_submitted]
 
-- Remotely monitoring earthquake ground shaking [@Anderson_inprep]
+- Remotely monitoring earthquake ground shaking [@Anderson_submitted; @Scamfer_submitted]
 
 # Features
 [gemlog](https://github.com/ajakef/gemlog) (GPL-3 license) is a Python library that includes both terminal commands and Python functions. It is installable from [PyPI](https://pypi.org/project/gemlog/) and documented in terminal command help pages, Python function docstrings, and on [Read the Docs](https://gemlog.readthedocs.io/).
