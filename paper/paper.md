@@ -40,7 +40,7 @@ Like many geophysical data loggers, the Gem writes data in a non-standard raw fo
 Some other geophysical data loggers used to record infrasound, for example the [DiGOS DataCube-3](https://digos.eu/seismology/) and Reftek [RT-130](https://www.passcal.nmt.edu/content/instrumentation/dataloggers/3-channel-dataloggers/reftek-rt-130-datalogger), have non-standard raw data formats that must be converted to standard formats by software distributed by the manufacturer. Like `gemlog`, they conduct data conversion as a simple command line operation. However, to the authors' knowledge, none of those software packages (or the raw data formats they convert) are open-source.
 
 # Use in Research
-The Gem Infrasound Logger (including `gemlog`) has been included in independent evaluations of infrasound instruments [@SladMerchant2021, @Kramer2021], and has been used in several past and upcoming publications, including the following:
+The Gem Infrasound Logger (including `gemlog`) has been included in independent evaluations of infrasound instruments [@SladMerchant2021; @Kramer2021], and has been used in several past and upcoming publications, including the following:
 
 - Volcano monitoring [@Mock2020; @Bosa2021; @Rosenblatt2022]
 
@@ -57,7 +57,7 @@ The Gem Infrasound Logger (including `gemlog`) has been included in independent 
 
 - Data conversion: Terminal commands `gemconvert` and `gemconvert_single` convert sets of raw files into standard data formats (typically miniSEED). Because infrasound analyses require sample timing to be approximately millisecond-precise, an essential part of this process is correcting clock drift using accurate times provided infrequently by the Gem's on-board GPS. Contiguous blocks of raw data are converted into contiguous blocks of output data, and the software identifies breaks in recording and includes the same breaks in the output. On a typical laptop, conversion may take on the order of 10 wall-clock seconds per day of data for one station (or, a unitless ratio of approximately $10^{-4}$ between conversion time and data duration).
 
-- Instrument testing: Terminal command `verify_huddle_test` is used to automatically examine waveform, state-of-health, and GPS data from several instruments recording in the same place at the same time (termed a "huddle test" in seismology/infrasound), and verify that all instruments are working properly.
+- Instrument testing: Terminal command `gem_verify_huddle_test` is used to automatically examine waveform, state-of-health, and GPS data from several instruments recording in the same place at the same time (termed a "huddle test" in seismology/infrasound), and verify that all instruments are working properly.
 
 - Data analysis and visualization in Python: several Python functions facilitate working with data, including plotting spectra of the Gem's self-noise and standard environmental noise specs set by the International Monitoring System, and deconvolving the Gem's instrument response from recordings. `gemlog` is well-integrated with the common seismic/infrasound data processing Python package `obspy` [@obspy] and uses its functions and classes when possible.
 
