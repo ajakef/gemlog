@@ -609,7 +609,7 @@ def _read_config(fn):
         try:
             line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', names = ['na', 'gps_mode','gps_cycle','gps_quota','adc_range','led_shutoff','serial_output'], encoding_errors='ignore', on_bad_lines = 'skip')
             if line.iloc[0,0] == 'C':
-                config = {key:int(line[key]) for key in list(line.keys())[1:]}
+                config = {key:int(line.loc[0,key]) for key in list(line.keys())[1:]}
                 break
         except:
             pass
@@ -1064,8 +1064,10 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             print('Insufficient GPS data in ' + fn + ', skipping this file')
         except CorruptRawFileNoGPS:
             print('No GPS data in ' + fn + ', skipping this file')
-        except:
-            print('Failed to read ' + fn + ', skipping this file')
+        except CorruptRawFile as exception_message:
+            print(f'Skipping corrupt raw file {fn}: {exception_message}')
+        except Exception as exception_message:
+            print(f'Failed to read {fn}, skipping this file: exception_message')
             _breakpoint()
         else:
             pass
