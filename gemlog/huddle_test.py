@@ -510,8 +510,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         gps_ax[SN_index].xaxis.set_minor_locator(plt.MultipleLocator(10))
         if SN == SN_list[-1]:    
             gps_ax[SN_index].set_xlabel('seconds')
-            #gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180']) ## replaced with set_xticks because this creates a warning
-            gps_ax[SN_index].set_xticks(ticks = np.arange(0, 10) * 20, labels = [0,20,40,60,80,100,120,140,160,'>180']) ## 2022-06-14 JFA; seems to work
+            gps_ax[SN_index].set_xticks(ticks = np.arange(0, 10) * 20) ## 2022-06-14 JFA; seems to work
+            gps_ax[SN_index].axes.xaxis.set_ticklabels([0,20,40,60,80,100,120,140,160,'>180']) ## replaced with set_xticks because this creates a warning
             gps_ax[SN_index].annotate('GPS on-time ratio', (gps_proportion, 10), xytext = (gps_proportion + 10 , 15), color = 'r',
                                   arrowprops = dict(arrowstyle = '->', connectionstyle = "angle, angleA = 90, angleB = 0, rad = 10", color = 'r'))
         
