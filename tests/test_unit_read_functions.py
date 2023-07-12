@@ -1,6 +1,6 @@
 from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
 from gemlog.core import (
-    _read_0_8_with_pandas, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config
+    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config
 )
 import numpy as np
 import pytest, shutil, os, obspy
@@ -45,6 +45,8 @@ def test_read_single_v0_8(inputs):
     fn, offset = inputs
     return _read_single(fn, offset, version = '0.8')
 
+def test_read_single_v0_8_NMEA_single_character_lines():
+    return _read_0_8_pd('../data/v0.8_NMEA_single_character_lines/raw/FILE0014.TXT')
 
 def test_read_gem_integration():
     data_st = read_gem(path = '../data/v0.8/raw/', SN = '014')['data']

@@ -721,23 +721,28 @@ def _read_with_cython(filename, require_gps = True):
     return df
 
 
-def _read_0_8_with_pandas(filename, require_gps = True):
+def _read_0_8_pd(filename, require_gps = True):
     ## This procedure is different enough from read_with_pandas that they are not interchangeable.
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
-        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6, encoding_errors='ignore')
+        # read 15 columns for 'R,2' lines
+        df = pd.read_csv(filename, names=range(15), low_memory=False, skiprows=6, encoding_errors='ignore')
     except Exception:
         try:
-            df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
+            df = pd.read_csv(filename, names=range(15), engine='python', skiprows=6,
                              on_bad_lines = 'skip', # replacement for error/warn_bad_lines, available since pandas 1.3.0
                              encoding_errors='ignore')
-        except:
-            raise CorruptRawFile(filename)
+        except Exception as exception_message:
+            raise CorruptRawFile('_read_0_8_pd; pd.read_csv: ' + exception_message)
     if df.shape[0] == 0:
         raise EmptyRawFile(filename)
 
-    df = df.iloc[np.where(~np.isnan(df.iloc[:,1]))[0],:]
+    ## some old data files have lines that are just a single character from a NMEA string. There's
+    ## a risk of an exception if they aren't dropped first.
+    df = df.loc[df.iloc[:,0].isin(['D', 'M', 'G']), :]
+    df[1] = df[1].astype(float) # weirdly, this doesn't work with iloc
+    df = df.iloc[np.where(~np.isnan(df.iloc[:,1]))[0],:] # error-prone if any "Nones" are in df[1]
     df['linetype'] = df.iloc[:,0].copy()
     df = df.iloc[:,1:]
     
@@ -812,7 +817,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     if version in ['1.1', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
     else:
-        readers = [_read_0_8_with_pandas]
+        readers = [_read_0_8_pd]
 
     for reader in readers:
         try:
@@ -823,7 +828,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem
             raise
-        except Exception:
+        except Exception as exception_message:
             pass
         else: # if we're here, the file read worked. it may be invalid though.
             if (len(output['gps'].lat) == 0) and require_gps:
@@ -834,7 +839,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             return output
 
 
-    raise CorruptRawFile(filename)
+    raise CorruptRawFile(filename + ' ' + exception_message)
 
 def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     ## figure out what settings to used according to the raw file format version
@@ -1067,7 +1072,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
         except CorruptRawFile as exception_message:
             print(f'Skipping corrupt raw file {fn}: {exception_message}')
         except Exception as exception_message:
-            print(f'Failed to read {fn}, skipping this file: exception_message')
+            print(f'Failed to read {fn}, skipping this file: {exception_message}')
             _breakpoint()
         else:
             pass
