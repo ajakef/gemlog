@@ -734,7 +734,7 @@ def _read_0_8_pd(filename, require_gps = True):
                              on_bad_lines = 'skip', # replacement for error/warn_bad_lines, available since pandas 1.3.0
                              encoding_errors='ignore')
         except Exception as exception_message:
-            raise CorruptRawFile('_read_0_8_pd; pd.read_csv: ' + exception_message)
+            raise CorruptRawFile('_read_0_8_pd; pd.read_csv: ' + str(exception_message))
     if df.shape[0] == 0:
         raise EmptyRawFile(filename)
 
@@ -831,7 +831,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             # CorruptRawFile might work with a different reader so don't exit early.
             raise
         except Exception as exception_message:
-            output_message = exception_message + ': ' + filename
+            output_message = str(exception_message) + ': ' + filename
             pass
         else: # if we're here, the file read worked. it may be invalid though.
             if (len(output['gps'].lat) == 0) and require_gps:

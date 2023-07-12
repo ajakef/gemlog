@@ -49,7 +49,7 @@ VERSION = version_dict['__version__']
 ## Main version requirements
 # pandas: >= 1.3 (2021-07; earlier versions are incompatible with all gemlog. >=1.4 only works for gemlog >= 1.6.1)
 # numpy: >=1.22 (2022-06-22; earlier versions have security issue https://github.com/advisories/GHSA-fpfv-jqm9-f5jm).
-# scipy: >=1.4 (2022-11-22; 1.3.0 fails to install now, don't know why)
+# scipy: >=1.10 (2023-07-12; security issue)
 
 ## Secondary requirements
 # python: >=3.8 (2022-06-22; >=3.8 is required by numpy 1.22).
