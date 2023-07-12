@@ -1,4 +1,5 @@
-__version__ = '1.7.1' # fixed verify_huddle_test bug with Axes.set_ticks 
+__version__ = '1.7.2' # minor improvements to data read functions (not important to most users), and dependency updates (scipy security issue, Python 3.11, build wheels on Ubuntu 22.04) 
+#__version__ = '1.7.1' # fixed verify_huddle_test bug with Axes.set_ticks 
 #__version__ = '1.7.0' # new command-line tool to make sensor network info, including a stationXML file 
 #__version__ = '1.6.9' # added command-line tools to cross-correlate data and invert time lags for slowness and backazimuth, fixed for pypi 
 #__version__ = '1.6.8' # added command-line tools to cross-correlate data and invert time lags for slowness and backazimuth 
@@ -63,4 +64,4 @@ __version__ = '1.7.1' # fixed verify_huddle_test bug with Axes.set_ticks
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not comprehensive########################################################
+## List of old versions is not comprehensive#########################################################
