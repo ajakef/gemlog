@@ -819,6 +819,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     else:
         readers = [_read_0_8_pd]
 
+    output_message = ''
     for reader in readers:
         try:
             df = reader(filename, require_gps)
@@ -826,9 +827,11 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
-            # re-raise the exception that caused the problem
+            # re-raise the exception that caused the problem.
+            # CorruptRawFile might work with a different reader so don't exit early.
             raise
         except Exception as exception_message:
+            output_message = exception_message + ': ' + filename
             pass
         else: # if we're here, the file read worked. it may be invalid though.
             if (len(output['gps'].lat) == 0) and require_gps:
@@ -839,7 +842,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             return output
 
 
-    raise CorruptRawFile(filename + ' ' + exception_message)
+    raise CorruptRawFile(output_message)
 
 def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     ## figure out what settings to used according to the raw file format version

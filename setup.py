@@ -62,7 +62,7 @@ INSTALL_REQUIRES = [
     'obspy>=1.3',
     'numpy>=1.22', 
     'pandas>=1.3.0', 
-    'scipy>=1.4.0', # May 2019
+    'scipy>=1.10.0', # 1.10 for a security update in July 2023
     'matplotlib>=3.2.0', # March 2020
     'cython', # used for reading raw files quickly
     'fpdf' # needed for pdf huddle test reports
