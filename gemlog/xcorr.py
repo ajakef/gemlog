@@ -32,7 +32,7 @@ def xcorr_all_terminal(input = sys.argv[1:]):
     parser.add_argument('-2', '--t2', default='9999-12-31', help='Time to stop processing data (default: end of data)')
     parser.add_argument('-L', '--freq_low', default=5, help='Low corner frequency (default: 5 Hz)', type = float)
     parser.add_argument('-H', '--freq_high', default=40, help='High corner frequency (default: 40 Hz)', type = float)
-    parser.add_argument('-w', '--window_length_seconds', default=5, help='Length of time windows to cross-correlate (default: 5 seconds)', type = float)
+    parser.add_argument('-w', '--win_length_sec', default=5, help='Length of time windows to cross-correlate (default: 5 seconds)', type = float)
     parser.add_argument('-p', '--overlap', default=0, help='Window overlap fraction; 0 <= overlap < 1 (default: 0)', type = float)
     parser.add_argument('-u', '--upsample_ratio', default=1, help='Ratio by which waveform data should be upsampled to improve time resolution (default: 1 for no upsampling)', type = float)
     parser.add_argument('-q', '--quiet', action = 'store_true')
@@ -70,7 +70,7 @@ def xcorr_all_terminal(input = sys.argv[1:]):
     
     xcorr_df = xcorr_all(args.files, t1 = args.t1, t2 = args.t2, IDs = include_IDs,
                          exclude_IDs = exclude_IDs, fl = args.freq_low, fh = args.freq_high,
-                         win_length_sec = args.window_length_seconds, overlap = args.overlap,
+                         win_length_sec = args.win_length_sec, overlap = args.overlap,
                          upsample_ratio = args.upsample_ratio, quiet = args.quiet)
     xcorr_df.to_csv(args.output_file[0], sep = ',', index = False)
 
@@ -120,7 +120,7 @@ def xcorr_all(files, t1 = '1970-01-01', t2 = '9999-12-31', IDs = None, exclude_I
 
     # arguments to be provided to xcorr_one_day.
     # 'quiet' is provided to loop_through_days directly, as well as to xcorr_one_day via args.
-    args = {'fl':fl, 'fh':fh, 'window_length_sec':win_length_sec, 'overlap':overlap, 'upsample_ratio':upsample_ratio, 'quiet':quiet}
+    args = {'fl':fl, 'fh':fh, 'win_length_sec':win_length_sec, 'overlap':overlap, 'upsample_ratio':upsample_ratio, 'quiet':quiet}
     
     ## separate validations are needed here (to prevent awkward-to-resolve errors in loop_through_days)
 
