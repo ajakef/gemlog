@@ -178,8 +178,8 @@ def main(argv = None):
         new_SN_list = []
         skip_SN = []
         for SN in SN_list:
-            if any(station_info.SN == SN):
-                i = np.where(station_info.SN == SN)[0][0]
+            if any(station_info.SN.astype(int) == int(SN)):
+                i = np.where(station_info.SN.astype(int) == int(SN))[0][0]
                 station_list.append(station_info.loc[i,'station'])
                 network_list.append(station_info.loc[i,'network'])
                 location_list.append(station_info.loc[i,'location'])
@@ -190,8 +190,8 @@ def main(argv = None):
         if(len(skip_SN) > 0):
             logging.info(f"Skipping SNs {skip_SN} which are not defined in codes file {codesfile}")
         associations = [f"{SN}-{network}.{station}.{location}" for (SN, network, station, location) in zip(SN_list, network_list, station_list, location_list)]
-        logging.info(f"SN-[network.station.location] associations: {associations}")
     else:
+        associations = []
         network_list = ['' for SN in SN_list]
         station_list = ['' for SN in SN_list]
         location_list = ['' for SN in SN_list]
@@ -210,6 +210,7 @@ def main(argv = None):
         logging.info(f'inputdir="{inputdir}"')
         logging.info(f'outputdir="{outputdir}"')
         logging.info(f'serial number list = {SN_list}')
+        logging.info(f"SN-[network.station.location] associations: {associations}")
         logging.info(f'format="{output_format}", length_hours={output_length}, test={test}, parallel={num_processes}')
 
         ## loop through serial numbers. 'pool' allows running different SNs in parallel.
