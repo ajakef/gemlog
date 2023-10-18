@@ -22,11 +22,12 @@ def unique(list1):
     return sorted(unique)
 
 def convert_single_SN(arg_list):
-    inputdir, SN, outputdir, output_format, output_length = arg_list
+    print(arg_list)
+    inputdir, SN, outputdir, output_format, output_length, network, station, location = arg_list
     logging.info(f'Beginning {SN}')
     try:
         #print([inputdir, SN, outputdir, output_format, output_length])
-        gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length)
+        gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length, network = network, station = station, location = location)
         print(f'{SN} done')
     except KeyboardInterrupt:
         logging.info('Interrupted by user')
@@ -81,10 +82,11 @@ def main(argv = None):
     output_length = 24 # hours
     num_processes = 1
     gemlog._debug = True
+    codesfile = None
 
     ## parse options selected by user
     try:
-        opts, args = getopt.getopt(argv,"hdti:s:x:o:f:l:p:",["inputdir=","serialnumber="])
+        opts, args = getopt.getopt(argv,"hdti:s:x:c:o:f:l:p:",["inputdir=","serialnumber="])
     except getopt.GetoptError:
         print_call()
         sys.exit(2)
@@ -106,6 +108,8 @@ def main(argv = None):
             arg = arg.split(',')
             #print(arg)
             exclude = arg
+        elif opt in ("-c", "--codesfile"):
+            codesfile = arg
         elif opt in ("-t", "--test"):
             test = True
         elif opt in ("-o", "--outputdir"):
@@ -155,6 +159,43 @@ def main(argv = None):
     ## remove excluded serial numbers from the list
     SN_list = [i for i in SN_list if i not in exclude]
 
+    if codesfile is not None:
+        try:
+            station_info = gemlog.gem_network._get_station_info(codesfile)
+        except:
+            print(f"Problem opening codes file {codesfile}")
+            print("")
+            print_call()
+            sys.exit()
+    else:
+        station_info = None
+
+    ## associate SNs in SN_list with station/location/network from codesfile
+    if station_info is not None:
+        station_list = []
+        network_list = []
+        location_list = []
+        new_SN_list = []
+        skip_SN = []
+        for SN in SN_list:
+            if any(station_info.SN == SN):
+                i = np.where(station_info.SN == SN)[0][0]
+                station_list.append(station_info.loc[i,'station'])
+                network_list.append(station_info.loc[i,'network'])
+                location_list.append(station_info.loc[i,'location'])
+                new_SN_list.append(SN)
+            else:
+                skip_SN.append(SN)
+        SN_list = new_SN_list
+        if(len(skip_SN) > 0):
+            logging.info(f"Skipping SNs {skip_SN} which are not defined in codes file {codesfile}")
+        associations = [f"{SN}-{network}.{station}.{location}" for (SN, network, station, location) in zip(SN_list, network_list, station_list, location_list)]
+        logging.info(f"SN-[network.station.location] associations: {associations}")
+    else:
+        network_list = ['' for SN in SN_list]
+        station_list = ['' for SN in SN_list]
+        location_list = ['' for SN in SN_list]
+        
     ## print info about job before starting
     print(f'gemlog version {gemlog.__version__}')
     print('inputdir ', inputdir)
@@ -173,8 +214,11 @@ def main(argv = None):
 
         ## loop through serial numbers. 'pool' allows running different SNs in parallel.
         with ProcessPoolExecutor(max_workers=num_processes) as pool:
-            args_list = [[inputdir, SN, outputdir, output_format, output_length] for SN in SN_list]
+            args_list = [[inputdir, SN, outputdir, output_format, output_length, network, station,
+                          location] for i, (SN, network, station, location) in
+                         enumerate(zip(SN_list, network_list, station_list, location_list))]
             res = pool.map(convert_single_SN, args_list)
 
 if __name__ == "__main__":
    main(sys.argv[1:])
+
