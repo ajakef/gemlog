@@ -200,6 +200,8 @@ def main(argv = None):
     print(f'gemlog version {gemlog.__version__}')
     print('inputdir ', inputdir)
     print('serial numbers ', SN_list)
+    if len(associations) > 0:
+        print(f"SN-[network.station.location] associations: {associations}")
     print('outputdir ', outputdir)
     if not test:
         logging.info(f'***Starting conversion (gemlog version {gemlog.__version__})***')
@@ -210,7 +212,8 @@ def main(argv = None):
         logging.info(f'inputdir="{inputdir}"')
         logging.info(f'outputdir="{outputdir}"')
         logging.info(f'serial number list = {SN_list}')
-        logging.info(f"SN-[network.station.location] associations: {associations}")
+        if len(associations) > 0:
+            logging.info(f"SN-[network.station.location] associations: {associations}")
         logging.info(f'format="{output_format}", length_hours={output_length}, test={test}, parallel={num_processes}')
 
         ## loop through serial numbers. 'pool' allows running different SNs in parallel.
