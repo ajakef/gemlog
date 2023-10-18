@@ -286,7 +286,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             try:
-                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], SN = SN)
+                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], SN = SN, network = network, station = station, location = location)
             except MissingRawFiles: # this can happen if a block of empty files is encountered
                 continue
             except CorruptRawFile: # if the block has no files, keep searching
