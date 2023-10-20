@@ -1186,16 +1186,10 @@ def _robust_regress(x, y, degree = 3, MAD = 0.01, z = 4, recursive_depth = np.in
     ### z < 3 has an off-chance of repeated trimming with few data points remaining! don't do that.
 
     ## Calculate regression line and residuals.
-    print('_robust_regress')
     _breakpoint()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         reg = np.polynomial.polynomial.polyfit(x, y, degree)
-        #linreg = scipy.stats.linregress(x, y)
-        #resid = y - (linreg.intercept + x * linreg.slope)
-        #reg = np.polyfit(x, y, 3)
-    #resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
-    #resid = y - _apply_fit(x, reg) # doesn't work because reg is not dict
     resid = y - np.polynomial.Polynomial(reg)(x)
 
     ## If any are found to be outliers, remove them and recalculate recursively.
