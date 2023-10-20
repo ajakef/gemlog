@@ -1170,7 +1170,7 @@ def _calculate_drift(L, fn, require_gps):
 ########
 def _detect_step(x, y):
     _breakpoint()
-    reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(x, y, degree = 1)
+    reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(x, y, degree = 1, MAD = np.inf)
     if any(np.abs(np.diff(resid)) > 0.25):
         return True
     else:
