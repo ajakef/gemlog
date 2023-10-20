@@ -67,10 +67,11 @@ def test_v1_10_v0_91_read_gem():
     y = read_gem(path = '../data/v0.91/', SN = '210')
     assert x['data'].__eq__(y['data'])
 
-def test_convert_edge_cases():
-    # test a raw file where a leap second change happens very early, triggering a GPS break with no good GPS data before it
-    # this just needs to run without crashing
-    convert('../data/test_data/early_leap_second/', SN = '232', convertedpath = 'test_output_mseed')
+## On further thought, this shouldn't run without errors; it should fail because any step means uncertainty about which data is correct. So don't run this. See test_step_detection instead.
+#def test_convert_edge_cases():
+#    # test a raw file where a leap second change happens very early, triggering a GPS break with no good GPS data before it
+#    # this just needs to run without crashing
+#    convert('../data/test_data/early_leap_second/', SN = '232', convertedpath = 'test_output_mseed')
 
 def test_read_no_gps():
     ## ensure that the right exceptions are raised with files with gps issues

@@ -28,6 +28,10 @@ class CorruptRawFileInadequateGPS(CorruptRawFile):
     """Raised when the input file does not contain any GPS data"""
     pass
 
+class CorruptRawFileDiscontinuousGPS(CorruptRawFile):
+    """GPS timing discontinuity found in raw file due to receiving bad data from GPS; raw file must be repaired manually"""
+    pass
+
 class MissingRawFiles(Exception):
     """Raised when no input files are readable"""
     pass
@@ -662,17 +666,6 @@ def _unwrap_millis(new, old, maxNegative = 2**12, rollover = 2**13):
     ## negative differences can happen between data and GPS lines, or between metadata and data lines.
     return old + ((new - (old % rollover) + maxNegative) % rollover) - maxNegative
 
-def _check_gps(line): # return True if GPS line is good
-    #G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
-    return not ((line[8] == 0) or (line[8] > 90) or (line[8] < -90) or # lat
-                (line[9] == 0) or (line[9] > 180) or (line[9] < -180) or # lon
-                (line[1] > 1000) or (line[1] < 0) or # lag
-                (line[2] > 2040) or (line[2] < 2014) or # year
-                (line[3] > 12) or (line[3] < 1) or # month
-                (line[4] > 31) or (line[4] < 1) or # day
-                (line[5] > 24) or (line[5] < 0) or # hour
-                (line[6] > 60) or (line[6] < 0) or # minute
-                (line[7]>60) or (line[7]<0) or (line[7]!=np.round(line[7]))) # second
 
 
 def _make_gps_time(line):
@@ -966,6 +959,18 @@ def _valid_gps(G):
 
 def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
     ## this should only be used as a reference
+    def _check_gps(line): # return True if GPS line is good
+        #G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
+        return not ((line[8] == 0) or (line[8] > 90) or (line[8] < -90) or # lat
+                    (line[9] == 0) or (line[9] > 180) or (line[9] < -180) or # lon
+                    (line[1] > 1000) or (line[1] < 0) or # lag
+                    (line[2] > 2040) or (line[2] < 2014) or # year
+                    (line[3] > 12) or (line[3] < 1) or # month
+                    (line[4] > 31) or (line[4] < 1) or # day
+                    (line[5] > 24) or (line[5] < 0) or # hour
+                    (line[6] > 60) or (line[6] < 0) or # minute
+                    (line[7]>60) or (line[7]<0) or (line[7]!=np.round(line[7]))) # second
+    
     ## pre-allocate the arrays (more space than is needed)
     M = np.ndarray([15000,12]) # no more than 14400
     G = np.ndarray([15000,11]) # no more than 14400
@@ -1104,6 +1109,9 @@ def _calculate_drift(L, fn, require_gps):
         raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping this file')
     if require_gps and not sufficient_gps:
         raise CorruptRawFileInadequateGPS('Inadequate GPS data in ' + fn + ', skipping this file')
+    if require_gps and _detect_step(L['gps'].msPPS, L['gps'].t):
+        print(f'GPS timing discontinuity found in {fn}; files before/after may be affected!')
+        raise CorruptRawFileDiscontinuousGPS(f'GPS timing discontinuity found in {fn}, skipping this file')
 
     done = False
     if sufficient_gps:
@@ -1160,8 +1168,15 @@ def _calculate_drift(L, fn, require_gps):
     return header_info
 
 ########
+def _detect_step(x, y):
+    _breakpoint()
+    reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(x, y, degree = 1)
+    if any(np.abs(np.diff(resid)) > 0.25):
+        return True
+    else:
+        return False
 
-def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
+def _robust_regress(x, y, degree = 3, MAD = 0.01, z = 4, recursive_depth = np.inf, verbose = False):
     # goal: a quadratic regression that is robust to RARE outliers, especially for GPS data
     # scipy.stats.theilslopes (median-based) looks problematic because the median is only affected
     # by the central data point and doesn't benefit from the other samples' information. Also, GPS
@@ -1171,28 +1186,34 @@ def _robust_regress(x, y, z = 4, recursive_depth = np.inf, verbose = False):
     ### z < 3 has an off-chance of repeated trimming with few data points remaining! don't do that.
 
     ## Calculate regression line and residuals.
+    print('_robust_regress')
+    _breakpoint()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        reg = np.polynomial.polynomial.polyfit(x, y, 3)[::-1]
+        reg = np.polynomial.polynomial.polyfit(x, y, degree)
         #linreg = scipy.stats.linregress(x, y)
         #resid = y - (linreg.intercept + x * linreg.slope)
         #reg = np.polyfit(x, y, 3)
-    resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
+    #resid = y - (reg[3] + x * reg[2] + x**2 * reg[1] + x**3 * reg[0])
     #resid = y - _apply_fit(x, reg) # doesn't work because reg is not dict
+    resid = y - np.polynomial.Polynomial(reg)(x)
 
     ## If any are found to be outliers, remove them and recalculate recursively.
     outliers = np.abs(resid) > (z*np.std(resid))
+    if len(outliers) == 0:
+        outliers = np.abs(resid) > MAD
     if any(outliers) and (recursive_depth > 0):
         if verbose:
             print(f'depth {recursive_depth}, num_outliers {np.sum(outliers)}')
         return _robust_regress(x[~outliers], y[~outliers], z, recursive_depth = recursive_depth - 1, verbose = verbose)
     else:
-        return (reg, len(x), np.max(np.abs(resid)), resid, x, y)
+        return (reg[::-1], len(x), np.max(np.abs(resid)), resid, x, y)
 
 def _no_drift(x):
     return x * 0.001024
 
-def _plot_drift(file_list, z = 4, recursive_depth = np.inf):
+def _plot_drift_several(file_list, z = 4, recursive_depth = np.inf):
+    # requires several good files in
     if type(file_list) is str:
         file_list = [file_list]
     output = _read_several(file_list)
