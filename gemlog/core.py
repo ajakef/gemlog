@@ -1200,7 +1200,7 @@ def _robust_regress(x, y, degree = 3, MAD = 0.01, z = 4, recursive_depth = np.in
 
     ## If any are found to be outliers, remove them and recalculate recursively.
     outliers = np.abs(resid) > (z*np.std(resid))
-    if len(outliers) == 0:
+    if not any(outliers):
         outliers = np.abs(resid) > MAD
     if any(outliers) and (recursive_depth > 0):
         if verbose:
