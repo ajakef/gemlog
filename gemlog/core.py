@@ -906,20 +906,17 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
 
     ## gps stuff
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
-    def make_gps_time(row):
-        try:
-            return obspy.UTCDateTime(*row)
-        except Exception:
-            return np.NaN
     try:
         G = grouper.get_group(Gkey)
         G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
         G.columns = G_cols
         G = G.apply(pd.to_numeric)
+        
         # filter bad GPS data and combine into datetimes
-        valid_gps = _valid_gps(G)
+        valid_gps = _gps_in_bounds(G)
         G = G.loc[valid_gps, :]
-        G['t'] = G.iloc[:, 2:8].astype(int).apply(make_gps_time, axis=1)
+        G['t'] = G.apply(_make_gps_time, axis=1)
+        G = G.loc[~G['t'].isna(),:]
         G = G.reset_index().astype('float')
     except:
         if require_gps:
@@ -929,7 +926,7 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
         
     return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G}
 
-def _valid_gps(G):
+def _gps_in_bounds(G):
     # vectorized GPS data validation
     # basic lower and upper bounds:
     limits = {
@@ -954,6 +951,7 @@ def _valid_gps(G):
         (G['lon'] == 0) |
         (G['second'] != np.round(G['second']))
     )
+
     return ~bad_gps
 
 
