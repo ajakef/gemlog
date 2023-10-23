@@ -1094,8 +1094,8 @@ def _calculate_drift(L, fn, require_gps):
     ## 0 & no valid GPS: use end of previous file + 0.01 sec as start time, assume zero drift
     ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 1, otherwise: exception
-    default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
     _breakpoint()
+    default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
     if ('t' not in L['gps'].keys()) or (len(L['gps'].t) == 0):
         any_gps = False
         sufficient_gps = False
@@ -1167,7 +1167,6 @@ def _calculate_drift(L, fn, require_gps):
 
 ########
 def _detect_step(x, y):
-    _breakpoint()
     reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(x, y, degree = 1, MAD = np.inf)
     if any(np.abs(np.diff(resid)) > 0.25):
         return True
@@ -1184,7 +1183,6 @@ def _robust_regress(x, y, degree = 3, MAD = 0.01, z = 4, recursive_depth = np.in
     ### z < 3 has an off-chance of repeated trimming with few data points remaining! don't do that.
 
     ## Calculate regression line and residuals.
-    _breakpoint()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         reg = np.polynomial.polynomial.polyfit(x, y, degree)
@@ -1197,7 +1195,8 @@ def _robust_regress(x, y, degree = 3, MAD = 0.01, z = 4, recursive_depth = np.in
     if any(outliers) and (recursive_depth > 0):
         if verbose:
             print(f'depth {recursive_depth}, num_outliers {np.sum(outliers)}')
-        return _robust_regress(x[~outliers], y[~outliers], z, recursive_depth = recursive_depth - 1, verbose = verbose)
+        return _robust_regress(x[~outliers], y[~outliers], degree = degree, MAD = MAD, z = z,
+                               recursive_depth = recursive_depth - 1, verbose = verbose)
     else:
         return (reg[::-1], len(x), np.max(np.abs(resid)), resid, x, y)
 
