@@ -271,6 +271,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## start metadata and gps files
     metadata = L['metadata']   
     gps = L['gps']
+    problems = L['problems']
     metadata.to_csv(metadatafile, index=False) ## change to metadata format. need to make ScanMnetadata compatible with both
 
     wgps = (gps['t'] > (t1 - 1)) 
@@ -329,7 +330,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             ## update the gps file
             if(len(wgps) > 0):
                 gps.to_csv(gpsfile, index=False, mode='a', header=False)
-                
+            problems += L['problems']
         ## run the conversion and write new converted files
         while((hour_to_write + file_length_sec) <= p[-1].stats.endtime):
             hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
@@ -347,7 +348,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             hour_to_write = p[0].stats.starttime
         else:
             break
-
+    return problems
 Convert = convert # alias; v1.0.0
 ####################################
 
@@ -1032,10 +1033,12 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     header = _make_empty_header(fnList)
     G = _make_empty_gps()
     M = _make_empty_metadata()
+    problems = []
     
     ## loop through the files
     startMillis = 0
     for i,fn in enumerate(fnList):
+        message = ''
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
             ## read the data file (using reader for this format version)
@@ -1068,23 +1071,25 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
             startMillis = D[-1,0]
-            
         except KeyboardInterrupt:
             raise
         except CorruptRawFileInadequateGPS:
-            print('Insufficient GPS data in ' + fn + ', skipping this file')
+            message = f'Insufficient GPS data in {fn}, skipping this file'
         except CorruptRawFileNoGPS:
-            print('No GPS data in ' + fn + ', skipping this file')
+            message = f'No GPS data in {fn}, skipping this file'
         except CorruptRawFile as exception_message:
-            print(f'Skipping corrupt raw file {fn}: {exception_message}')
+            message = f'Corrupt raw file {fn}: {exception_message}'
         except Exception as exception_message:
-            print(f'Failed to read {fn}, skipping this file: {exception_message}')
+            message = f'Failed to read {fn}: {exception_message}'
             _breakpoint()
         else:
             pass
+        if message != '':
+            problems.append(message)
+            print(message)
         ## end of fn loop
     #_breakpoint()
-    return {'metadata':M, 'gps':G, 'data': D, 'header': header}
+    return {'metadata':M, 'gps':G, 'data': D, 'header': header, 'problems': problems}
 
 ##########
 def _calculate_drift(L, fn, require_gps):

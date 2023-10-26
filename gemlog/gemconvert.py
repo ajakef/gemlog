@@ -27,18 +27,20 @@ def convert_single_SN(arg_list):
     logging.info(f'Beginning {SN}')
     try:
         #print([inputdir, SN, outputdir, output_format, output_length])
-        gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length, network = network, station = station, location = location)
+        problems = gemlog.convert(inputdir, SN = SN, convertedpath = outputdir, output_format = output_format, file_length_hour = output_length, network = network, station = station, location = location)
+        if len(problems) > 0:
+            logging.info(f'Non-fatal errors: {problems}')
         print(f'{SN} done')
     except KeyboardInterrupt:
         logging.info('Interrupted by user')
         print('Interrupted')
-        #sys.exit()
+        sys.exit()
     except Exception as e:
         print(e)
         ####logging.info(traceback.format_exc(e.__traceback__))
         logging.exception(parse_error(e), exc_info = gemlog._debug)
         ####logging.exception(traceback.format_exc())
-        logging.info('Error in ' + SN)
+        logging.info('Fatal error in ' + SN)
         pass
     else:
         pass
