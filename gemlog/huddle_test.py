@@ -18,9 +18,15 @@ from matplotlib.backends.backend_pdf import PdfPages
 fifo_soft_limit = 5
 fifo_hard_limit = 50
 
+# Define battery voltage range
+batt_min = 1.7
+batt_max = 15
+batt_diff_warning = 0.5
+
 # Define temperature range
 temp_min = -20
 temp_max = 60
+temp_diff_warning = 5
 
 # Define A2 and A3 range
 A_min = 0
@@ -286,10 +292,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         
         interval_dict[SN] = np.nanmean(np.diff(metadata.t)) # calculate interval between metadata sampling. use nanmean in case of possible missing times.
         
-        ### Battery voltage must be in reasonable range
-        # Define battery voltage range
-        batt_min = 1.7
-        batt_max = 15
         
         # Save a few statistics from battery metadata
         pstats_df.loc[SN, "Battery min"] = min(metadata.batt)
@@ -297,20 +299,20 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
        
         # Battery voltage minimum tests
         if pstats_df.loc[SN, "Battery min"] < batt_min:
-            err_message = f"{SN} BATTERY ERROR: lowest battery level ({min(metadata.batt):.2f}V) is below limit (1.7V)."
+            err_message = f"{SN} BATTERY ERROR: lowest battery level ({min(metadata.batt):.2f}V) is below limit ({batt_min})."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "Battery min")
-        elif pstats_df.loc[SN, "Battery min"] < batt_min + 1.5:
-            warn_message = f"{SN} BATTERY WARNING: lowest battery level ({min(metadata.batt):.2f}V) is within 0.5V of limit (1.7V)."
+        elif pstats_df.loc[SN, "Battery min"] < (batt_min + batt_diff_warning):
+            warn_message = f"{SN} BATTERY WARNING: lowest battery level ({min(metadata.batt):.2f}V) is within {batt_diff_warning}V of limit ({batt_min})."
             _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "Battery min")
         else:
             errors_df.loc[SN, "Battery min"] = "OKAY"
             
         # Battery voltage maximum tests    
         if pstats_df.loc[SN, "Battery max"] > batt_max:
-            err_message = f"{SN} BATTERY ERROR: highest battery level ({max(metadata.batt):.2f} V) is above maximum threshold (15V)."
+            err_message = f"{SN} BATTERY ERROR: highest battery level ({max(metadata.batt):.2f} V) is above maximum threshold ({batt_max})."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name="Battery max")
-        elif pstats_df.loc[SN, "Battery max"] > batt_max - 0.05:
-            warn_message = f"{SN} BATTERY WARNING: highest battery level ({max(metadata.batt):.2f} V) is within 0.5V of limit (15V)."
+        elif pstats_df.loc[SN, "Battery max"] > (batt_max - batt_diff_warning):
+            warn_message = f"{SN} BATTERY WARNING: highest battery level ({max(metadata.batt):.2f} V) is within {batt_diff_warning}V of limit ({batt_max})."
             _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name="Battery max")
         else:
             errors_df.loc[SN, "Battery max"] = "OKAY"  
@@ -326,20 +328,20 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pstats_df.loc[SN, "Temperature average"] = np.mean(metadata.temp)
      
         # Temperature minimum check
-        if pstats_df.loc[SN,"Temperature min"] < -20: #degrees Celsius
-            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold (-20 C)."
+        if pstats_df.loc[SN,"Temperature min"] < temp_min: #degrees Celsius
+            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold ({temp_min} C)."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "Temperature min")
-        elif pstats_df.loc[SN,"Temperature min"] < -15: #modify as needed, just a backbone structure for now.
-            warn_message = f"{SN} TEMPERATURE WARNING: temperature within {np.abs(np.round(20 + min(metadata.temp),decimals=2))} degrees of minimum threshold (-20 C)"
+        elif pstats_df.loc[SN,"Temperature min"] < (temp_min + temp_diff_warning): 
+            warn_message = f"{SN} TEMPERATURE WARNING: temperature within {temp_diff_warning} degrees of minimum threshold ({temp_min} C)"
             _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "Temperature min")
         else:
             errors_df.loc[SN, "Temperature min"] = "OKAY" 
         # Temperature maximum check
-        if pstats_df.loc[SN, "Temperature max"] > 60: #degrees Celsius
-            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold (60 C)."
+        if pstats_df.loc[SN, "Temperature max"] > temp_max: #degrees Celsius
+            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold ({temp_max} C)."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "Temperature max")
-        elif pstats_df.loc[SN, "Temperature max"] > 50: #modify as needed, just a backbone structure for now.
-            warn_message = f"{SN} TEMPERATURE WARNING: temperature within {np.round(60-max(metadata.temp),decimals=2)} degrees of maximum threshold (60 C)."
+        elif pstats_df.loc[SN, "Temperature max"] > (temp_max - temp_diff_warning): #modify as needed, just a backbone structure for now.
+            warn_message = f"{SN} TEMPERATURE WARNING: temperature within {temp_diff_warning} degrees of maximum threshold ({temp_max})."
             _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "Temperature max")
         else:
             errors_df.loc[SN,"Temperature max"] = "OKAY" 
@@ -731,12 +733,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     trouble = []
 
     ## Battery test information and troubleshooting ##
-    info.append(f"""BATTERY TEST INFO: This test ensures the voltage of each Gem is within {batt_min} to {batt_max} Volts at each recorded instance. Gems within this specified range, but within a range 0.5 Volts from the threshold will result in a warning message. See battery voltage figure for details.""")
+    info.append(f"""BATTERY TEST INFO: This test ensures the voltage of each Gem is within {batt_min} to {batt_max} Volts at each recorded instance. Gems within this specified range, but within a range {batt_diff_warning} Volts from the threshold will result in a warning message. See battery voltage figure for details.""")
     trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery error or warning, either the battery voltage is outside the specified range and the Gem managed to record anyway (possibly because the battery died during the test), or the battery voltage sensor is malfunctioning. If the actual battery voltage does not match what was recorded, there may be a bad connection involving the battery voltage sensor (R8 and R9) or pin A1.""")
                    
     ## Temperature test information and troubleshooting ##
     info.append(f"""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable range. This range is set at {temp_min} to {temp_max} Celsius or {(temp_min * 9/5) + 32} to {(temp_max * 9/5) + 32} Fahrenheit. Temperatures outside this range are considered unlikely for a lab test and could cause malfunctioning or damage.""")
-    trouble.append("""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching the limit of the temperature range operation for the gem logger ({temp_min} to {temp_max} C). If this value does not reflect an accurate ambient air temperature, the TMP36 sensor on the board (U4) may be damaged, or there may be a bad connection involving the sensor or pin A0.""")
+    trouble.append(f"""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching within {temp_diff_warning} C the limit of the temperature range operation for the gem logger ({temp_min} to {temp_max} C). If this value does not reflect an accurate ambient air temperature, the TMP36 sensor on the board (U4) may be damaged, or there may be a bad connection involving the sensor or pin A0.""")
                    
     ## A2 and A3 test information and troubleshooting ##
     info.append(f"""A2 AND A3 TEST INFO: These tests ensures that the A2 and A3 "auxiliary" inputs on the circuit board are functioning properly. The first test ensures that the metadata has not flatlined for more than 99% of the recorded time (which would indicate a short circuit). The second test ensures it is within a range of {A_min} - {A_max} V.""")
