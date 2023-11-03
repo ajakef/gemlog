@@ -201,7 +201,12 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     notes = []
     
     ## Huddle test performance requirements:
-    #### >=3 loggers must have barbs facing each other and all within 15 cm, in a turbulence-suppressed semi-enclosed space, sitting on a shared hard surface on top of padding, with good GPS signal, in a site that is not next to a continuous noise source (duty cycle < 80%). Loggers should all start and stop acquisition within 1 minute of each other, and run for at least one week.
+    #   >=3 loggers must have barbs facing each other and all within 15 cm, 
+    #   in a turbulence-suppressed semi-enclosed space, sitting on a shared hard
+    #   surface on top of padding, with good GPS signal, in a site that is not 
+    #   next to a continuous noise source (duty cycle < 80%). Loggers should all
+    #   start and stop acquisition within 1 minute of each other, and run for at
+    #   least one week.
 
     metadata_path = path + '/metadata'
     gps_path = path + '/gps'
@@ -233,7 +238,6 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # maybe delete?
     plot_dir = 'plots'
     
-            
     ##Create battery and temperature time series graphs for all SN
     batt_temp_fig = plt.figure(0,figsize = (6.5,5))
     batt_temp_ax = batt_temp_fig.subplots(2)
