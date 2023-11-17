@@ -27,6 +27,7 @@ batt_diff_warning = 0.5
 temp_min = -20
 temp_max = 60
 temp_diff_warning = 5
+group_temp_diff_max = 1.5
 
 # Define A2 and A3 range
 A_min = 0
@@ -649,7 +650,8 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     # Create dataframe to house temperatures to check
     column_index = np.arange(0,int((temp_end-temp_start)/df_width),1) # theoretically, the number of values between start and end
-    
+
+    # group_temp_df has the unexpected structure of SN as row and time as column
     group_temp_df = pd.DataFrame(index = SN_list, columns = column_index ) # create dataframe to house temperatures at each minute for each SN
     times_checked = np.zeros((1,max(column_index)))
     
@@ -670,6 +672,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
         times_to_check_index = np.arange(start_index, stop_index, temp_interval) # create evenly spaced array of even minutes
         times_checked = np.arange(temp_start, temp_end, temp_interval) # must create index based on mutally agreed start time
+        
         for df_index, index in enumerate(times_to_check_index):
             #TROUBLESHOOT: 061 and 065 saving into dataframe as nan after index 29
             group_temp_df.iloc[SN_index,df_index] = metadata.temp[index] # save minute temperature reading into dataframe
@@ -678,17 +681,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # might be operating dataframe functions on entire set, not by columns...
         temp_median = np.round(group_temp_df[column].median(),2)
         temp_range = np.round(group_temp_df[column].max() - group_temp_df[column].min(),2)
-        outliers = (np.where(any(group_temp_df[column]) > temp_median + 1.5 or any(group_temp_df[column] < temp_median - 1.5))[0])
+
         # Find offending serial numbers outside of temperature range
-        x = (group_temp_df.index[group_temp_df[column] > temp_median + 1.5].tolist())       
+        x = group_temp_df.index[np.abs(group_temp_df[column] - temp_median) > group_temp_diff_max].tolist()
         if len(x) > 0:
             error = True
             ts = int(times_checked[column])
             time_lookup = datetime.datetime.utcfromtimestamp(ts)
-            err_message = (f"SN {x} recorded temperatures greater than 1 on either side of the temperature median {temp_median:.1f} on {time_lookup}. Total temperature range = {temp_range:.1f} (alpha)")
+            err_message = (f"SN {x} recorded temperatures greater than {group_temp_diff_max} on either side of the temperature median {temp_median:.1f} on {time_lookup}. Total temperature range = {temp_range:.1f} (alpha)")
             _metadata_status("error", err_message, group_err, SN)
     if error == False:
-        print("Temperatures ok: recorded temperatures are within two degrees Celsius")  
+        print(f"Temperatures ok: recorded temperatures are within {group_temp_diff_max} degrees Celsius of median")  
 
      
             

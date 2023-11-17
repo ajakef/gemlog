@@ -43,10 +43,10 @@ def test_read_single_v0_8(inputs):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness
     fn, offset = inputs
-    return _read_single(fn, offset, version = '0.8')
+    _read_single(fn, offset, version = '0.8')
 
 def test_read_single_v0_8_NMEA_single_character_lines():
-    return _read_0_8_pd('../data/v0.8_NMEA_single_character_lines/raw/FILE0014.TXT')
+    _read_0_8_pd('../data/v0.8_NMEA_single_character_lines/raw/FILE0014.TXT')
 
 def test_read_gem_integration():
     data_st = read_gem(path = '../data/v0.8/raw/', SN = '014')['data']
@@ -105,7 +105,7 @@ def reference_output(inputs):
 def test_good_data_no_crash_0_91(reader_function):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness
-    return reader_function('../data/v0.91/FILE0040.059', 5787)
+    reader_function('../data/v0.91/FILE0040.059', 5787)
 
 def assert_gem_results_equal(L0, L1, eps=1e-12):
     assert np.abs(L1['data'] - L0['data']).max() < eps

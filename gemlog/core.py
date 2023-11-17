@@ -228,7 +228,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## if not specified, define t1 as the earliest integer-second time available
     if(np.isinf(float(t1))):
         p = L['data']
-        p.merge()
+        p = _merge_gaps(p)
         t1 = p[0].stats.starttime
         t1 = obspy.core.UTCDateTime(np.ceil(float(t1)))
 
@@ -312,15 +312,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                 for i in w:
                     print('Problem with files, skipping: ' + L['header'].file[i])
 
-            #breakpoint()
-            if(len(L['data']) > 0):
-                if (L['data'][0].stats.starttime - p[-1].stats.endtime) <= 0.031: # interpolate a gap up to 3 samples
-                    L['data'] += p[-1]
-                    L['data'].merge(fill_value = 'interpolate')
-                ## merge all the data, regardless of whether we interpolated a gap above
-                p = p + L['data']
-                p.merge()
-            #print(p)
+            p = _merge_gaps(p + L['data'])
                 
             ## start metadata and gps files
             metadata = L['metadata']   
@@ -333,7 +325,14 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             problems += L['problems']
         ## run the conversion and write new converted files
         while((hour_to_write + file_length_sec) <= p[-1].stats.endtime):
+            #hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
             hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
+            p.trim(hour_to_write, t2)
+            p = p.split()
+            if(len(p) > 0):
+                hour_to_write = p[0].stats.starttime
+            else:
+                break
             
         ## update start time to convert
         p.trim(hour_to_write, t2)
@@ -565,6 +564,21 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
 
 ReadGem = read_gem ## alias, v1.0.0
 #################################################################
+def _merge_gaps(st, max_gap=0.031):
+    st = st.split()
+    output_st = st[:1] 
+    for i in range(1, len(st)):
+        tr1 = output_st[-1]
+        tr2 = st[i]
+        gap = (tr2.stats.starttime - tr1.stats.endtime)
+        if(gap <= max_gap):
+            st_tmp = obspy.Stream([tr1, tr2])
+            st_tmp.merge(fill_value = 'interpolate')
+            output_st += st_tmp
+        else:
+            output_st += tr2
+    output_st.merge()
+    return output_st.split()
 
 def _new_gem_var():
     tr = obspy.Trace()
@@ -1106,7 +1120,7 @@ def _calculate_drift(L, fn, require_gps):
         sufficient_gps = False
     else:
         any_gps = True
-        sufficient_gps = (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0])) < 2
+        sufficient_gps = (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0] + 1e-9)) < 2 # 1e-9 to prevent div by 0
 
     if require_gps and not any_gps:
         raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping this file')
@@ -1454,14 +1468,13 @@ def _find_breaks(L):
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
                             ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
                             ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle (possibly due to leap second)
-    )
+    )[:,0] # index because argwhere's output is unexpectedly shaped
     min_possible_start = mD.min() # this only changes if a GPS break around the first GPS sample invalidates preceding D samples
     for i in gpsBreaks:
         i = int(i)
         ## This part is tricky: what if a gpsEnd happens between a dataEnd and dataStart?
         ## Let's be conservative: if either the gpsEnd or gpsStart is within a bad data interval, or what if they bracket a bad data interval?
         ## choose them so that they exclude the most data
-        #breakpoint()
         overlaps = (mG[i] <= starts) & (mG[i+1] >= ends)
         if(np.any(overlaps)):
             w = np.argwhere(overlaps)
