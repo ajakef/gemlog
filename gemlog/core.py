@@ -685,6 +685,8 @@ def _unwrap_millis(new, old, maxNegative = 2**12, rollover = 2**13):
 
 def _make_gps_time(line):
     try:
+        
+        line = np.array(line) # warning is possible if 'line' is pd.Series
         return obspy.UTCDateTime(int(line[2]), int(line[3]), int(line[4]), int(line[5]), int(line[6]), int(line[7]))
     except:
         return np.NaN
