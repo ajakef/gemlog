@@ -338,7 +338,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         p.trim(hour_to_write, t2)
         t1 = _trunc_UTCDateTime(tt2+(86400*blockdays) + 1, 86400*blockdays)
     ## done reading new files. write what's left and end.
-    #breakpoint()
     while((hour_to_write <= p[-1].stats.endtime) & (len(p) > 0)):
         hour_to_write = _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, output_format=output_format)
         p.trim(hour_to_write, t2)
@@ -718,7 +717,10 @@ def _read_with_cython(filename, require_gps = True):
         )
 
     # use cythonized reader file instead of pd.read_csv and slow string ops
-    values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+    try:
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+    except:
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_row = 1560000 * 6*7) # in case we're processing a long file, try again with a buffer big enough for 1 week
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
@@ -771,7 +773,8 @@ def _read_with_pandas(filename, require_gps = True):
     # skiprows is important so that the header doesn't force dtype=='object'
     # the C engine for pd.read_csv is fast but crashes sometimes. Use the python engine as a backup.
     try:
-        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6, encoding_errors='ignore')
+        df = pd.read_csv(filename, names=range(13), low_memory=False, skiprows=6,
+                         encoding_errors='ignore') # consider lineterminator = '\n' for encoding problems
     except Exception:
         try:
             df = pd.read_csv(filename, names=range(13), engine='python', skiprows=6,
@@ -787,7 +790,7 @@ def _read_with_pandas(filename, require_gps = True):
         raise CorruptRawFile(filename)
     if ('G' not in set(df.loc[:,'linetype'])) and require_gps:
         raise CorruptRawFileNoGPS(filename)
-    
+                    
     df = df.loc[df.loc[:,'linetype'].isin(['D', 'M', 'G']), :]
     ## most of the runtime is before here
     # unroll the ms rollover sawtooth
@@ -824,7 +827,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     # Try each of the three file readers in order of decreasing speed but
     # probably increasing likelihood of success.
 
-    if version in ['1.1', '0.91', '0.9', '0.85C']:
+    if version in ['1.10', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
     else:
         readers = [_read_0_8_pd]
@@ -851,12 +854,11 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
             output['data'][:,0] += _time_corrections[version] 
             return output
 
-
     raise CorruptRawFile(output_message)
 
 def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     ## figure out what settings to used according to the raw file format version
-    if version in ['0.9', '0.85C']:
+    if version in ['1.10', '0.9', '0.85C']:
         rollover = 2**13
         M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
                   'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
@@ -918,7 +920,7 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
 
 
     # process data (version-dependent)
-    if version in ['0.9', '0.85C']: # don't integrate the data if version is 0.8, 0.85
+    if version in ['1.10', '0.9', '0.85C']: # don't integrate the data if version is 0.8, 0.85
         D['ADC'] = D['ADC'].astype(float).cumsum()
 
     ## gps stuff
@@ -1535,7 +1537,8 @@ _time_corrections = { # milliseconds
     '0.85':8.93,
     '0.85C':8.93,
     '0.9':8.93,
-    '0.91':8.93
+    '0.91':8.93,
+    '1.10':8.93
 }
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):

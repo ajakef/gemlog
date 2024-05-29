@@ -6,7 +6,7 @@ import numpy as np
 from libc.stdio cimport fopen, fclose, fgets, FILE, sscanf
 
 
-def parse_gemfile(filename):
+def parse_gemfile(filename, n_row = 1560000):
     """
     Cythonized gem logfile parser.
 
@@ -15,6 +15,9 @@ def parse_gemfile(filename):
     filename : bytes
         The filename to parse. Must be of type `bytes` -- use
         filename.encode('utf-8') if needed.
+    n_row : int
+        Max number of rows to be able to store. 1560000 is enough for all normal
+        Gem files. Set higher when concatenating many files.
 
     Returns
     -------
@@ -50,7 +53,7 @@ def parse_gemfile(filename):
 
     # array to store parsed data
     #n_row = 780000  # max number of rows to expect: 750000 + 15000 + 15000
-    n_row = 1560000  # max number of rows to expect: 2*(750000 + 15000 + 15000)
+    #n_row = 1560000  # max number of rows to expect: 2*(750000 + 15000 + 15000)
     result_array = np.zeros((n_row, 11), dtype=np.double)
     # make a view for faster indexing.
     # see https://cython.readthedocs.io/en/latest/src/userguide/numpy_tutorial.html#efficient-indexing-with-memoryviews
