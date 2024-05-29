@@ -231,7 +231,9 @@ def loop_through_days(function, filenames, t1 = '1970-01-01', t2 = '9999-12-31',
             break
     day_starts = np.array(day_starts)
 
-    day_ends = [day_starts[0]+86400]
+    day_ends = [day_starts[0]+86400] # bug here; causes problems with part-day files. Only run full-day files.
+    #day_ends = [day_starts[0].replace(hour=0, minute=0, second=0, microsecond=0)] # this fix didn't work
+
     while True:
         new_time = (day_ends[-1]+86400+2).replace(hour=0, minute=0, second=0) # add 24 hours + 2 sec, then round down
         if new_time < t2:
