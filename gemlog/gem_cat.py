@@ -10,7 +10,7 @@ with warnings.catch_warnings():
 import obspy
 import sys
 import shutil
-from gemlog.core import _read_single, EmptyRawFile, CorruptRawFile
+from gemlog.core import _read_single, EmptyRawFile, CorruptRawFile, _read_SN, _read_format_version
 
 def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
     """
@@ -45,7 +45,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
     counter = 0
     out_file = [] ## note that out_file being empty acts as a flag saying that no files have been processed yet
     try:
-        SN = pd.read_csv(gem_files[0], delimiter = ',', skiprows = 4, nrows=1, dtype = 'str', names=['s', 'SN']).SN[0]
+        SN = _read_SN(gem_files[0])
     except:
         raise EmptyRawFile(gem_files[0])
 
@@ -114,20 +114,10 @@ def AppendFile(infile, outfile, prev_infile):
     if not os.path.exists(outpath):
         os.makedirs(outpath)
         
-    header = pd.read_csv(infile, delimiter = ',', nrows=1, dtype = 'str', names=['line']).line[0]
-    format = header[7:]
-    if format in ['0.85C', '0.9', '0.91']:
-        #SN = scan(infile, skip = 4, sep = ',', what = list(character(), character()), nlines = 1, flush = TRUE)[[1]][2]
-        ## determine what the last ADC reading is before the start of this file
-        #if len(prev_infile) == 12:
-        #    path = '.'
-        #else:
-        #    path = prev_infile[0:-12]
-        ###########################################
-        #L = suppressWarnings(ReadGem(nums = num, path = path, units = 'counts')) # suppressWarnings because it'll warn that there's no GPS issue (which is kind of the point) or SN (which doesn't matter)
-        #p_start = L$p[length(L$p)]
+    format = _read_format_version(infile)
+    if format in ['0.85C', '0.9', '0.91', '1.10']:
+        ## find the pressure at the end of the previous file
         p_start = int(_read_single(prev_infile, require_gps = False, version = format)['data'][-1,1])
-        ########################################
 
         ## read the first data line of the infile and convert it to an ADC reading difference
         j=0
