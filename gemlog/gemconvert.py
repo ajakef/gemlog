@@ -49,7 +49,7 @@ def convert_single_SN(arg_list):
 
 def print_call():
     print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers> -o <outputdir> -f <format> -l <filelength_hours> -p <number_of_processes>')
-    print('-i --inputdir: default ./raw/')
+    print('-i --inputdir: default ./raw/ (must be a single folder containing raw files')
     print('-s --serialnumbers: separate by commas (no spaces); default all')
     print('-x --exclude_serialnumbers: separate by commas (no spaces); default none')
     print('-o --outputdir: default ./mseed')
