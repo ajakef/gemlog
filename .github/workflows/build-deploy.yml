@@ -11,7 +11,7 @@ on:
 
 env:
   # don't build wheels for unsupported CPython versions, and skip pypy altogether
-  CIBW_SKIP: cp27-* cp35-* cp36-* cp37-* pp*
+  CIBW_SKIP: cp27-* cp35-* cp36-* cp37-* pp*  *win32 *i686 *musllinux*
   ## install cython in each build environment
   CIBW_BEFORE_BUILD: pip install -U cython
 
