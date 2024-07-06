@@ -72,7 +72,7 @@ def plot_lags(lag0, lag1, use_consistency = True):
     N=3
     ## Plot lags for the two conversions
     plt.subplot(2,2,1)
-    ## consistency multiplier: 1 if consistent, NaN otherwise
+    ## consistency multiplier: 1 if consistent, nan otherwise
     if use_consistency:
         c1 = (np.array(lag1[3])==0) / (np.array(lag1[3])==0)
         c0 = (np.array(lag0[3])==0) / (np.array(lag0[3])==0)
@@ -317,7 +317,7 @@ def _noise_spectrum_helper(freq_in, power_in, freq_out, spectype, freq_min, freq
     if (freq_min is not None) and (freq_max is not None):
         noise = scipy.integrate.quad(spec_function, freq_min, freq_max)[0] # 'quad' outputs are the estimated integral and error bar
     else:
-        noise = np.NaN
+        noise = np.nan
 
     ## decide what kind of spectrum to return (default "power")
     if spectype.lower() == 'power':

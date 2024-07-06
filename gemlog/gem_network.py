@@ -176,7 +176,7 @@ def _get_station_info(station_info):
         #station_info = _fix_station_info_keys(station_info)
         if any([key not in station_info.keys() for key in required_keys]):
             raise Exception('invalid station_info input')
-    # if location and network fields are blank in file, they are interpreted as NaN and must be
+    # if location and network fields are blank in file, they are interpreted as nan and must be
     # turned back into blank
     if 'elevation' not in station_info.keys():
         station_info['elevation'] = np.zeros(station_info.shape[0]) - 9999

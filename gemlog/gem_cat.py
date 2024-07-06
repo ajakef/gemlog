@@ -2,7 +2,7 @@ import getopt
 import pdb
 import warnings
 import numpy as np
-from numpy import NaN, Inf
+from numpy import nan, inf
 import os, glob, csv, time, scipy
 import pandas as pd
 with warnings.catch_warnings():
