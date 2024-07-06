@@ -1,7 +1,7 @@
 import pdb
 import warnings
 import numpy as np
-from numpy import NaN, Inf
+from numpy import nan, inf
 import os, glob, csv, time, scipy
 import pandas as pd
 with warnings.catch_warnings():
@@ -43,8 +43,8 @@ def _breakpoint():
         
 #####################
 def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata', \
-            metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -Inf, t2 = Inf, nums = NaN, \
-            SN = '', bitweight = NaN, units = 'Pa', time_adjustment = 0, blockdays = 1, \
+            metadatafile = '', gpspath = 'gps', gpsfile = '', t1 = -inf, t2 = inf, nums = nan, \
+            SN = '', bitweight = nan, units = 'Pa', time_adjustment = 0, blockdays = 1, \
             file_length_hour = 24, station = '', network = '', location = '', output_format = 'MSEED'):
     """
     Read raw Gem files, interpolate them, and write output files in miniSEED or SAC format.
@@ -425,7 +425,7 @@ def _make_filename_converted(pp, output_format):
 
 ##############################################################
 ##############################################################
-def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.NaN, bitweight_V = np.NaN, bitweight_Pa = np.NaN, verbose = True, network = '', station = '', location = '', return_debug_output = False, require_gps = True, gps_strict_level = 1):
+def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitweight = np.nan, bitweight_V = np.nan, bitweight_Pa = np.nan, verbose = True, network = '', station = '', location = '', return_debug_output = False, require_gps = True, gps_strict_level = 1):
     """
     Read raw Gem files.
 
@@ -688,7 +688,7 @@ def _make_gps_time(line):
         line = np.array(line) # warning is possible if 'line' is pd.Series
         return obspy.UTCDateTime(int(line[2]), int(line[3]), int(line[4]), int(line[5]), int(line[6]), int(line[7]))
     except:
-        return np.NaN
+        return np.nan
 
 def _read_with_cython(filename, require_gps = True):
     """
@@ -1288,7 +1288,7 @@ def _assign_times(L):
 
 
 #########################################################
-def _interp_time(data, t1 = -np.Inf, t2 = np.Inf, min_step = 0, max_step = 0.025):
+def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025):
     ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
@@ -1355,7 +1355,7 @@ def _interp_time(data, t1 = -np.Inf, t2 = np.Inf, min_step = 0, max_step = 0.025
 #10    0.991  0.003501200 7.275362e-08     52    54
 #11    0.992  0.003501200 7.275362e-08     55    57
 #12    1.00  0.003501200 7.275362e-08     58    107
-#13    1.00  0.003501200 7.275362e-08     108    Inf
+#13    1.00  0.003501200 7.275362e-08     108    inf
 #'bitweight_Pa': [0.003256538, 0.003256538, 0.003256538, 0.003256538, 0.003543324, 0.003543324, 0.003543324, 0.003501200, 0.003501200, 0.003501200, 0.003501200, 0.003501200, 0.003501200],
 
 #bitweight_V = [7.362894e-08, 7.362894e-08, 7.362894e-08, 7.362894e-08, 7.362894e-08, 7.362894e-08, 7.362894e-08, 7.275362e-08, 7.275362e-08, 7.275362e-08, 7.275362e-08,7.275362e-08,7.275362e-08]
@@ -1390,7 +1390,7 @@ def get_gem_specs(SN):
     """
     versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
                     'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
-                    'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.Inf])
+                    'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.inf])
     }
     version = versionTable['version'][(int(SN) >= versionTable['min_SN']) & (int(SN) <= versionTable['max_SN'])][0]
     bitweight_V = 0.256/2**15/__gain__(version)
