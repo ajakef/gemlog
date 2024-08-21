@@ -5,7 +5,7 @@ import obspy, glob, gemlog, os
 import scipy.integrate
 import scipy.interpolate
 #from gemlog import *
-def PlotAmp(DB):
+def plot_amp(DB):
     allSta = DB.station.unique()
     allSta.sort()
     for sta in DB.station.unique():
@@ -16,8 +16,9 @@ def PlotAmp(DB):
     plt.legend(allSta)
     plt.show()
 
-import obspy
-def CheckDiscontinuity(files):
+#import obspy
+def check_discontinuity(files):
+    # check for time discontinuities in a list of files
     st = obspy.Stream()
     for fn in files:
         st += obspy.read(fn)
@@ -203,7 +204,7 @@ def calc_channel_stats(DB, t1, t2):
 _noise_path = os.path.join(os.path.dirname(__file__), "data", "noise")
 
 def gem_noise(freq = None, spectype = 'power', version = '1.0', freq_min = None, freq_max = 50):
-    """Calculate Gem self-noise as a one-sided spectrum, and integrated over 
+    """Return Gem self-noise as a one-sided spectrum, and integrated over 
     a defined frequency band
 
     Parameters
