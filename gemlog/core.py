@@ -914,7 +914,6 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
         M_cols = ['millis', 'batt', 'temp', 'RH', 'maxWriteTime', 'gpsOnFlag']
     else:
         raise CorruptRawFile('Invalid raw format version')
-    breakpoint()
     # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
     df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > (rollover/2)).cumsum()
@@ -1165,9 +1164,17 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
+def _get_channels(filename):
+    version = _read_format_version(filename)
+    if version in ['AspenCSV0.01']:
+        return 4 # eventually check config info here
+    else:
+        return 1
+    
 def _read_several(fnList, version = 0.9, require_gps = True):
     ## initialize the output variables
-    D = np.ndarray([0,2]) # expected number 7.2e5
+    n_channels = _get_channels(fnList[0])
+    D = np.ndarray([0, 1 + n_channels]) # expected number 7.2e5
     header = _make_empty_header(fnList)
     G = _make_empty_gps()
     M = _make_empty_metadata()
@@ -1204,7 +1211,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
-
+            breakpoint()
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
