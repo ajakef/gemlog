@@ -1,4 +1,5 @@
 from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
+from gemlog.parsers import parse_gemfile
 from gemlog.core import (
     _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config
 )
@@ -26,19 +27,30 @@ def inputs():
     offset = 72000000.0 + 5263
     return '../data/v0.8/raw/FILE0000.TXT', offset
 
+def test_parser():
+    x = parse_gemfile(b'../data/v1.10/FILE0001.210')
+    assert x[0][0,0] == 635
+    assert x[2][0] == 7174
+    x = parse_gemfile(b'../data/AspenCSV0.01/FILE1972.003', n_channels = 4) # very basic aspen file
+    assert x[0][0,0] == -854
+    assert x[2][0] == 2231441
+    
 def test_read_SN():
     _read_SN('../data/v0.91/FILE0040.059')
     _read_SN('../data/v1.10/FILE0001.210')
+    _read_SN('../data/AspenCSV0.01/FILE1972.003') # very basic aspen file
 
 def test_read_format():
     _read_format_version('../data/v0.91/FILE0040.059')
     _read_format_version('../data/v1.10/FILE0001.210')
+    _read_format_version('../data/AspenCSV0.01/FILE1972.003') # very basic aspen file
 
 def test_read_config():
     _read_config('../data/v0.91/FILE0040.059')
     _read_config('../data/v1.10/FILE0001.210')
-
+    _read_config('../data/AspenCSV0.01/FILE1972.003') # very basic aspen file
 @pytest.fixture(scope='session')
+
 def test_read_single_v0_8(inputs):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness
@@ -102,6 +114,7 @@ def reference_output(inputs):
 
 ## test a good format 0.91 file to make sure it at least doesn't crash
 @pytest.mark.parametrize('reader_function', [_read_with_cython, _read_with_pandas, _slow__read_single_v0_9])
+
 def test_good_data_no_crash_0_91(reader_function):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness

@@ -611,7 +611,12 @@ def _read_format_version(fn):
     #0.8: file extension .TXT, 1-hour files
     #"""
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore', on_bad_lines = 'skip')
-    version = versionLine['s'][0][7:]
+    if versionLine['s'][0][1] == 'G':
+        version = versionLine['s'][0][7:]
+    elif versionLine['s'][0][1] == 'A':
+        version = versionLine['s'][0][1:]
+    else:
+        raise CorruptRawFile('Unsupported file format version')
     return version
     
 def _read_config(fn):
@@ -732,6 +737,48 @@ def _read_with_cython(filename, require_gps = True):
     #return _process_gemlog_data(df, offset)
     return df
 
+def _read_Aspen_with_cython(filename, require_gps = True):
+    """
+    Read an Aspen logfile.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Filepath of a file containing data to read.
+    offset : int, default 0
+        A timing offset to include in the millisecond timestamp values.
+
+    Returns
+    -------
+    dict of dataframes
+        - data: the analog readings and associated timings
+        - metadata: datalogger metadata
+        - gps: GPS timing and location values
+    """
+    try:
+        from gemlog.parsers import parse_gemfile
+    except ImportError:
+        raise ImportError(
+            "gemlog's C-extensions are not available. Reinstall gemlog with "
+            "C-extensions to use this function."
+        )
+
+    # use cythonized reader file instead of pd.read_csv and slow string ops
+    try:
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4)
+    except:
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4, n_row = 1560000 * 6*7) # in case we're processing a long file, try again with a buffer big enough for 1 week
+    if values.shape[0] == 0:
+        raise EmptyRawFile(filename)
+    if (b'G' not in types) and require_gps:
+        raise CorruptRawFileNoGPS(filename)
+    df = pd.DataFrame(values, columns=range(2, 13))
+    # note that linetype has type bytes here, not str like in the pandas func
+    df['linetype'] = types
+    df['millis-sawtooth'] = millis
+    #return _process_gemlog_data(df, offset)
+    return df
+
 
 def _read_0_8_pd(filename, require_gps = True):
     ## This procedure is different enough from read_with_pandas that they are not interchangeable.
@@ -829,15 +876,18 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
 
     if version in ['1.10', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
+    elif version in ['AspenCSV0.01']:
+        readers = [_read_Aspen_with_cython]
     else:
         readers = [_read_0_8_pd]
-
     output_message = ''
     for reader in readers:
         try:
             df = reader(filename, require_gps)
-            
-            output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
+            if version in ['AspenCSV0.01']:
+                output = _process_aspen_data(df, offset, version = version, require_gps = require_gps)
+            else:
+                output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem.
@@ -856,9 +906,79 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
 
     raise CorruptRawFile(output_message)
 
+def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = True):
+    ## figure out what settings to used according to the raw file format version
+    if version in ['AspenCSV0.01']:
+        # old M_cols: ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed','maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+        rollover = 2**16
+        M_cols = ['millis', 'batt', 'temp', 'RH', 'maxWriteTime', 'gpsOnFlag']
+    else:
+        raise CorruptRawFile('Invalid raw format version')
+    breakpoint()
+    # unroll the ms rollover sawtooth
+    df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
+    df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > (rollover/2)).cumsum()
+    df['millis-stairstep'] *= rollover
+    df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
+    first_millis = df['millis-corrected'].iloc[0]
+    df['millis-corrected'] += (
+        (offset-first_millis)
+        + ((first_millis-(offset % rollover)+rollover/2) % rollover)
+        - rollover/2
+    )
+    # groupby is somewhat faster than repeated subsetting like
+    # df.loc[df['linetype'] == 'D', :], ...
+    grouper = df.groupby('linetype')
+    # the cython reader uses bytes; the python reader uses str but isn't used for aspen
+    Dkey = b'D'
+    Gkey = b'G'
+    Mkey = b'H'
+    data_col = 2
+    D = grouper.get_group(Dkey)
+    #_breakpoint()
+    # pick out columns of interest and rename
+    D_cols = ['msSamp', 'ADC0', 'ADC1', 'ADC2', 'ADC3']
+
+    # column names are currently integers (except for the calculated cols)
+    D = D[['millis-corrected', 2, 3, 4, 5]]
+    D.columns = D_cols
+
+    M = grouper.get_group(b'H')
+    M = M[['millis-corrected'] + list(range(2, len(M_cols)+1))]
+    M.columns = M_cols
+    M = M.apply(pd.to_numeric)
+    # now that columns aren't mixed dtype anymore, convert to numeric where possible
+    D = D.apply(pd.to_numeric)
+
+    D.iloc[:,1:] = D.iloc[:,1:].astype(float).cumsum(0) # calculate cumsum for each column
+
+    ## gps stuff
+    G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
+    try:
+        G = grouper.get_group(Gkey)
+        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
+        G.columns = G_cols
+        G = G.apply(pd.to_numeric)
+        
+        # filter bad GPS data and combine into datetimes
+        valid_gps = _gps_in_bounds(G)
+        G = G.loc[valid_gps, :]
+        G['t'] = G.apply(_make_gps_time, axis=1)
+        G = G.loc[~G['t'].isna(),:]
+        G = G.reset_index().astype('float')
+    except:
+        if require_gps:
+            raise CorruptRawFileNoGPS()
+        else:
+            G = pd.DataFrame(columns = G_cols)
+        
+    return {'data': np.array(D),
+            'metadata': M.reset_index().astype('float'),
+            'gps': G}
+
 def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     ## figure out what settings to used according to the raw file format version
-    if version in ['1.10', '0.9', '0.85C']:
+    if version in ['1.10', '0.9', '0.91', '0.85C']:
         rollover = 2**13
         M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
                   'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
@@ -1062,7 +1182,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             ## read the data file (using reader for this format version)
             if str(version) in ['1.10', '0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis, require_gps = require_gps)
-            elif str(version) in ['0.8', '0.85']:
+            elif str(version) in ['0.8', '0.85', 'AspenCSV0.01']:
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
@@ -1538,7 +1658,8 @@ _time_corrections = { # milliseconds
     '0.85C':8.93,
     '0.9':8.93,
     '0.91':8.93,
-    '1.10':8.93
+    '1.10':8.93,
+    'AspenCSV0.01':0
 }
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):

@@ -4,9 +4,9 @@ Cython-based file parsers.
 
 import numpy as np
 from libc.stdio cimport fopen, fclose, fgets, FILE, sscanf
+from libc.string cimport strcpy, strcat
 
-
-def parse_gemfile(filename, n_row = 1560000):
+def parse_gemfile(filename, n_channels = 1, n_row = 1560000):
     """
     Cythonized gem logfile parser.
 
@@ -15,6 +15,10 @@ def parse_gemfile(filename, n_row = 1560000):
     filename : bytes
         The filename to parse. Must be of type `bytes` -- use
         filename.encode('utf-8') if needed.
+	
+    n_channels : int
+        Number of channels being logged (1 for Gem, up to 4 for Aspen).
+	
     n_row : int
         Max number of rows to be able to store. 1560000 is enough for all normal
         Gem files. Set higher when concatenating many files.
@@ -40,9 +44,26 @@ def parse_gemfile(filename, n_row = 1560000):
     cdef char line_type = 0
 
     cdef int n_matched = 0
+
+
     # D placeholders
-    cdef int ADC = 0
+    #cdef int ADC = 0
+    #ADC_values = np.zeros(n_channels, dtype = int)
+    cdef int ADC_values[4]
     cdef double DmsSamp = 0
+
+    # Build the D line format string
+    cdef char format[20]
+    strcpy(format, b'D%lf')  # Start with the double (DmsSamp)
+    for i in range(n_channels):
+        strcat(format, ",%d")  # Append ",%d" for each integer column
+
+    # build an array of args to sscanf in D lines (addresses to "values" array)
+    cdef int ADC0 = 0
+    cdef int ADC1 = 0
+    cdef int ADC2 = 0
+    cdef int ADC3 = 0
+    
     # G placeholders
     cdef int yr = 0, mo = 0, day = 0, hr = 0, mn = 0
     cdef double msPPS = 0, msLag = 0, sec = 0, lat = 0, lon = 0
@@ -92,12 +113,16 @@ def parse_gemfile(filename, n_row = 1560000):
         elif line_type == 68:  # ord('D') == 68
             # DmsSamp,ADC
             # D7780,-1
-            n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
-            if n_matched == 1: # failed to read the 2-element format, try just 1 element
-                view[line_number, 0] = DmsSamp
-                DmsSamp = (prev_dD_millis + 10) % (2**13)
-            else: # n_matched == 2
-                view[line_number, 0] = ADC
+            #n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
+            # Prepare the argument list
+            # build an array of args to sscanf in D lines (addresses to "values" array)
+            # Call sscanf with the dynamic format string and arguments
+            n_matched = sscanf(line + 1, '%lf,%d,%d,%d,%d', &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
+
+            view[line_number, 0] = ADC0
+            view[line_number, 1] = ADC1
+            view[line_number, 2] = ADC2
+            view[line_number, 3] = ADC3
             millis_view[line_number] = DmsSamp
             prev_dD_millis = DmsSamp
 
@@ -119,7 +144,7 @@ def parse_gemfile(filename, n_row = 1560000):
             view[line_number, 8] = lon
             millis_view[line_number] = msPPS
 
-        elif line_type == 77:  # ord('M') == 77
+        elif (line_type == 77) or (line_type == 72):  # ord('M') == 77, ord('H') == 72
             # M,ms,batt(V),temp(C),A2,A3,maxLag,minFree,maxUsed,maxOver,
             # gpsFlag,freeStack1,freeStackIdle
             # M,8001,3.02,22.1,1.412,2.052,94,66,9,0,0,57,86
