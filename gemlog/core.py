@@ -139,6 +139,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     All sample times involving the Gem (and most other passive 
     seismic/acoustic data) are in UTC; time zones are not supported.
     """
+    breakpoint()
     file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     ## make sure the raw directory exists and has real data
@@ -525,6 +526,8 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, require_gps = require_gps)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
+    elif version in ['AspenCSV0.01']:
+        L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
@@ -564,19 +567,24 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
 ReadGem = read_gem ## alias, v1.0.0
 #################################################################
 def _merge_gaps(st, max_gap=0.031):
-    st = st.split()
-    output_st = st[:1] 
-    for i in range(1, len(st)):
-        tr1 = output_st[-1]
-        tr2 = st[i]
-        gap = (tr2.stats.starttime - tr1.stats.endtime)
-        if(gap <= max_gap):
-            st_tmp = obspy.Stream([tr1, tr2])
-            st_tmp.merge(fill_value = 'interpolate')
-            output_st += st_tmp
-        else:
-            output_st += tr2
-    output_st.merge()
+    channels = np.unique([tr.stats.channel for tr in st])
+    output_st = obspy.Stream()
+    for channel in channels:
+        st_channel = st.select(channel = channel)
+        st_channel = st_channel.split()
+        output_st_channel = st_channel[:1] 
+        for i in range(1, len(st_channel)):
+            tr1 = output_st_channel[-1]
+            tr2 = st_channel[i]
+            gap = (tr2.stats.starttime - tr1.stats.endtime)
+            if(gap <= max_gap):
+                st_tmp = obspy.Stream([tr1, tr2])
+                st_tmp.merge(fill_value = 'interpolate')
+                output_st_channel += st_tmp
+            else:
+                output_st_channel += tr2
+        output_st_channel.merge()
+        output_st += output_st_channel
     return output_st.split()
 
 def _new_gem_var():
@@ -1211,7 +1219,6 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
-            breakpoint()
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
@@ -1402,13 +1409,23 @@ def _assign_times(L):
     header['t1'] = _apply_segments(header.start_ms, piecewiseTimeFit)
     header['t2'] = _apply_segments(header.end_ms, piecewiseTimeFit)
     L['header'] = header
-    
+
     ## Interpolate data to equal spacing to make obspy trace.
     ## Note that data gaps just get interpolated through as a straight line. Not ideal.
     D = L['data']
+    n_channels = D.shape[1] - 1
+
+    ## append sample times (sec since 1970) as last column in D
     D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
-    L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
+
+    ## loop through channels and append to a Stream
+    L['data'] = obspy.Stream()
+    for i in range(n_channels):
+        st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])]) # returns stream, populates known fields: channel, delta, and starttime
+        for tr in st_tmp:
+            tr.stats.channel = f'XX{i}'
+        L['data'] += st_tmp
     L['gps'] = G
     return (L, timing_info)
     
@@ -1423,7 +1440,6 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025
     w_nonnan = ~np.isnan(data[:,2])
     t_in = data[w_nonnan,2]
     p_in = data[w_nonnan,1]
-    _breakpoint()
     #t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## added on 2019-09-11. 2021-07-11: this line is responsible for losing samples before the start of a second
     t1 = t_in[t_in >= (t1 - 0.01 - eps)][0]
     t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
