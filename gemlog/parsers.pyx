@@ -119,12 +119,20 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000):
             # Call sscanf with the dynamic format string and arguments
             n_matched = sscanf(line + 1, '%lf,%d,%d,%d,%d', &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
 
-            view[line_number, 0] = ADC0
-            view[line_number, 1] = ADC1
-            view[line_number, 2] = ADC2
-            view[line_number, 3] = ADC3
+            if n_matched == n_channels: # time count skipped in file
+                view[line_number, 0] = DmsSamp 
+                view[line_number, 1] = ADC0
+                view[line_number, 2] = ADC1
+                view[line_number, 3] = ADC2
+                DmsSamp = (prev_dD_millis + 10) % (2**13)
+            else: # should be n_channels + 1 for the time count
+                view[line_number, 0] = ADC0
+                view[line_number, 1] = ADC1
+                view[line_number, 2] = ADC2
+                view[line_number, 3] = ADC3
             millis_view[line_number] = DmsSamp
             prev_dD_millis = DmsSamp
+                
 
         elif line_type == 71:  # ord('G') == 71
             # G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon

@@ -139,7 +139,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     All sample times involving the Gem (and most other passive 
     seismic/acoustic data) are in UTC; time zones are not supported.
     """
-    breakpoint()
     file_length_sec = 3600 * float(file_length_hour)
     ## bitweight: leave blank to use default (considering Gem version, config, and units). This is preferred when using a standard Gem (R_g = 470 ohms)
     ## make sure the raw directory exists and has real data
@@ -1424,7 +1423,10 @@ def _assign_times(L):
     for i in range(n_channels):
         st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])]) # returns stream, populates known fields: channel, delta, and starttime
         for tr in st_tmp:
-            tr.stats.channel = f'XX{i}'
+            if i == 0:
+                tr.stats.channel = 'HDF'
+            else:
+                tr.stats.channel = f'XX{i}'
         L['data'] += st_tmp
     L['gps'] = G
     return (L, timing_info)

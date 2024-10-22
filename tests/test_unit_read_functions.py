@@ -31,24 +31,24 @@ def test_parser():
     x = parse_gemfile(b'../data/v1.10/FILE0001.210')
     assert x[0][0,0] == 635
     assert x[2][0] == 7174
-    x = parse_gemfile(b'../data/AspenCSV0.01/FILE1972.003', n_channels = 4) # very basic aspen file
-    assert x[0][0,0] == -854
-    assert x[2][0] == 2231441
+    x = parse_gemfile(b'../data/AspenCSV0.01/FILE0009.004', n_channels = 4) # very basic aspen file
+    assert x[0][0,0] == 49242
+    assert x[2][0] == 6690
     
 def test_read_SN():
     _read_SN('../data/v0.91/FILE0040.059')
     _read_SN('../data/v1.10/FILE0001.210')
-    _read_SN('../data/AspenCSV0.01/FILE1972.003') # very basic aspen file
+    _read_SN('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
 
 def test_read_format():
     _read_format_version('../data/v0.91/FILE0040.059')
     _read_format_version('../data/v1.10/FILE0001.210')
-    _read_format_version('../data/AspenCSV0.01/FILE1972.003') # very basic aspen file
+    _read_format_version('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
 
 def test_read_config():
     _read_config('../data/v0.91/FILE0040.059')
     _read_config('../data/v1.10/FILE0001.210')
-    _read_config('../data/AspenCSV0.01/FILE1972.003') # very basic aspen file
+    _read_config('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
 @pytest.fixture(scope='session')
 
 def test_read_single_v0_8(inputs):
