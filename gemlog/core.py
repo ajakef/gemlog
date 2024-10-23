@@ -151,9 +151,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         int(SN) # make sure it's number-like
     except:
         raise Exception('Invalid serial number')
-    if len(SN) != 3:
+    if (len(SN) < 3) or (len(SN) > 5):
         raise Exception('Invalid serial number; SN type is length-'+ str(len(SN)) +' ' + str(type(SN)) + ', not length-3 str')
-    
     ## make sure bitweight is a scalar
     if((type(nums) is int) or (type(nums) is float)):
         nums = np.array([nums])
@@ -654,9 +653,10 @@ def _find_nonmissing_files(path, SN, nums):
     fnList = np.array(fnList)
     
     ## find out what all the files' SNs are
-    ext = np.array([x[-3:] for x in fnList])
+    #ext = np.array([x[-3:] for x in fnList])
+    ext = [x.split('.')[-1] for x in fnList]
     for i in range(len(ext)):
-        if ext[i] == 'TXT':
+        if True:#ext[i] == 'TXT':
             try:
                 ext[i] = _read_SN(fnList[i])
             except: # if we're here, it's a corrupt/empty file
@@ -1177,6 +1177,13 @@ def _get_channels(filename):
         return 4 # eventually check config info here
     else:
         return 1
+
+def _get_dt(filename):
+    version = _read_format_version(filename)
+    if version in ['AspenCSV0.01']:
+        return 0.005
+    else:
+        return 0.01
     
 def _read_several(fnList, version = 0.9, require_gps = True):
     ## initialize the output variables
@@ -1218,6 +1225,8 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
+            header.loc[i, 'dt'] = _get_dt(fn)
+            header.loc[i, 'channels'] = _get_channels(fn)
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
             D = np.vstack((D, L['data']))
@@ -1421,7 +1430,7 @@ def _assign_times(L):
     ## loop through channels and append to a Stream
     L['data'] = obspy.Stream()
     for i in range(n_channels):
-        st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])]) # returns stream, populates known fields: channel, delta, and starttime
+        st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = L['header'].dt[0]) # returns stream, populates known fields: channel, delta, and starttime
         for tr in st_tmp:
             if i == 0:
                 tr.stats.channel = 'HDF'
@@ -1434,7 +1443,7 @@ def _assign_times(L):
 
 
 #########################################################
-def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025):
+def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025, dt = 0.01):
     ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
@@ -1443,8 +1452,8 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025
     t_in = data[w_nonnan,2]
     p_in = data[w_nonnan,1]
     #t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## added on 2019-09-11. 2021-07-11: this line is responsible for losing samples before the start of a second
-    t1 = t_in[t_in >= (t1 - 0.01 - eps)][0]
-    t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
+    t1 = t_in[t_in >= (t1 - dt - eps)][0]
+    t2 = t_in[t_in <= (t2 + dt + eps)][-1] # add a sample because t2 is 1 sample before the hour
     breaks_raw = np.where((np.diff(t_in) > max_step) | (np.diff(t_in) < min_step) )[0] # 2020-11-04: check for backwards steps too
     breaks = breaks_raw[(t_in[breaks_raw] > t1) & (t_in[breaks_raw+1] < t2)]
     starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
@@ -1452,11 +1461,14 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025
     w_same = (starts != ends)
     starts = starts[w_same]
     ends = ends[w_same]
+    breaks = breaks[w_same[:-1]]
     ## make an output time vector excluding data gaps, rounded to the nearest samples
     #t_interp = np.zeros(0)
     output = obspy.Stream()
     for i in range(len(starts)):
-        w = (t_in >= (starts[i] - 0.01 - eps)) & (t_in <= (ends[i] + 0.01 - eps))
+        if (ends - starts)[i] < dt: # it's possible to have just two appropriately spaced samples with a longer gap on each side. if the interval < dt, this is a problem and there's no harm in tossing it.
+            continue
+        w = (t_in >= (starts[i] - dt - eps)) & (t_in <= (ends[i] + dt - eps))
         try:
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
@@ -1466,11 +1478,13 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025
             ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
             ##                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
         #t_interp = np.arange(starts[i], ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
-        t_interp = np.round(starts[i] + np.arange(np.trunc((ends-starts)[i]/0.01)) * 0.01, 2)
+        t_interp = np.round(starts[i] + np.arange(np.trunc((ends-starts)[i]/dt)) * dt, 2)
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
+        if(len(t_interp) == 0):
+            breakpoint()
         tr.stats.starttime = t_interp[0]
-        tr.stats.delta = 0.01
+        tr.stats.delta = dt
         tr.stats.channel = 'HDF'
         output += tr
     return output
@@ -1613,6 +1627,8 @@ def _find_breaks(L):
         ends = np.append(ends, np.min(mD[(i-1):(i+2)]))
     tG = np.array(L['gps'].t).astype('float') # gps times
     mG = np.array(L['gps'].msPPS).astype('float') # gps millis
+    if any(np.diff(tG) == 0):
+        breakpoint()
     dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
                             ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
