@@ -6,7 +6,7 @@ import numpy as np
 from libc.stdio cimport fopen, fclose, fgets, FILE, sscanf
 from libc.string cimport strcpy, strcat
 
-def parse_gemfile(filename, n_channels = 1, n_row = 1560000):
+def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     """
     Cythonized gem logfile parser.
 
@@ -22,6 +22,10 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000):
     n_row : int
         Max number of rows to be able to store. 1560000 is enough for all normal
         Gem files. Set higher when concatenating many files.
+
+    dt_ms : int
+        Nominal sample interval in milliseconds (10 for Gem, 5 for Aspen at 200 sps)
+
 
     Returns
     -------
@@ -102,9 +106,9 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000):
         if (line_type >= 97) and (line_type <= 122): # ord('a'), ord('z')
             if (line[1] < 97) or(line[1] > 122):
                 view[line_number, 0] = line[0] - 109 # diff_ADC
-                current_dD_millis = (prev_dD_millis + 10) % (2**13)
+                current_dD_millis = (prev_dD_millis + dt_ms) % (2**13)
             else:
-                current_dD_millis = (prev_dD_millis + 10 + line[0] - 109) % (2**13) # diff_millis
+                current_dD_millis = (prev_dD_millis + dt_ms + line[0] - 109) % (2**13) # diff_millis
                 view[line_number, 0] = line[1] - 109 # diff_ADC
             prev_dD_millis = current_dD_millis
             millis_view[line_number] = current_dD_millis
@@ -124,7 +128,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000):
                 view[line_number, 1] = ADC0
                 view[line_number, 2] = ADC1
                 view[line_number, 3] = ADC2
-                DmsSamp = (prev_dD_millis + 10) % (2**13)
+                DmsSamp = (prev_dD_millis + dt_ms) % (2**13)
             else: # should be n_channels + 1 for the time count
                 view[line_number, 0] = ADC0
                 view[line_number, 1] = ADC1

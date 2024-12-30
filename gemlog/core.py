@@ -730,9 +730,9 @@ def _read_with_cython(filename, require_gps = True):
 
     # use cythonized reader file instead of pd.read_csv and slow string ops
     try:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), dt_ms = 10)
     except:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_row = 1560000 * 6*7) # in case we're processing a long file, try again with a buffer big enough for 1 week
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_row = 1560000 * 6*7, dt_ms = 10) # in case we're processing a long file, try again with a buffer big enough for 1 week
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
@@ -772,9 +772,9 @@ def _read_Aspen_with_cython(filename, require_gps = True):
 
     # use cythonized reader file instead of pd.read_csv and slow string ops
     try:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4)
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4, dt_ms = 5)
     except:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4, n_row = 1560000 * 6*7) # in case we're processing a long file, try again with a buffer big enough for 1 week
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4, n_row = 1560000 * 6*7, dt_ms = 5) # in case we're processing a long file, try again with a buffer big enough for 1 week
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
@@ -918,7 +918,7 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
     if version in ['AspenCSV0.01']:
         # old M_cols: ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed','maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
         rollover = 2**16
-        M_cols = ['millis', 'batt', 'temp', 'RH', 'maxWriteTime', 'gpsOnFlag']
+        M_cols = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'maxWriteTime', 'gpsOnFlag']
     else:
         raise CorruptRawFile('Invalid raw format version')
     # unroll the ms rollover sawtooth
@@ -1547,10 +1547,17 @@ def get_gem_specs(SN):
         - bitweight_V : voltage resolution for this Gem version [Volts per count]
         - bitweight_Pa : pressure resolution for this Gem version [Pascals per count]
     """
-    versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
-                    'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
-                    'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.inf])
+    versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01, 0.1, 0.2]),
+                    'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108, 10000, 10003]),
+                    'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, 10000, 10002, np.inf])
     }
+
+    if(len(SN) == 5):
+        SN = int(SN)
+        if SN < 10000:
+            SN = SN + 10000
+    else:
+        SN = int(SN)
     version = versionTable['version'][(int(SN) >= versionTable['min_SN']) & (int(SN) <= versionTable['max_SN'])][0]
     bitweight_V = 0.256/2**15/__gain__(version)
     sensitivity = __AVCC__(version)/7.0 * 45.13e-6 # 45.13 uV/Pa is with 7V reference from Marcillo et al., 2012
