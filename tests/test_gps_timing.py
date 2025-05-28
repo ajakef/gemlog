@@ -1,5 +1,6 @@
 import gemlog
 from gemlog import * # functions and classes not starting with _
+from gemlog.gps_timing import _get_block_stats
 import pytest
 import shutil, os
 import numpy as np
@@ -21,21 +22,23 @@ def approx_equal(x, y, d = 0.001):
 
 
 def test_get_block_stats():
-    x = np.arange(10)
+    x = np.arange(20)
+    #x = np.concatenate([np.arange(20), np.arange(100, 120)])
+
     # This dataset has no steps or spikes; should run without problems
     slope, x_mean, y_mean = _get_block_stats(x, y = x * 0.0001)
     assert approx_equal(slope, 0.0001)
-    assert approx_equal(x_mean, 4.5)
-    assert approx_equal(y_mean, 0.00045)
+    assert approx_equal(x_mean, 9.5)
+    assert approx_equal(y_mean, 0.00095)
 
     # This dataset has 2 spikes; should run without problems and get same results
     slope, x_mean, y_mean = _get_block_stats(x, y = x * 0.0001 + 10 * ((x==3) | (x==7)))
     assert approx_equal(slope, 0.0001)
-    assert approx_equal(x_mean, 4.5)
-    assert approx_equal(y_mean, 0.00045)
+    assert approx_equal(x_mean, 9.5)
+    assert approx_equal(y_mean, 0.00095)
 
     # This dataset has a step and should raise an exception
-    with pytest.raises(gemlog.core.CorruptRawFileDiscontinuousGPS):
+    with pytest.raises(gemlog.core.CorruptRawFileInadequateGPS):
         slope, x_mean, y_mean = _get_block_stats(x, y = (x > 6) + x * 0.0001)
 
 
