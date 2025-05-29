@@ -1,7 +1,20 @@
-## account for default slope
-default_deg1 = 0.001024
-x = G['millis'] * default_deg1
-y = G['t'].t - x # in a perfect world, y is constant
+import numpy as np
+from scipy.interpolate import CubicHermiteSpline
+import matplotlib.pyplot as plt
+
+def get_GPS_spline(G):
+    ## account for default slope
+    default_deg1 = 0.001024
+    x = G['millis']# * default_deg1
+    y = G['t'].t# - x # in a perfect world, y is constant
+    block_slope, block_mean_x, block_mean_y = get_block_results(x, y)
+    for i in range(len(block_slope) - 1):
+        if not check_compatibility(block_slope[i], block_mean_x[i], block_mean_y[i],
+                                   block_slope[i+i], block_mean_x[i+1], block_mean_y[i+1]):
+            raise gemlog.core.CorruptRawFileDiscontinuousGPS
+    
+    return CubicHermiteSpline(block_mean_x, block_mean_y, block_slope)
+
 
 ## define blocks and estimate slopes and mean x/y values
 def get_block_results(x, y):
@@ -29,9 +42,22 @@ def get_block_results(x, y):
     return block_slope, block_mean_x, block_mean_y
 
 ## check for slope-intercept compatibility between adjacent blocks
+def check_compatibility(m1, x1, y1, m2, x2, y2):
+    # find intersection x for lines defined by slope and point
+    if np.abs(y2-y1 + m2*(x1-x2)/2 - m1*(x2-x1)/2) < 0.0025 : # make sure halfway between them is returned in case they are collinear
+        x = (x1 + x2)/2
+    else:
+        x = (x1 - y2 + m2*x2 - x1*x1) / (m2 - m1) # this works if they are not collinear
 
-## construct spline to fit slope-intercept-millis for all blocks
-
+    # check that intersection is between the 2 blocks
+    if (x < x1) or (x > x2):
+        return False
+    # other checks? slopes close together? interval between x1 and x2 not too long?
+    
+    return True
+    
+    
+    
 ##################################
 
 # This estimator fits the best half of the data closely (L2) and totally ignores the other half.
