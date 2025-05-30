@@ -10,6 +10,7 @@ import obspy
 import sys
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
+from gemlog.gps_timing import get_GPS_spline
 
 _debug = False
 
@@ -564,7 +565,7 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
 
 ReadGem = read_gem ## alias, v1.0.0
 #################################################################
-def _merge_gaps(st, max_gap=0.031):
+def _merge_gaps(st, max_gap=0.101): ## ASPEN change: merge gap is much higher now
     channels = np.unique([tr.stats.channel for tr in st])
     output_st = obspy.Stream()
     for channel in channels:
@@ -1267,25 +1268,25 @@ def _calculate_drift(L, fn, require_gps):
     else:
         any_gps = True
         sufficient_gps = (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0] + 1e-9)) < 2 # 1e-9 to prevent div by 0
-
     if require_gps and not any_gps:
         raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping this file')
     if require_gps and not sufficient_gps:
         raise CorruptRawFileInadequateGPS('Inadequate GPS data in ' + fn + ', skipping this file')
-    if require_gps and _detect_step(L['gps'].msPPS, L['gps'].t):
-        print(f'GPS timing discontinuity found in {fn}; files before/after may be affected!')
-        raise CorruptRawFileDiscontinuousGPS(f'GPS timing discontinuity found in {fn}, skipping this file')
+    #if require_gps and _detect_step(L['gps'].msPPS, L['gps'].t):
+    #    print(f'GPS timing discontinuity found in {fn}; files before/after may be affected!')
+    #    raise CorruptRawFileDiscontinuousGPS(f'GPS timing discontinuity found in {fn}, skipping this file')
 
     done = False
     if sufficient_gps:
         try:
             ## run the GPS time vs millis regression
-            reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            #reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
             ## ensure that the regression was successful
-            if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
-               or (num_gps_nonoutliers < 10) \
-               or MAD_nonoutliers > 0.01:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+            #if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
+            #   or (num_gps_nonoutliers < 10) \
+            #   or MAD_nonoutliers > 0.01:
+            #    raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+            spline = get_GPS_spline(L['gps'])
         except:
             if require_gps:
                 raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
@@ -1318,15 +1319,12 @@ def _calculate_drift(L, fn, require_gps):
         'lon' : lon,
         'start_ms' : L['data'][0,0], # save this as a millis first, then convert
         'end_ms' : L['data'][-1,0],
-        'drift_deg3' : reg[0],
-        'drift_deg2' : reg[1],
-        'drift_deg1' : reg[2],
-        'drift_deg0' : reg[3],
-        'drift_resid_std' : np.std(resid),
-        'drift_resid_MAD' : np.max(np.abs(resid)),
+        'drift_spline' : spline,
+        #'drift_resid_std' : np.std(resid),
+        #'drift_resid_MAD' : np.max(np.abs(resid)),
         'num_gps_pts' : len(L['gps'].msPPS),
-        'drift_resid_MAD_nonoutliers' : MAD_nonoutliers,
-        'num_gps_nonoutliers' : num_gps_nonoutliers,
+        #'drift_resid_MAD_nonoutliers' : MAD_nonoutliers,
+        #'num_gps_nonoutliers' : num_gps_nonoutliers,
     }
     return header_info
 
@@ -1397,7 +1395,8 @@ def _apply_segments(x, model):
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
         #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
-        y[w] = _apply_fit(x[w], model.iloc[i,:])
+        #y[w] = _apply_fit(x[w], model.iloc[i,:])
+        y[w] = model['drift_spline'][i](x[w])
     return y
     
 def _assign_times(L):
@@ -1443,7 +1442,7 @@ def _assign_times(L):
 
 
 #########################################################
-def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025, dt = 0.01):
+def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.101, dt = 0.01): ## Aspen change: max_step is much higher now
     ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
