@@ -846,7 +846,26 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## Close and name file    
         pdf.output(f"{report_path}/{filename}.pdf")
         print("A pdf report has been generated")
+
+##############################################
+## separate command to check sample timing and clock drift (may eventually be merged into verify_huddle_test)
+def check_timing(fn):
+    L = gemlog.core._read_several(fn, version = 'AspenCSV0.01')
+    L['gps'] = L['gps'].reset_index()
     
+    ## plot drift in PPS pulses
+    plt.subplot(2,1,1)
+    plt.plot(L['gps'].msPPS, L['gps'].t - 1/1024 * L['gps'].msPPS - L['gps'].t[0], 'k.')
+    plt.xlim([L['data'][0,0], L['data'][-1,0]])
+
+    ## plot sample intervals
+    plt.subplot(2,1,2)
+    plt.plot(L['data'][1:,0], np.diff(L['data'][:,0]), 'k.')
+    plt.xlim([L['data'][0,0], L['data'][-1,0]])
+
+## 75-ms delays every 900 s
+## irregularly spaced 10-15 ms delays every couple s
+        
 ##############################################
 def print_call():
     print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers>')

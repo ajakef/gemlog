@@ -11,6 +11,7 @@ import sys
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
 from gemlog.gps_timing import get_GPS_spline
+from scipy.interpolate import CubicHermiteSpline
 
 _debug = False
 
@@ -1290,6 +1291,8 @@ def _calculate_drift(L, fn, require_gps):
         except:
             if require_gps:
                 raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+            else:
+                spline = CubicHermiteSpline([L['data'][0,0], L['data'][-1,0]], [L['data'][0,0], L['data'][-1,0]], [1,1])
         else: # if regression was successful, no need to try the zero-drift methods
             done = True
                 
