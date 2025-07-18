@@ -850,7 +850,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 ##############################################
 ## separate command to check sample timing and clock drift (may eventually be merged into verify_huddle_test)
 def check_timing(fn):
-    L = gemlog.core._read_several(fn, version = 'AspenCSV0.01')
+    L = gemlog.core._read_single(fn, version = 'AspenCSV0.01', require_gps = False)
     L['gps'] = L['gps'].reset_index()
     
     ## plot drift in PPS pulses

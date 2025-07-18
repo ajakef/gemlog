@@ -1395,11 +1395,13 @@ def _apply_fit(x, model):
 def _apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
+    #breakpoint()
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
         #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
         #y[w] = _apply_fit(x[w], model.iloc[i,:])
-        y[w] = model['drift_spline'][i](x[w])
+        if type(model['drift_spline'][i]) is CubicHermiteSpline:
+            y[w] = model['drift_spline'][i](x[w])
     return y
     
 def _assign_times(L):
@@ -1446,6 +1448,7 @@ def _assign_times(L):
 
 #########################################################
 def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.101, dt = 0.01): ## Aspen change: max_step is much higher now
+    #breakpoint()
     ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
