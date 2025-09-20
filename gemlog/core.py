@@ -919,7 +919,7 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
     ## figure out what settings to used according to the raw file format version
     if version in ['AspenCSV0.01']:
         # old M_cols: ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed','maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
-        rollover = 2**16
+        rollover = 2**13
         M_cols = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'maxWriteTime', 'gpsOnFlag']
     else:
         raise CorruptRawFile('Invalid raw format version')
@@ -1074,6 +1074,7 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G}
 
 def _gps_in_bounds(G):
+    G['msLag'] = G['msLag'] % 2**13 # revert this once fixed in FW
     # vectorized GPS data validation
     # basic lower and upper bounds:
     limits = {
@@ -1447,8 +1448,7 @@ def _assign_times(L):
 
 
 #########################################################
-def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.101, dt = 0.01): ## Aspen change: max_step is much higher now
-    #breakpoint()
+def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.151, dt = 0.01): ## Aspen change: max_step is much higher now
     ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
@@ -1461,29 +1461,31 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.101
     t2 = t_in[t_in <= (t2 + dt + eps)][-1] # add a sample because t2 is 1 sample before the hour
     breaks_raw = np.where((np.diff(t_in) > max_step) | (np.diff(t_in) < min_step) )[0] # 2020-11-04: check for backwards steps too
     breaks = breaks_raw[(t_in[breaks_raw] > t1) & (t_in[breaks_raw+1] < t2)]
-    starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
-    ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
-    w_same = (starts != ends)
-    starts = starts[w_same]
-    ends = ends[w_same]
+    t_starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
+    t_ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
+    w_same = (t_starts != t_ends)
+    t_starts = t_starts[w_same]
+    t_ends = t_ends[w_same]
     breaks = breaks[w_same[:-1]]
+    bounds = np.hstack([0, breaks+1, len(t_in)])
     ## make an output time vector excluding data gaps, rounded to the nearest samples
     #t_interp = np.zeros(0)
     output = obspy.Stream()
-    for i in range(len(starts)):
-        if (ends - starts)[i] < dt: # it's possible to have just two appropriately spaced samples with a longer gap on each side. if the interval < dt, this is a problem and there's no harm in tossing it.
+    for i in range(len(t_starts)):
+        if (t_ends - t_starts)[i] < dt: # it's possible to have just two appropriately spaced samples with a longer gap on each side. if the interval < dt, this is a problem and there's no harm in tossing it.
             continue
-        w = (t_in >= (starts[i] - dt - eps)) & (t_in <= (ends[i] + dt - eps))
+        #w = (t_in >= (t_starts[i] - dt - eps)) & (t_in <= (t_ends[i] + dt - eps)) # can cause problems at breaks
+        w = np.arange(bounds[i], bounds[i+1])
         try:
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
             _breakpoint()
             continue
             ##if not _debug: # so pdb doesn't end immediately with this exception
-            ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
-            ##                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
-        #t_interp = np.arange(starts[i], ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
-        t_interp = np.round(starts[i], 3) + np.arange(np.trunc((ends-starts)[i]/dt)) * dt
+            ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(t_starts[i])) +\
+            ##                    ' and ' + str(obspy.UTCDateTime(t_ends[i]))))
+        #t_interp = np.arange(t_starts[i], t_ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
+        t_interp = np.round(t_starts[i], 3) + np.arange(np.trunc((t_ends-t_starts)[i]/dt)) * dt
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
         if(len(t_interp) == 0):

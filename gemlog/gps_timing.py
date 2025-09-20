@@ -24,12 +24,13 @@ def get_GPS_spline(G):
 
 ## define blocks and estimate slopes and mean x/y values
 def get_block_results(x, y):
-    min_block_length = 8
+    min_block_length = 4 # previously 8
     max_block_length = 30
     max_block_gap = 30/default_deg1
-    max_block_sep = 1000/default_deg1
+    max_block_sep = 1000/default_deg1 ## currently not used
     block_starts_all = [0]
     block_starts = []
+    block_ends = []
     for i in range(1, len(x)):
         if ((x[i] - x[i-1]) > max_block_gap) or ((i - block_starts_all[-1]) > max_block_length):
             block_starts_all.append(i)
@@ -37,13 +38,14 @@ def get_block_results(x, y):
     for i in range(0, len(block_starts_all) - 1):
         if (block_starts_all[i+1] - block_starts_all[i]) >= min_block_length:
             block_starts.append(block_starts_all[i])
-    block_starts.append(len(x))
-    block_slope = np.zeros(len(block_starts) - 1)
-    block_mean_x = np.zeros(len(block_starts) - 1)
-    block_mean_y = np.zeros(len(block_starts) - 1)
-    for i in range(len(block_starts) - 1):
-        xb = x[block_starts[i]:block_starts[i+1]]
-        yb = y[block_starts[i]:block_starts[i+1]]
+            block_ends.append(block_starts_all[i+1])
+    #block_starts.append(len(x))
+    block_slope = np.zeros(len(block_starts))
+    block_mean_x = np.zeros(len(block_starts))
+    block_mean_y = np.zeros(len(block_starts))
+    for i in range(len(block_starts)):
+        xb = x[block_starts[i]:block_ends[i]]
+        yb = y[block_starts[i]:block_ends[i]]
         block_slope[i], block_mean_x[i], block_mean_y[i] = _get_block_stats(xb, yb)
     return block_slope, block_mean_x, block_mean_y
 
