@@ -517,7 +517,10 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             raise CorruptRawFile(str(path) + ': ' + str(nums))
         try:
             version = _read_format_version(fnList[0])
-            config = _read_config(fnList[0])
+            if version.find('Aspen') == 0:
+                config = _read_config_aspen(fnList[0])
+            else:
+                config = _read_config_gem(fnList[0])
         except: # if we can't read the config for the first file here, drop it and try the next one
             fnList = fnList[1:] # 
         else:
@@ -530,6 +533,16 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
+
+    ## add bitweight and config info to header
+    bitweight_info = get_bitweight_info(SN, config)
+    #header = L['header']
+    for key in bitweight_info.keys():
+        L['header'][key] = bitweight_info[key]
+    for key in config.keys():
+        #print(key)
+        L['header'][key] = config[key]
+    L['header']['file_format_version'] = version
 
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
@@ -550,15 +563,6 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         tr.stats.station = station
         tr.stats.location = location # this may well be ''
         tr.stats.network = network # can be '' for now and set later
-    ## add bitweight and config info to header
-    bitweight_info = get_bitweight_info(SN, config)
-    header = L['header']
-    for key in bitweight_info.keys():
-        L['header'][key] = bitweight_info[key]
-    for key in config.keys():
-        L['header'][key] = config[key]
-    L['header']['file_format_version'] = version
-
     ## done processing
     if return_debug_output:
         L['debug_output'] = timing_info
@@ -627,7 +631,7 @@ def _read_format_version(fn):
         raise CorruptRawFile('Unsupported file format version')
     return version
     
-def _read_config(fn):
+def _read_config_gem(fn):
     config = pd.Series({'gps_mode': 1,
                     'gps_cycle' : 15,
                     'gps_quota' : 20,
@@ -644,6 +648,40 @@ def _read_config(fn):
                 break
         except:
             pass
+    return config
+
+def _read_config_aspen(fn):
+    #print(fn)
+    names = ['gain1', 'gain2', 'gain3', 'gain4', 'sample_int_ms', 'gps_mode', 'gps_cycle', 'gps_quota']
+    config = pd.Series({
+        'gain1' : 128,
+        'gain2' : 32,
+        'gain3' : 32,
+        'gain4' : 32,
+        'gps_mode': 1,
+        'gps_cycle' : 15,
+        'gps_quota' : 15,
+        'sample_int_ms': 5
+    })
+    ## this is ugly but functional. pd.read_csv raises an exception when the number of columns is
+    ## wrong, and the number of columns will be wrong for all rows except the C rows
+    for j in range(10):
+        try:
+            line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', names = ['linetype'] + names, encoding_errors='ignore', on_bad_lines = 'skip')
+            #print(line)
+            if line.iloc[0,0] == 'C':
+                config = {key:int(line.loc[0,key]) for key in list(line.keys())[1:]}
+                break
+        except:
+            pass
+    #print(config)
+    gains = np.array([config[f'gain{i}'] for i in range(1,5)])
+    config['n_channels'] = np.sum(gains > 0)
+    ## can't add arrays in config to header (data frame)
+    #config['channel_indices'] = np.where(gains > 0)[0]
+    #config['channel_gains'] = gains[config['channel_indices']] 
+    config['adc_range'] = 0 # temporary for back-compatibility; fix this eventually
+    #print(config)
     return config
 
 
@@ -774,9 +812,10 @@ def _read_Aspen_with_cython(filename, require_gps = True):
 
     # use cythonized reader file instead of pd.read_csv and slow string ops
     try:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4, dt_ms = 5)
+        config = _read_config_aspen(filename)
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = config['n_channels'], dt_ms = config['sample_int_ms'])
     except:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = 4, n_row = 1560000 * 6*7, dt_ms = 5) # in case we're processing a long file, try again with a buffer big enough for 1 week
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = config['n_channels'], n_row = 1560000 * 6*7, dt_ms = config['sample_int_ms']) # in case we're processing a long file, try again with a buffer big enough for 1 week
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
@@ -1177,7 +1216,10 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
 def _get_channels(filename):
     version = _read_format_version(filename)
     if version in ['AspenCSV0.01']:
-        return 4 # eventually check config info here
+        #return 4 # eventually check config info here
+        config = _read_config_aspen(filename)
+        return np.sum(np.array([config[f'gain{i}'] for i in range(1,5)]) > 0)
+
     else:
         return 1
 
@@ -1210,6 +1252,14 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + str(version))
+            ## read config and add the info for all channel gains to the header
+            if version.find('Aspen') == 0:
+                config = _read_config_aspen(fn)
+                for key in [f'gain{i}' for i in range(1,5)]:
+                    header.loc[i,key] = config[key]
+            else:
+                config = _read_config_gem(fn)
+                header.loc[i,'gain1'] = 1/2**config['adc_range'] # gain 0.5 if adc_range == 1, 1 if adc_range == 0
             ## make sure the first millis is > startMillis
             if(L['data'][0,0] < startMillis):
                 L['metadata'].millis += 2**13
@@ -1406,7 +1456,6 @@ def _apply_segments(x, model):
     return y
     
 def _assign_times(L):
-    _breakpoint()
     fnList = np.array(L['header'].file)
     #if L['gps'].shape[0] == 0:
     #    raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
@@ -1426,18 +1475,22 @@ def _assign_times(L):
     ## Interpolate data to equal spacing to make obspy trace.
     ## Note that data gaps just get interpolated through as a straight line. Not ideal.
     D = L['data']
-    n_channels = D.shape[1] - 1
+    #n_channels = D.shape[1] - 1
+    channels = np.where(np.array([L['header'].loc[0,f'gain{i}'] for i in range(1,5)]) > 0)[0]
+    n_channels = len(channels)
 
     ## append sample times (sec since 1970) as last column in D
     D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
 
+
     ## loop through channels and append to a Stream
     L['data'] = obspy.Stream()
     for i in range(n_channels):
+        print(i)
         st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = L['header'].dt[0]) # returns stream, populates known fields: channel, delta, and starttime
         for tr in st_tmp:
-            if i == 0:
+            if channels[i] == 0:
                 tr.stats.channel = 'HDF'
             else:
                 tr.stats.channel = f'XX{i}'
@@ -1454,7 +1507,8 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.151
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
     ## t1 is the first output sample; should be first integer second after or including the first sample (ceiling)
     w_nonnan = ~np.isnan(data[:,2])
-    t_in = data[w_nonnan,2]
+    t_in = data[w_nonnan,-1]
+    t_in[np.where(np.diff(t_in) == 0)] -= dt # temporary to fix bad files on 2025-11-15; can remove this later
     p_in = data[w_nonnan,1]
     #t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## added on 2019-09-11. 2021-07-11: this line is responsible for losing samples before the start of a second
     t1 = t_in[t_in >= (t1 - dt - eps)][0]
@@ -1608,7 +1662,8 @@ def _reformat_GPS(G_in):
 
 
 def _find_breaks(L):
-    _breakpoint()
+    #breakpoint()
+    data_break_threshold_ms = 100
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -1626,7 +1681,7 @@ def _find_breaks(L):
     dmD = np.diff(mD)
     starts = np.array([])
     ends = np.array([])
-    dataBreaks = np.where((dmD > 25) | (dmD < 0))[0]
+    dataBreaks = np.where((dmD > data_break_threshold_ms) | (dmD < 0))[0]
     if 0 in dataBreaks:
         mD = mD[1:]
         dmD = dmD[1:]
@@ -1643,7 +1698,11 @@ def _find_breaks(L):
     mG = np.array(L['gps'].msPPS).astype('float') # gps millis
     if any(np.diff(tG) == 0):
         breakpoint()
-    dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
+    if L['header']['file_format_version'][0].find('Aspen') == -1: # correction for custom millis in gem firmware (1024 us/ms)
+        ms_mult = 1.024
+    else:
+        ms_mult = 1/1.024
+    dmG_dtG = np.diff(mG)/np.diff(tG) * ms_mult 
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
                             ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
                             ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle (possibly due to leap second)
@@ -1696,7 +1755,8 @@ def _make_empty_header(fnList):
                                    'drift_resid_std': num_filler,
                                    'drift_resid_MAD': num_filler,
                                    'num_gps_pts': num_filler,
-                                   'num_data_pts': num_filler
+                                   'num_data_pts': num_filler,
+                                   'version': ['' for fn in fnList]
     })
 def _make_empty_gps():
     return pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \

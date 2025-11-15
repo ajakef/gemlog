@@ -55,18 +55,18 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     #ADC_values = np.zeros(n_channels, dtype = int)
     cdef int ADC_values[4]
     cdef double DmsSamp = 0
+    cdef int offset = 0
+    # build an array of args to sscanf in D lines (addresses to "values" array)
+    cdef int ADC0 = 0
+    cdef int ADC1 = 0
+    cdef int ADC2 = 0
+    cdef int ADC3 = 0
 
     # Build the D line format string
     cdef char format[20]
     strcpy(format, b'D%lf')  # Start with the double (DmsSamp)
     for i in range(n_channels):
         strcat(format, ",%d")  # Append ",%d" for each integer column
-
-    # build an array of args to sscanf in D lines (addresses to "values" array)
-    cdef int ADC0 = 0
-    cdef int ADC1 = 0
-    cdef int ADC2 = 0
-    cdef int ADC3 = 0
     
     # G placeholders
     cdef int yr = 0, mo = 0, day = 0, hr = 0, mn = 0
@@ -101,42 +101,65 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
         if read == NULL:
             # EOF
             break
-
+        #print(line)
+        #print(n_channels)
         line_type = line[0]
-        if (line_type >= 97) and (line_type <= 122): # ord('a'), ord('z')
-            if (line[1] < 97) or(line[1] > 122):
-                view[line_number, 0] = line[0] - 109 # diff_ADC
+        #print(line_type)
+        if ((line_type >= 97) and (line_type <= 121)) or ((line_type == 122) and (line[1] >= 97) and (line[1] <= 122)): # ord('a', 'y', 'z')
+            if not ((line[n_channels] >= 97) and (line[n_channels] <= 122)): # a, z; same number of values in line as channels; use default dt
+                offset = 0
                 current_dD_millis = (prev_dD_millis + dt_ms) % (2**13)
-            else:
-                current_dD_millis = (prev_dD_millis + dt_ms + line[0] - 109) % (2**13) # diff_millis
-                view[line_number, 0] = line[1] - 109 # diff_ADC
+            else: # 1 more value than channels, first value is dt
+                offset = 1
+                if line[0] == 122: # ord('z')
+                    current_dD_millis = (prev_dD_millis + dt_ms + 1) % (2**13) # diff_millis
+                else:
+                    current_dD_millis = (prev_dD_millis + dt_ms + line[0] - 109) % (2**13) # diff_millis
+            for i in range(n_channels):
+                view[line_number, i] = line[i+offset] - 109 # diff_ADC
             prev_dD_millis = current_dD_millis
             millis_view[line_number] = current_dD_millis
             line_type = 68 # ord('D') # because the D line is in an elif block, this is safe and the D line code won't be invoked
-	    
-        elif line_type == 68:  # ord('D') == 68
+        
+        elif (line_type == 68) or (line_type == 122) or (line_type == 45) or ((line_type >= 48) and (line_type) < 57):  # ord('D', 'z', '-', '0', '9') == 68,122,45,48,57
+            #print(line_type)
             # DmsSamp,ADC
             # D7780,-1
             #n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
             # Prepare the argument list
             # build an array of args to sscanf in D lines (addresses to "values" array)
             # Call sscanf with the dynamic format string and arguments
-            n_matched = sscanf(line + 1, '%lf,%d,%d,%d,%d', &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
-
+            if line_type == 68:
+                offset = 1
+            elif line_type == 122:
+                offset = 1
+            else:
+                offset = 0
+            #print(offset)
+            n_matched = sscanf(line + offset, "%lf,%d,%d,%d,%d", &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
+            ##print(n_matched)
+            #print([DmsSamp, ADC0, ADC1, ADC2, ADC3])
             if n_matched == n_channels: # time count skipped in file
-                view[line_number, 0] = DmsSamp 
-                view[line_number, 1] = ADC0
-                view[line_number, 2] = ADC1
-                view[line_number, 3] = ADC2
-                DmsSamp = (prev_dD_millis + dt_ms) % (2**13)
+                for i in range(n_channels):
+                    view[line_number, i] = [DmsSamp, ADC0, ADC1, ADC2][i]
+                #view[line_number, 0] = DmsSamp 
+                #view[line_number, 1] = ADC0
+                #view[line_number, 2] = ADC1
+                #view[line_number, 3] = ADC2
+                if line_type == 122:
+                    DmsSamp = (prev_dD_millis + dt_ms + 1) % (2**13)
+                else:
+                    DmsSamp = (prev_dD_millis + dt_ms) % (2**13)
             else: # should be n_channels + 1 for the time count
-                view[line_number, 0] = ADC0
-                view[line_number, 1] = ADC1
-                view[line_number, 2] = ADC2
-                view[line_number, 3] = ADC3
+                for i in range(n_channels):
+                    view[line_number, i] = [ADC0, ADC1, ADC2, ADC3][i]
+                #view[line_number, 0] = ADC0
+                #view[line_number, 1] = ADC1
+                #view[line_number, 2] = ADC2
+                #view[line_number, 3] = ADC3
             millis_view[line_number] = DmsSamp
             prev_dD_millis = DmsSamp
-                
+            line_type = 68
 
         elif line_type == 71:  # ord('G') == 71
             # G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
