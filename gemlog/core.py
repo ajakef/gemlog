@@ -10,31 +10,17 @@ import obspy
 import sys
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
+from scipy.interpolate import CubicHermiteSpline
+from gemlog.exceptions import (
+    EmptyRawFile,
+    CorruptRawFile,
+    CorruptRawFileNoGPS,
+    CorruptRawFileInadequateGPS,
+    CorruptRawFileDiscontinuousGPS,
+    MissingRawFiles,
+)
 
 _debug = False
-
-class EmptyRawFile(Exception):
-    """Raised when the input file is empty"""
-    pass
-class CorruptRawFile(Exception):
-    """Raised when the input file cannot be read for some reason"""
-    pass
-
-class CorruptRawFileNoGPS(CorruptRawFile):
-    """Raised when the input file does not contain any GPS data"""
-    pass
-
-class CorruptRawFileInadequateGPS(CorruptRawFile):
-    """Raised when the input file does not contain any GPS data"""
-    pass
-
-class CorruptRawFileDiscontinuousGPS(CorruptRawFile):
-    """GPS timing discontinuity found in raw file due to receiving bad data from GPS; raw file must be repaired manually"""
-    pass
-
-class MissingRawFiles(Exception):
-    """Raised when no input files are readable"""
-    pass
 
 
 def _breakpoint():
@@ -347,7 +333,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         else:
             break
     return problems
-Convert = convert # alias; v1.0.0
 ####################################
 
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
@@ -561,7 +546,6 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L['debug_output'] = timing_info
     return L
 
-ReadGem = read_gem ## alias, v1.0.0
 #################################################################
 def _merge_gaps(st, max_gap=0.031):
     st = st.split()

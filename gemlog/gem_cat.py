@@ -10,7 +10,8 @@ with warnings.catch_warnings():
 import obspy
 import sys
 import shutil
-from gemlog.core import _read_single, EmptyRawFile, CorruptRawFile, _read_SN, _read_format_version
+from gemlog.core import _read_single, _read_SN, _read_format_version
+from gemlog.exceptions import EmptyRawFile, CorruptRawFile
 
 def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
     """
