@@ -10,7 +10,7 @@ from distutils.util import convert_path
 import sys
 
 # The minimum python version which can be used to run ObsPy
-MIN_PYTHON_VERSION = (3, 8)
+MIN_PYTHON_VERSION = (3, 10)
 
 # Fail fast if the user is on an unsupported version of python.
 if sys.version_info < MIN_PYTHON_VERSION:
@@ -47,23 +47,23 @@ VERSION = version_dict['__version__']
 
 ## Dependency notes:
 ## Main version requirements
-# pandas: >= 1.3 (2021-07; earlier versions are incompatible with all gemlog. >=1.4 only works for gemlog >= 1.6.1)
 # numpy: >=1.22 (2022-06-22; earlier versions have security issue https://github.com/advisories/GHSA-fpfv-jqm9-f5jm).
 # scipy: >=1.10 (2023-07-12; security issue)
 
 ## Secondary requirements
-# python: >=3.8 (2022-06-22; >=3.8 is required by numpy 1.22).
+# pandas: >= 1.3.3 (2021-09; required by numpy 1.22)
 # obspy: >=1.3 (2022-06-22; >=1.3 is required for numpy 1.22 compatibility)
-
+# matplotlib: 3.7 (2023-02-13; >=3.7 required to prevent malfunction with pandas>2)
+# python: >=3.8 (2022-06-22; >=3.8 is required by numpy 1.22).
 ## example range: pandas>=1.3.0,<1.4.0
 ## example exact: numpy==1.21
 INSTALL_REQUIRES = [
     'setuptools>=18.0', # 18.0 needed to handle cython in installation
     'obspy>=1.3',
     'numpy>=1.22', 
-    'pandas>=1.3.0', 
+    'pandas>=1.3.3', # minimum for numpy 1.22 compatibility
     'scipy>=1.10.0', # 1.10 for a security update in July 2023
-    'matplotlib>=3.2.0', # March 2020
+    'matplotlib>=3.7.0', # required for compatibility with pandas>2
     'cython', # used for reading raw files quickly
     'fpdf' # needed for pdf huddle test reports
 ]
