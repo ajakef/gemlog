@@ -1,4 +1,7 @@
-__version__ = '1.7.10' # github workflow bugfixes (non-functional for users) 
+__version__ = '1.8.1' # updated dependency versions, removed old aliases, moved exceptions to their own source file 
+__version__ = '1.8' # Minor changes; separated exceptions into new file; discontinued old aliases 
+#__version__ = '1.7.10' # github workflow bugfixes (non-functional for users) 
+##__version__ = '1.7.10' # github workflow bugfixes (non-functional for users) 
 #__version__ = '1.7.9' # fixed compatibility issue with numpy 2.0.0, no changes to functionality 
 #__version__ = '1.7.8' # improvements to make gem_cat work with format version 1.10 and to enable gemconvert_single to convert the output files from gem_cat 
 #__version__ = '1.7.7' # improvements to make gem_cat work with format version 1.10 and to enable gemconvert_single to convert the output files from gem_cat 
@@ -72,4 +75,4 @@ __version__ = '1.7.10' # github workflow bugfixes (non-functional for users)
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not comprehensive###################################################################
+## List of old versions is not comprehensive#####################################################################
