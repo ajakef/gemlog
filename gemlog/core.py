@@ -11,6 +11,7 @@ import sys
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
 from gemlog.gps_timing import get_GPS_spline
+
 from scipy.interpolate import CubicHermiteSpline
 from gemlog.exceptions import (
     EmptyRawFile,
@@ -1221,6 +1222,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     G = _make_empty_gps()
     M = _make_empty_metadata()
     problems = []
+    version = str(version)
     
     ## loop through the files
     startMillis = 0
@@ -1229,20 +1231,22 @@ def _read_several(fnList, version = 0.9, require_gps = True):
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
             ## read the data file (using reader for this format version)
-            if str(version) in ['1.10', '0.91', '0.9', '0.85C']:
+            if version in ['1.10', '0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis, require_gps = require_gps)
-            elif str(version) in ['0.8', '0.85', 'AspenCSV0.01']:
+            elif version in ['0.8', '0.85', 'AspenCSV0.01']:
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
-                raise CorruptRawFile('Invalid raw file format version: ' + str(version))
+                raise CorruptRawFile('Invalid raw file format version: ' + version)
             ## read config and add the info for all channel gains to the header
             if version.find('Aspen') == 0:
                 config = _read_config_aspen(fn)
                 for key in [f'gain{i}' for i in range(1,5)]:
                     header.loc[i,key] = config[key]
+                header.loc[i, 'dt'] = config['sample_int_ms']/1000
             else:
                 config = _read_config_gem(fn)
                 header.loc[i,'gain1'] = 1/2**config['adc_range'] # gain 0.5 if adc_range == 1, 1 if adc_range == 0
+                header.loc[i, 'dt'] = 0.01
             ## make sure the first millis is > startMillis
             if(L['data'][0,0] < startMillis):
                 L['metadata'].millis += 2**13
@@ -1735,6 +1739,11 @@ def _make_empty_header(fnList):
                                    'drift_deg1': num_filler,
                                    'drift_deg2': num_filler,
                                    'drift_deg3': num_filler,
+                                   'gain1': num_filler,
+                                   'gain2': num_filler,
+                                   'gain3': num_filler,
+                                   'gain4': num_filler,
+                                   'dt': num_filler,
                                    'drift_resid_std': num_filler,
                                    'drift_resid_MAD': num_filler,
                                    'num_gps_pts': num_filler,

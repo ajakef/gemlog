@@ -1,7 +1,7 @@
 from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
 from gemlog.parsers import parse_gemfile
 from gemlog.core import (
-    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config
+    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config_gem, _read_config_aspen
 )
 import numpy as np
 import pytest, shutil, os, obspy
@@ -46,9 +46,9 @@ def test_read_format():
     _read_format_version('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
 
 def test_read_config():
-    _read_config('../data/v0.91/FILE0040.059')
-    _read_config('../data/v1.10/FILE0001.210')
-    _read_config('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
+    _read_config_gem('../data/v0.91/FILE0040.059')
+    _read_config_gem('../data/v1.10/FILE0001.210')
+    _read_config_aspen('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file--replace with one that has a proper config line
 @pytest.fixture(scope='session')
 
 def test_read_single_v0_8(inputs):
