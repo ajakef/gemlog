@@ -12,7 +12,7 @@ from scipy.io import wavfile
 import matplotlib.pyplot as plt
 from gemlog.gps_timing import get_GPS_spline
 
-from scipy.interpolate import CubicHermiteSpline
+from scipy.interpolate import CubicHermiteSpline, interp1d
 from gemlog.exceptions import (
     EmptyRawFile,
     CorruptRawFile,
@@ -1328,7 +1328,7 @@ def _calculate_drift(L, fn, require_gps):
             spline = get_GPS_spline(L['gps'])
         except:
             if require_gps:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+                raise
             else:
                 spline = CubicHermiteSpline([L['data'][0,0], L['data'][-1,0]], [L['data'][0,0], L['data'][-1,0]], [1,1])
         else: # if regression was successful, no need to try the zero-drift methods
@@ -1438,7 +1438,7 @@ def _apply_segments(x, model):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
         #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
         #y[w] = _apply_fit(x[w], model.iloc[i,:])
-        if type(model['drift_spline'][i]) is CubicHermiteSpline:
+        if type(model['drift_spline'][i]) is CubicHermiteSpline or type(model['drift_spline'][i]) is interp1d:
             y[w] = model['drift_spline'][i](x[w])
     return y
     
