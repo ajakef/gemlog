@@ -11,6 +11,7 @@ import sys
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
 from gemlog.gps_timing import get_GPS_spline
+from scipy.interpolate import interp1d
 
 from scipy.interpolate import CubicHermiteSpline, interp1d
 from gemlog.exceptions import (
@@ -266,7 +267,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
         ## check to see if we're done
@@ -339,7 +339,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
     eps = 1e-6
     if(np.isnan(hour_end)):
-        hour_end = _trunc_UTCDateTime(hour_to_write, file_length_sec) + file_length_sec
+        hour_end = _trunc_UTCDateTime(hour_to_write + 1, file_length_sec) + file_length_sec
+    print((hour_to_write, hour_end))
     pp = p.slice(hour_to_write, hour_end - eps, nearest_sample = False) # nearest sample and eps avoid overlapping samples between files
     # Ideally, this would write mseed files with data gaps (masked arrays) if the stream here has
     # a gap. Unfortunately, those fail to write, so we have to write multiple files instead.
@@ -353,7 +354,8 @@ def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, converte
                 write_wav(tr, filename = fn, path = convertedpath)
             else:
                 tr.write(convertedpath +'/'+ fn, format = output_format, encoding=10) # encoding 10 is Steim 1
-    hour_to_write = hour_end
+    hour_to_write = _trunc_UTCDateTime(hour_end + 1, file_length_sec) # add and truncate to ensure it doesn't get stuck in an infinite loop
+    print(hour_to_write)
     return hour_to_write
 
 def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'):
@@ -1436,10 +1438,12 @@ def _apply_segments(x, model):
     #breakpoint()
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
-        #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
-        #y[w] = _apply_fit(x[w], model.iloc[i,:])
-        if type(model['drift_spline'][i]) is CubicHermiteSpline or type(model['drift_spline'][i]) is interp1d:
+        if isinstance(model['drift_spline'][i], CubicHermiteSpline) or isinstance(model['drift_spline'][i], interp1d):
             y[w] = model['drift_spline'][i](x[w])
+        elif not np.isnan(model['drift_deg0'][i]):
+            #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
+            y[w] = _apply_fit(x[w], model.iloc[i,:])
+
     return y
     
 def _assign_times(L):
@@ -1463,19 +1467,18 @@ def _assign_times(L):
     ## Note that data gaps just get interpolated through as a straight line. Not ideal.
     D = L['data']
     #n_channels = D.shape[1] - 1
-    channels = np.where(np.array([L['header'].loc[0,f'gain{i}'] for i in range(1,5)]) > 0)[0]
+    channels = np.where([any(L['header'].loc[:,f'gain{i}'] > 0) for i in range(1,5)])[0]
     n_channels = len(channels)
 
     ## append sample times (sec since 1970) as last column in D
     D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
 
-
     ## loop through channels and append to a Stream
     L['data'] = obspy.Stream()
     for i in range(n_channels):
         print(i)
-        st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = L['header'].dt[0]) # returns stream, populates known fields: channel, delta, and starttime
+        st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = np.max(L['header'].dt)) # returns stream, populates known fields: channel, delta, and starttime
         for tr in st_tmp:
             if channels[i] == 0:
                 tr.stats.channel = 'HDF'
@@ -1748,7 +1751,9 @@ def _make_empty_header(fnList):
                                    'drift_resid_MAD': num_filler,
                                    'num_gps_pts': num_filler,
                                    'num_data_pts': num_filler,
-                                   'version': ['' for fn in fnList]
+                                   'version': ['' for fn in fnList],
+                                   'drift_spline':interp1d
+                                   
     })
 def _make_empty_gps():
     return pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \

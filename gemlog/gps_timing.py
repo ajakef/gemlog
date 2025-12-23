@@ -53,7 +53,9 @@ def get_block_results(x, y, default_deg1):
         raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS('Likely step between GPS cycles')
         
     # check for other timing errors between blocks (1/1800 is 1-sec step over 30 minutes)
-    if any(np.abs(np.diff(block_mean_y)/np.diff(block_mean_x) - default_deg1)/default_deg1 > 1/1800):
+    # note that older gem files logged actual milliseconds with millis() instead of 1024 microseconds with gem_millis()
+    # That's a 2.4% difference. Need to not break when processing those older gem files.
+    if any(np.abs(np.diff(block_mean_y)/np.diff(block_mean_x) - default_deg1)/default_deg1 > 0.05):
         breakpoint()
         raise gemlog.exceptions.CorruptRawFileInadequateGPS('Timing error between GPS cycles')
     return block_slope, block_mean_x, block_mean_y

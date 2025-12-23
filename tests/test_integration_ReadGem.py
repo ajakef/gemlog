@@ -36,7 +36,8 @@ def test_read_gem_edge_cases():
 
     # test a mix of files with no gps, one gps line (that used to trigger a divide by zero warning), inadequate gps data, and normal gps data
     L = read_gem('../data/incomplete_gps_test_data/', SN = '179')
-    assert all((L['header'].drift_deg0 > 0) == np.array([False, False, True, False, True, False]))
+    #assert all((L['header'].drift_deg0 > 0) == np.array([False, False, True, False, True, False]))
+    assert all((L['header'].t1 > 1.6e9) == np.array([False, False, True, False, True, False]))
     assert len(L['data']) == 2
 
     
