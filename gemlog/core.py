@@ -556,7 +556,7 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
     return L
 
 #################################################################
-def _merge_gaps(st, max_gap=0.101): ## ASPEN change: merge gap is much higher now
+def _merge_gaps(st, max_gap=0.0351): # originally tested gap of 0.1 for aspen
     channels = np.unique([tr.stats.channel for tr in st])
     output_st = obspy.Stream()
     for channel in channels:
@@ -1305,9 +1305,6 @@ def _calculate_drift(L, fn, require_gps):
     ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 1, otherwise: exception
     _breakpoint()
-    if not require_gps:
-        #breakpoint()
-        pass
     default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
     if ('t' not in L['gps'].keys()) or (len(L['gps'].t) == 0):
         any_gps = False

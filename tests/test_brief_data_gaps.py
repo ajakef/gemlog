@@ -25,6 +25,7 @@ def test_unit_merge_gaps():
     tr_2.stats.starttime = tr_1.stats.endtime+0.03
     result = _merge_gaps(obspy.Stream([tr_1, tr_2]))
     assert len(result) == 1
+    # this test is excessive for now; allowing wider gaps is probably fine
     tr_2.stats.starttime = tr_1.stats.endtime+0.04
     result = _merge_gaps(obspy.Stream([tr_1, tr_2]))
     assert len(result) == 2

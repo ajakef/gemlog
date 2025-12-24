@@ -56,7 +56,6 @@ def get_block_results(x, y, default_deg1):
     # note that older gem files logged actual milliseconds with millis() instead of 1024 microseconds with gem_millis()
     # That's a 2.4% difference. Need to not break when processing those older gem files.
     if any(np.abs(np.diff(block_mean_y)/np.diff(block_mean_x) - default_deg1)/default_deg1 > 0.05):
-        breakpoint()
         raise gemlog.exceptions.CorruptRawFileInadequateGPS('Timing error between GPS cycles')
     return block_slope, block_mean_x, block_mean_y
 
@@ -119,7 +118,6 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2):
     # If a brief (<len(x)/2) non-reversed step is present, raise an exception.
     # Reversed steps are treated the same as spikes. If either are present, drop them.
     if _check_step_within_block(x, y, default_deg1)[0]:
-        breakpoint()
         raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS('Excessive unfit points in GPS data, likely step')
 
     # at this point, we think there is not a step in this block. calculate the stats.
@@ -129,7 +127,6 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2):
     dydx_estimate = (y[-1] - y[0])/(x[-1] - x[0])
     result = minimize(_rms_sub_med, [y[0], dydx_estimate], [x, y], method = 'Nelder-Mead')
     if not result.success:
-        #breakpoint()
         raise gemlog.core.CorruptRawFileInadequateGPS('Failed to fit GPS data')
     a, b = result.x # a intercept, b slope
         
