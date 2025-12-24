@@ -1,0 +1,1 @@
+FILE0001.003: 2024-10-18, no GPS, signal generator test (1-Hz sinusoid, 10mVp-p). Shows that all ADCs are measuring the same amplitudes except for 1) the programmed 4x difference in gain between infrasound and seismic channels, and 2) polarity reversal since the signal does have an offset.
