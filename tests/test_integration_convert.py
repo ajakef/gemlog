@@ -21,11 +21,11 @@ def setup_module():
     
 def teardown_module():
     os.chdir('..')
-    shutil.rmtree('tmp')
+    #shutil.rmtree('tmp')
 
 ## test a large block of files so that the loop in gemconvert is definitely covered by tests
 def test_gemconvert_v110():
-    gemlog.convert(rawpath='../data/v1.10/', convertedpath = 'mseed', SN= '232')
+    gemlog.convert(rawpath='../data/v1.10/', convertedpath = 'mseed', SN= '232', blockdays = 0.5)
     st = obspy.read('mseed/*232..HDF.mseed')
     assert len(st) == 4
     shutil.rmtree('mseed/')
@@ -34,7 +34,7 @@ def test_gemconvert_v110():
 ## if this works, it will only make mseed files for the 8 days when we actually have data
 ## if it fails, there will be many interpolated mseed files through the data gap(mid-april through mid-may)
 def test_gemconvert_long_data_gaps():
-    gemlog.convert(rawpath='../data/test_data/long_data_gaps/', convertedpath = 'mseed', SN= '128')
+    gemlog.convert(rawpath='../data/test_data/long_data_gaps/', convertedpath = 'mseed', SN= '128', blockdays = 0.5)
     st = obspy.read('mseed/*..HDF.mseed')
     assert len(st) == 8
     assert len(st.slice(obspy.UTCDateTime('2023-05-01'), obspy.UTCDateTime('2023-05-20'))) == 0

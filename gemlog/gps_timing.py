@@ -109,7 +109,7 @@ def _check_step_within_block(x, y, default_deg1):
     # this is a different problem from check_step_between_blocks because we don't have block_slope
     # and there might be glitches
     # detrend and use medfilt to ignore glitches and detect steps
-    yfilt = median_filter(y - y[0] - (x-x[0]) * default_deg1, 3)
+    yfilt = median_filter(y - y[0] - (x-x[0]) * default_deg1, 5)
     w = np.where(np.abs(np.diff(yfilt)) > 0.5)[0]
     return len(w)>0, x[w], y[w]
 
@@ -119,6 +119,7 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2):
     # If a brief (<len(x)/2) non-reversed step is present, raise an exception.
     # Reversed steps are treated the same as spikes. If either are present, drop them.
     if _check_step_within_block(x, y, default_deg1)[0]:
+        breakpoint()
         raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS('Excessive unfit points in GPS data, likely step')
 
     # at this point, we think there is not a step in this block. calculate the stats.

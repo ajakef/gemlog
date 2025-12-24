@@ -1506,6 +1506,7 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.151
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
     ## t1 is the first output sample; should be first integer second after or including the first sample (ceiling)
+    #breakpoint()
     w_nonnan = ~np.isnan(data[:,2])
     t_in = data[w_nonnan,-1]
     t_in[np.where(np.diff(t_in) == 0)] -= dt # temporary to fix bad files on 2025-11-15; can remove this later
