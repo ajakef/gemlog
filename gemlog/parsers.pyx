@@ -121,7 +121,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             millis_view[line_number] = current_dD_millis
             line_type = 68 # ord('D') # because the D line is in an elif block, this is safe and the D line code won't be invoked
         
-        elif (line_type == 68) or (line_type == 122) or (line_type == 45) or ((line_type >= 48) and (line_type) < 57):  # ord('D', 'z', '-', '0', '9') == 68,122,45,48,57
+        elif (line_type == 68) or (line_type == 122) or (line_type == 45) or ((line_type >= 48) and (line_type) <= 57):  # ord('D', 'z', '-', '0', '9') == 68,122,45,48,57
             #print(line_type)
             # DmsSamp,ADC
             # D7780,-1

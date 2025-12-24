@@ -1274,7 +1274,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             header.loc[i, 'channels'] = _get_channels(fn)
             M = pd.concat((M, L['metadata']))
             G = pd.concat((G, L['gps']))
-            D = np.vstack((D, L['data']))
+            D = np.vstack((D, L['data'][:,:(n_channels+1)]))
             startMillis = D[-1,0]
         except KeyboardInterrupt:
             raise
