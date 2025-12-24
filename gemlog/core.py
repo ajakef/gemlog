@@ -338,6 +338,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
 
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
     eps = 1e-6
+    hour_to_write = _trunc_UTCDateTime(hour_to_write+0.9, 1)
     if(np.isnan(hour_end)):
         hour_end = _trunc_UTCDateTime(hour_to_write + 1, file_length_sec) + file_length_sec
     print((hour_to_write, hour_end))
@@ -520,7 +521,6 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
-
     ## add bitweight and config info to header
     bitweight_info = get_bitweight_info(SN, config)
     #header = L['header']
@@ -1228,6 +1228,9 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     
     ## loop through the files
     startMillis = 0
+    if not require_gps:
+        #breakpoint()
+        pass
     for i,fn in enumerate(fnList):
         message = ''
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
@@ -1302,6 +1305,9 @@ def _calculate_drift(L, fn, require_gps):
     ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 1, otherwise: exception
     _breakpoint()
+    if not require_gps:
+        #breakpoint()
+        pass
     default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
     if ('t' not in L['gps'].keys()) or (len(L['gps'].t) == 0):
         any_gps = False
@@ -1335,7 +1341,9 @@ def _calculate_drift(L, fn, require_gps):
                 spline = CubicHermiteSpline([L['data'][0,0], L['data'][-1,0]], [L['data'][0,0], L['data'][-1,0]], [1,1])
         else: # if regression was successful, no need to try the zero-drift methods
             done = True
-                
+    else:
+        spline = CubicHermiteSpline([L['data'][0,0], L['data'][-1,0]], [L['data'][0,0], L['data'][-1,0]], [1,1])
+        
     if not done: # if a regression couldn't be performed, assume zero drift
         if any_gps:
             gps_zero_drift_starts = L['gps'].t - default_deg1 * L['gps'].msPPS
@@ -1430,7 +1438,12 @@ def _plot_drift_several(file_list, z = 4, recursive_depth = np.inf):
     plt.plot(xg, _apply_segments(xg, output['header']) - _no_drift(xg) - yg[0] - xg * drift_slope, 'k.')
 
 def _apply_fit(x, model):
-    return model['drift_deg0'] + model['drift_deg1'] * x + model['drift_deg2'] * x**2 + model['drift_deg3'] * x**3
+    if isinstance(model['drift_spline'], CubicHermiteSpline) or isinstance(model['drift_spline'], interp1d):
+        return model['drift_spline'](x)
+    elif not np.isnan(model['drift_deg0']):
+        return model['drift_deg0'] + model['drift_deg1'] * x + model['drift_deg2'] * x**2 + model['drift_deg3'] * x**3
+    else:
+        return x + np.nan
              
 def _apply_segments(x, model):
     y = np.zeros(len(x))
@@ -1438,11 +1451,8 @@ def _apply_segments(x, model):
     #breakpoint()
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
-        if isinstance(model['drift_spline'][i], CubicHermiteSpline) or isinstance(model['drift_spline'][i], interp1d):
-            y[w] = model['drift_spline'][i](x[w])
-        elif not np.isnan(model['drift_deg0'][i]):
-            #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
-            y[w] = _apply_fit(x[w], model.iloc[i,:])
+        #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
+        y[w] = _apply_fit(x[w], model.iloc[i,:])
 
     return y
     

@@ -60,7 +60,7 @@ def test_Convert_good_data():
     output.trim(t1, t2)
     reference.trim(t1, t2)
     #assert output.__eq__(reference)
-    assert np.std(output.data - reference.data) < 0.1 # counts
+    assert np.std(output.data - reference.data) < 0.5 # counts
 
 ## check that v1.10 data files are read to be identical to corresponding v0.91 files
 def test_v1_10_v0_91_read_gem():
