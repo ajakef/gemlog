@@ -30,6 +30,10 @@ def test_gemconvert_v110():
     assert len(st) == 4
     shutil.rmtree('mseed/')
 
+def test_gemconvert_AspenCSV001():
+    gemlog.convert(rawpath='../data/AspenCSV0.01/', convertedpath = 'mseed', SN= '977', blockdays = 0.5)
+    shutil.rmtree('mseed/')
+
 ## test a block of files including a long data gap--e.g., old data was left on the disk and then new data recorded afterward
 ## if this works, it will only make mseed files for the 8 days when we actually have data
 ## if it fails, there will be many interpolated mseed files through the data gap(mid-april through mid-may)

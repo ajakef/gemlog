@@ -1,7 +1,9 @@
 from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
 from gemlog.parsers import parse_gemfile
 from gemlog.core import (
-    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config_gem, _read_config_aspen
+    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single,
+    _read_several, _slow__read_single_v0_9, _process_gemlog_data, _read_SN,
+    _read_format_version, _read_config_gem, _read_config_aspen
 )
 import numpy as np
 import pytest, shutil, os, obspy
@@ -31,24 +33,30 @@ def test_parser():
     x = parse_gemfile(b'../data/v1.10/FILE0001.210')
     assert x[0][0,0] == 635
     assert x[2][0] == 7174
-    x = parse_gemfile(b'../data/AspenCSV0.01/FILE0009.004', n_channels = 4) # very basic aspen file
+    x = parse_gemfile(b'../data/AspenCSV0.01/FILE0009.004', n_channels = 4) # very basic aspen file, no compression, bad millis rollover. Don't try to convert it.
     assert x[0][0,0] == 49242
     assert x[2][0] == 6690
+    assert np.sum(x[1] == b'D') == 54400
+
+    #x = parse_gemfile(b'../data/AspenCSV0.01/FILE0108.006') # more recent 4-channel test file with compression (ERB backyard)
+    #assert x[0][0,0] == -5868
+    #assert x[2][0] == 1015
+    #assert np.sum(x[1] == b'D') == 136564
     
 def test_read_SN():
     _read_SN('../data/v0.91/FILE0040.059')
     _read_SN('../data/v1.10/FILE0001.210')
-    _read_SN('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
+    _read_SN('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file
 
 def test_read_format():
     _read_format_version('../data/v0.91/FILE0040.059')
     _read_format_version('../data/v1.10/FILE0001.210')
-    _read_format_version('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file
+    _read_format_version('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file
 
 def test_read_config():
     _read_config_gem('../data/v0.91/FILE0040.059')
     _read_config_gem('../data/v1.10/FILE0001.210')
-    _read_config_aspen('../data/AspenCSV0.01/FILE0009.004') # very basic aspen file--replace with one that has a proper config line
+    _read_config_aspen('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file--replace with one that has a proper config line
 @pytest.fixture(scope='session')
 
 def test_read_single_v0_8(inputs):
@@ -96,6 +104,18 @@ def test_read_gem_integration():
 # never raise an exception when given a valid data file.
 
 
+
+def test_unit_read_several_aspen():
+    L = _read_several(['../data/AspenCSV0.01/FILE0020.977'], version = 'AspenCSV0.01')
+    #L = _read_several(['../data/AspenCSV0.01/FILE0108.006'], version = 'AspenCSV0.01')
+    #assert np.shape(L['data'])[0] == 136564
+    
+def test_read_gem_aspen():
+    L = _read_single('../data/AspenCSV0.01/FILE0020.977', version = 'AspenCSV0.01')
+    #L = _read_single('../data/AspenCSV0.01/FILE0108.006', version = 'AspenCSV0.01')
+    #assert np.shape(L['data'])[0] == 136564
+
+    
 @pytest.fixture(scope='session')
 def inputs():
     # this is a reasonable offset to use for this file;

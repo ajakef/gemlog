@@ -98,3 +98,9 @@ def test_read_no_gps():
         _convert_one_file('../data/incomplete_gps_test_data/FILE0169.179', require_gps = True)
     with pytest.raises(CorruptRawFile):
         _convert_one_file('../data/incomplete_gps_test_data/FILE0170.179', require_gps = True)
+
+
+def test_read_gem_aspen():
+    L = read_gem('../data/AspenCSV0.01/', SN = '977')
+    #L = read_gem('../data/AspenCSV0.01/', SN = '10006')
+    
