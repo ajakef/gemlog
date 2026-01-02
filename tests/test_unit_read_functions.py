@@ -57,6 +57,15 @@ def test_read_config():
     _read_config_gem('../data/v0.91/FILE0040.059')
     _read_config_gem('../data/v1.10/FILE0001.210')
     _read_config_aspen('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file--replace with one that has a proper config line
+    x = _read_config_aspen('../data/aspen_config/FILE0078.977')
+    assert x['n_channels'] == 1
+    assert x['sample_int_ms'] == 5
+    x = _read_config_aspen('../data/aspen_config/FILE0079.977')
+    assert x['n_channels'] == 1
+    assert x['sample_int_ms'] == 5
+    x = _read_config_aspen('../data/aspen_config/FILE0080.977')
+    assert x['n_channels'] == 1
+    assert x['sample_int_ms'] == 5
 @pytest.fixture(scope='session')
 
 def test_read_single_v0_8(inputs):
