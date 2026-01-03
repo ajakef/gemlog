@@ -61,7 +61,9 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     cdef int ADC1 = 0
     cdef int ADC2 = 0
     cdef int ADC3 = 0
-
+    cdef int j = 0
+    cdef D_with_comma = False
+    
     # Build the D line format string
     cdef char format[20]
     strcpy(format, b'D%lf')  # Start with the double (DmsSamp)
@@ -129,6 +131,17 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             # Prepare the argument list
             # build an array of args to sscanf in D lines (addresses to "values" array)
             # Call sscanf with the dynamic format string and arguments
+            
+            # Check if line starts with D and contains a comma
+            D_with_comma = False
+            if line_type == 68:
+                j = 1
+                while (line[j] != 10) and (line[j] != 0):  # until newline or null terminator
+                    if line[j] == 44:  # comma (,)
+                        D_with_comma = True
+                        break
+                    j = j + 1
+            
             if line_type == 68:
                 offset = 1
             elif line_type == 122:
@@ -137,9 +150,14 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
                 offset = 0
             #print(offset)
             n_matched = sscanf(line + offset, "%lf,%d,%d,%d,%d", &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
-            ##print(n_matched)
-            #print([DmsSamp, ADC0, ADC1, ADC2, ADC3])
-            if n_matched == n_channels: # time count skipped in file
+            if (line_type == 68) and (n_matched == 1) and D_with_comma: # D1529,q
+                j = 1
+                while (line[j] != 44) and (line[j] != 10):
+                    j = j + 1
+                for i in range(n_channels):
+                    view[line_number, i] = line[j+i+1] - 109
+                    
+            elif n_matched == n_channels: # time count skipped in file
                 for i in range(n_channels):
                     view[line_number, i] = [DmsSamp, ADC0, ADC1, ADC2][i]
                 #view[line_number, 0] = DmsSamp 

@@ -101,6 +101,6 @@ def test_read_no_gps():
 
 
 def test_read_gem_aspen():
-    L = read_gem('../data/AspenCSV0.01/', SN = '977')
-    #L = read_gem('../data/AspenCSV0.01/', SN = '10006')
+    L = read_gem('../data/AspenCSV/', SN = '977', nums = np.arange(20, 30)) # exclude the unrelated FILE0077.977
+    #L = read_gem('../data/AspenCSV/', SN = '10006')
     

@@ -33,12 +33,29 @@ def test_parser():
     x = parse_gemfile(b'../data/v1.10/FILE0001.210')
     assert x[0][0,0] == 635
     assert x[2][0] == 7174
-    x = parse_gemfile(b'../data/AspenCSV0.01/FILE0009.004', n_channels = 4) # very basic aspen file, no compression, bad millis rollover. Don't try to convert it.
+    x = parse_gemfile(b'../data/AspenCSV/FILE0009.004', n_channels = 4) # very basic aspen file, no compression, bad millis rollover. Don't try to convert it.
     assert x[0][0,0] == 49242
     assert x[2][0] == 6690
     assert np.sum(x[1] == b'D') == 54400
 
-    #x = parse_gemfile(b'../data/AspenCSV0.01/FILE0108.006') # more recent 4-channel test file with compression (ERB backyard)
+    # aspen file of format 0.1 with normal compression, with multiple compression formats possible
+    x, linetype, millis = parse_gemfile(b'../data/AspenCSV/FILE0077.977', n_channels = 1, dt_ms = 5)
+    w = np.where(linetype == b'D')[0]
+    data = x[w,0]
+    # lines being parsed shown in comments
+    assert millis[w[6670]] == 2393 # 13
+    assert data[6670] == 13
+    assert millis[w[6671]] == 2399 # zk
+    assert data[6671] == -2
+    assert millis[w[6672]] == 2409 # D2409,q
+    assert data[6672] == 4
+    assert millis[w[6673]] == 2414 # D2409,q
+    assert data[6673] == 4
+    
+    
+    
+
+    #x = parse_gemfile(b'../data/AspenCSV/FILE0108.006') # more recent 4-channel test file with compression (ERB backyard)
     #assert x[0][0,0] == -5868
     #assert x[2][0] == 1015
     #assert np.sum(x[1] == b'D') == 136564
@@ -46,17 +63,17 @@ def test_parser():
 def test_read_SN():
     _read_SN('../data/v0.91/FILE0040.059')
     _read_SN('../data/v1.10/FILE0001.210')
-    _read_SN('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file
+    _read_SN('../data/AspenCSV/FILE0020.977') # very basic aspen file
 
 def test_read_format():
     _read_format_version('../data/v0.91/FILE0040.059')
     _read_format_version('../data/v1.10/FILE0001.210')
-    _read_format_version('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file
+    _read_format_version('../data/AspenCSV/FILE0020.977') # very basic aspen file
 
 def test_read_config():
     _read_config_gem('../data/v0.91/FILE0040.059')
     _read_config_gem('../data/v1.10/FILE0001.210')
-    _read_config_aspen('../data/AspenCSV0.01/FILE0020.977') # very basic aspen file--replace with one that has a proper config line
+    _read_config_aspen('../data/AspenCSV/FILE0020.977') # very basic aspen file--replace with one that has a proper config line
     x = _read_config_aspen('../data/aspen_config/FILE0078.977')
     assert x['n_channels'] == 1
     assert x['sample_int_ms'] == 5
@@ -115,13 +132,13 @@ def test_read_gem_integration():
 
 
 def test_unit_read_several_aspen():
-    L = _read_several(['../data/AspenCSV0.01/FILE0020.977'], version = 'AspenCSV0.01')
-    #L = _read_several(['../data/AspenCSV0.01/FILE0108.006'], version = 'AspenCSV0.01')
+    L = _read_several(['../data/AspenCSV/FILE0020.977'], version = 'AspenCSV0.01')
+    #L = _read_several(['../data/AspenCSV/FILE0108.006'], version = 'AspenCSV0.01')
     #assert np.shape(L['data'])[0] == 136564
     
 def test_read_gem_aspen():
-    L = _read_single('../data/AspenCSV0.01/FILE0020.977', version = 'AspenCSV0.01')
-    #L = _read_single('../data/AspenCSV0.01/FILE0108.006', version = 'AspenCSV0.01')
+    L = _read_single('../data/AspenCSV/FILE0020.977', version = 'AspenCSV0.01')
+    #L = _read_single('../data/AspenCSV/FILE0108.006', version = 'AspenCSV0.01')
     #assert np.shape(L['data'])[0] == 136564
 
     
