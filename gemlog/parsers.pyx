@@ -51,9 +51,6 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
 
 
     # D placeholders
-    #cdef int ADC = 0
-    #ADC_values = np.zeros(n_channels, dtype = int)
-    cdef int ADC_values[4]
     cdef double DmsSamp = 0
     cdef int offset = 0
     # build an array of args to sscanf in D lines (addresses to "values" array)
@@ -79,8 +76,6 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     cdef double ms = 0, batt = 0, temp = 0, A2 = 0, A3 = 0
 
     # array to store parsed data
-    #n_row = 780000  # max number of rows to expect: 750000 + 15000 + 15000
-    #n_row = 1560000  # max number of rows to expect: 2*(750000 + 15000 + 15000)
     result_array = np.zeros((n_row, 11), dtype=np.double)
     # make a view for faster indexing.
     # see https://cython.readthedocs.io/en/latest/src/userguide/numpy_tutorial.html#efficient-indexing-with-memoryviews
@@ -93,11 +88,9 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     # 1-D array to store millis.
     # range is 0 to 2**13, so choose short int
     result_millis = np.zeros(n_row, dtype=np.double)
-    # cdef short[:] millis_view = result_millis
     cdef double[:] millis_view = result_millis
 
     cdef Py_ssize_t line_number = 0
-    # were this python 3.8 we could maybe use the walrus operator.  alas
     while True:
         read = fgets(line, sizeof(line), cfile);
         if read == NULL:
@@ -107,13 +100,20 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
         #print(n_channels)
         line_type = line[0]
         #print(line_type)
-        if ((line_type >= 97) and (line_type <= 121)) or ((line_type == 122) and (line[1] >= 97) and (line[1] <= 122)): # ord('a', 'y', 'z')
-            if not ((line[n_channels] >= 97) and (line[n_channels] <= 122)): # a, z; same number of values in line as channels; use default dt
+
+        ## Parse lines that are all-lowercase (fully compressed)
+        if ( ( (line[0] >= 97) and (line[0] <= 121) ) or  # e.g. q
+           ( (line[0] == 122) and (line[1] >= 97) and (line[1] <= 122) ) ): # e.g. zm; ord('a', 'y', 'z')
+            # if line is length n_channels, use default dt
+            # example: q
+            if not ((line[n_channels] >= 97) and (line[n_channels] <= 122)): # ord('a', 'z')
                 offset = 0
                 current_dD_millis = (prev_dD_millis + dt_ms) % (2**13)
-            else: # 1 more value than channels, first value is dt
+            # if 1 more value than channels, first value is dt
+            # example: zm
+            else: 
                 offset = 1
-                if line[0] == 122: # ord('z')
+                if line[0] == 122: # ord('z'), code for dt being high by 1
                     current_dD_millis = (prev_dD_millis + dt_ms + 1) % (2**13) # diff_millis
                 else:
                     current_dD_millis = (prev_dD_millis + dt_ms + line[0] - 109) % (2**13) # diff_millis
@@ -122,16 +122,13 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             prev_dD_millis = current_dD_millis
             millis_view[line_number] = current_dD_millis
             line_type = 68 # ord('D') # because the D line is in an elif block, this is safe and the D line code won't be invoked
-        
-        elif (line_type == 68) or (line_type == 122) or (line_type == 45) or ((line_type >= 48) and (line_type) <= 57):  # ord('D', 'z', '-', '0', '9') == 68,122,45,48,57
+
+        ## Parse lines that are not all lowercase and begin with D,z,-,0-9 (partly compressed or not at all compressed)
+        ## examples: D1012,-4; D4,h; -34; z28; 
+        elif ( (line_type == 68) or (line_type == 122) or (line_type == 45) or # Dz- == 68,122,45
+             ((line_type >= 48) and (line_type) <= 57) ):  # ord('0', '9') == 48,57
             #print(line_type)
-            # DmsSamp,ADC
-            # D7780,-1
-            #n_matched = sscanf(line + 1, "%lf,%d", &DmsSamp, &ADC)
-            # Prepare the argument list
-            # build an array of args to sscanf in D lines (addresses to "values" array)
-            # Call sscanf with the dynamic format string and arguments
-            
+
             # Check if line starts with D and contains a comma
             D_with_comma = False
             if line_type == 68:
@@ -141,7 +138,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
                         D_with_comma = True
                         break
                     j = j + 1
-            
+            ## if the initial character is D or z, it won't be followed by a comma so skip it
             if line_type == 68:
                 offset = 1
             elif line_type == 122:
@@ -149,21 +146,20 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             else:
                 offset = 0
             #print(offset)
+            # try scanning it as if it's a line of comma-separated integers
             n_matched = sscanf(line + offset, "%lf,%d,%d,%d,%d", &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
-            if (line_type == 68) and (n_matched == 1) and D_with_comma: # D1529,q
+
+            # if only one number was matched but there's a comma, it's of the form D1529,qmxk
+            if (line_type == 68) and (n_matched == 1) and D_with_comma: 
                 j = 1
                 while (line[j] != 44) and (line[j] != 10):
                     j = j + 1
                 for i in range(n_channels):
                     view[line_number, i] = line[j+i+1] - 109
-                    
+            # otherwise, it's a list of comma-separated numbers, with or without millis diff
             elif n_matched == n_channels: # time count skipped in file
                 for i in range(n_channels):
                     view[line_number, i] = [DmsSamp, ADC0, ADC1, ADC2][i]
-                #view[line_number, 0] = DmsSamp 
-                #view[line_number, 1] = ADC0
-                #view[line_number, 2] = ADC1
-                #view[line_number, 3] = ADC2
                 if line_type == 122:
                     DmsSamp = (prev_dD_millis + dt_ms + 1) % (2**13)
                 else:
@@ -171,14 +167,11 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             else: # should be n_channels + 1 for the time count
                 for i in range(n_channels):
                     view[line_number, i] = [ADC0, ADC1, ADC2, ADC3][i]
-                #view[line_number, 0] = ADC0
-                #view[line_number, 1] = ADC1
-                #view[line_number, 2] = ADC2
-                #view[line_number, 3] = ADC3
             millis_view[line_number] = DmsSamp
             prev_dD_millis = DmsSamp
             line_type = 68
 
+        ## Done with data lines; moving on to GPS lines
         elif line_type == 71:  # ord('G') == 71
             # G,msPPS,msLag,yr,mo,day,hr,min,sec,lat,lon
             # G,8171,70,2020,6,20,5,21,22.0,43.62226,-116.20594
