@@ -59,7 +59,7 @@ def test_get_GPS_spline():
     fn = '../data/test_data/outlier_removal/FILE0011.202'
     L = gemlog.core._read_single(fn, offset = 0)
     G = L['gps']
-    spline = _calculate_drift(L, fn, require_gps = True)['drift_spline']
+    spline = _calculate_drift(L, fn, 'GemCSV1.10', require_gps = True)['drift_spline']
 
     # check that it correctly extrapolates values outside the input range correctly (doesn't clamp them or have weird edge effects)
     ms = 0; assert np.abs(spline(ms) - 1693668082.114023) < 1e-6
@@ -77,18 +77,18 @@ def test_integration_step_detection():
     fn = '../data/test_data/gps_time_discontinuity/FILE0061.200' # step between gps cycles
     L = gemlog.core._read_single(fn, offset = 0)
     with pytest.raises(gemlog.core.CorruptRawFileDiscontinuousGPS):
-        header_info = gemlog.core._calculate_drift(L, fn, require_gps = True)
+        header_info = gemlog.core._calculate_drift(L, fn, 'GemCSV1.10', require_gps = True)
 
     fn = '../data/test_data/gps_time_discontinuity/FILE0004.356' # step within a gps cycle
     L = gemlog.core._read_single(fn, offset = 0)
     with pytest.raises(gemlog.core.CorruptRawFileDiscontinuousGPS):
-        header_info = gemlog.core._calculate_drift(L, fn, require_gps = True)
+        header_info = gemlog.core._calculate_drift(L, fn, 'GemCSV1.10', require_gps = True)
 
     
     ## this does not have a step and should run without error
     fn = '../data/v1.10/FILE0002.232'
     L = gemlog.core._read_single(fn, offset = 0)
-    header_info = gemlog.core._calculate_drift(L, fn, require_gps = True)
+    header_info = gemlog.core._calculate_drift(L, fn, 'GemCSV1.10', require_gps = True)
 
     ## test a file with a spike that should be ignored
     

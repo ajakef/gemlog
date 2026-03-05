@@ -1280,7 +1280,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             if any(dMillis < 0) or any(dMillis > 1000):
                 raise CorruptRawFile(f'{fn} sample times are discontinuous, skipping this file')
 
-            header_info = _calculate_drift(L, fn, require_gps)
+            header_info = _calculate_drift(L, fn, version, require_gps)
 
             if (not require_gps) or (L['gps'].shape[0] > 0) :
                 for key in header_info.keys():
@@ -1315,7 +1315,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     return {'metadata':M, 'gps':G, 'data': D, 'header': header, 'problems': problems}
 
 ##########
-def _calculate_drift(L, fn, require_gps):
+def _calculate_drift(L, fn, file_format_version, require_gps):
     ## require_gps levels:
     ## 0 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 0 & at least one valid GPS: use GPS to estimate start time only, assume zero drift
@@ -1323,7 +1323,11 @@ def _calculate_drift(L, fn, require_gps):
     ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 1, otherwise: exception
     _breakpoint()
-    default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
+    if file_format_version.find('Aspen') == 0:
+        default_deg1 = 1.0/1024.0 # 1024 aspen TCXO ticks per second
+    else:
+        default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
+
     if ('t' not in L['gps'].keys()) or (len(L['gps'].t) == 0):
         any_gps = False
         sufficient_gps = False
@@ -1348,7 +1352,7 @@ def _calculate_drift(L, fn, require_gps):
             #   or (num_gps_nonoutliers < 10) \
             #   or MAD_nonoutliers > 0.01:
             #    raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
-            spline = get_GPS_spline(L['gps'])
+            spline = get_GPS_spline(L['gps'], default_deg1 = default_deg1)
         except:
             if require_gps:
                 raise
@@ -1777,7 +1781,7 @@ def _make_empty_header(fnList):
                                    'drift_resid_MAD': num_filler,
                                    'num_gps_pts': num_filler,
                                    'num_data_pts': num_filler,
-                                   'version': ['' for fn in fnList],
+                                   'file_format_version': ['' for fn in fnList],
                                    'drift_spline':interp1d
                                    
     })

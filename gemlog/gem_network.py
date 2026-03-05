@@ -425,8 +425,9 @@ def read_gps(gps_dir_pattern, SN):
             else:
                 fnList = []
         if len(fnList) > 0: # if any gps files matching SN are found, read and append the last
-            gpsTable = pd.concat([gpsTable,
-                                  pd.read_csv(fnList[-1], parse_dates = ['t'], date_parser = obspy.UTCDateTime)], ignore_index=True)
+            df = pd.read_csv(fnList[-1])
+            df['t'] = df['t'].apply(obspy.UTCDateTime)
+            gpsTable = pd.concat([gpsTable, df], ignore_index=True)
     return gpsTable
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
