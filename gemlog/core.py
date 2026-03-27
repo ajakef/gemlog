@@ -925,7 +925,6 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     """
     # Try each of the three file readers in order of decreasing speed but
     # probably increasing likelihood of success.
-
     if version in ['1.10', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
     elif version in ['AspenCSV0.01', 'AspenCSV0.1']:
@@ -1007,12 +1006,13 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
     try:
         G = grouper.get_group(Gkey)
-        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
-        G.columns = G_cols
+        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1)) + ['millis-sawtooth']]
+        G.columns = G_cols + ['millis-sawtooth']
         G = G.apply(pd.to_numeric)
         
         # filter bad GPS data and combine into datetimes
         valid_gps = _gps_in_bounds(G)
+        G = G.iloc[:,:-1] # drop the millis-sawtooth column AFTER checking valid GPS
         G = G.loc[valid_gps, :]
         G['t'] = G.apply(_make_gps_time, axis=1)
         G = G.loc[~G['t'].isna(),:]
@@ -1117,12 +1117,14 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G}
 
 def _gps_in_bounds(G):
-    G['msLag'] = G['msLag'] % 2**13 # revert this once fixed in FW
+    rollover = 2**13
+    G['msLag'] = G['msLag'] % rollover # revert this once fixed in FW
     # vectorized GPS data validation
     # basic lower and upper bounds:
     limits = {
         'lat': (-90, 90),
         'lon': (-180, 180),
+        'millis-sawtooth':(0.01, rollover),
         'msLag': (0, 1000),
         'year': (2014, 2040),
         'month': (1, 12),
