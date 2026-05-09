@@ -1098,12 +1098,13 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
     try:
         G = grouper.get_group(Gkey)
-        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
-        G.columns = G_cols
+        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1)) + ['millis-sawtooth']]
+        G.columns = G_cols + ['millis-sawtooth']
         G = G.apply(pd.to_numeric)
         
         # filter bad GPS data and combine into datetimes
         valid_gps = _gps_in_bounds(G)
+        G = G.iloc[:,:-1] # drop the millis-sawtooth column AFTER checking valid GPS
         G = G.loc[valid_gps, :]
         G['t'] = G.apply(_make_gps_time, axis=1)
         G = G.loc[~G['t'].isna(),:]
@@ -1124,7 +1125,6 @@ def _gps_in_bounds(G):
     limits = {
         'lat': (-90, 90),
         'lon': (-180, 180),
-        'millis-sawtooth':(0.01, rollover),
         'msLag': (0, 1000),
         'year': (2014, 2040),
         'month': (1, 12),
