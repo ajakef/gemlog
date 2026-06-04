@@ -531,7 +531,7 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None, t1 =
                 ], ignore_index = True)
                                
         else:
-            print('No non-outliers remaining for gem {SN}')
+            print(f'No non-outliers remaining for gem {SN}')
     if station_info is not None:
         station_info = _get_station_info(station_info)
         network = []
