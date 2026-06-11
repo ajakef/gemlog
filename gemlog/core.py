@@ -512,7 +512,6 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
-
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
         raise CorruptRawFileInadequateGPS('Inadequate GPS information in data files ' + str(nums) + ' for SN "' + SN + '" in raw directory ' + str(path))
@@ -1033,8 +1032,8 @@ def _read_several(fnList, version = 0.9, require_gps = True):
     ## initialize the output variables
     D = np.ndarray([0,2]) # expected number 7.2e5
     header = _make_empty_header(fnList)
-    G = _make_empty_gps()
-    M = _make_empty_metadata()
+    G = [] #_make_empty_gps()
+    M = [] #_make_empty_metadata()
     problems = []
     
     ## loop through the files
@@ -1069,8 +1068,13 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
 
-            M = pd.concat((M, L['metadata']))
-            G = pd.concat((G, L['gps']))
+            #M = pd.concat((M, L['metadata']))
+            #G = pd.concat((G, L['gps']))
+            if not L['metadata'].empty:
+                M.append(L['metadata'])
+            if not L['gps'].empty:
+                G.append(L['gps'])
+
             D = np.vstack((D, L['data']))
             startMillis = D[-1,0]
         except KeyboardInterrupt:
@@ -1091,7 +1095,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             print(message)
         ## end of fn loop
     #_breakpoint()
-    return {'metadata':M, 'gps':G, 'data': D, 'header': header, 'problems': problems}
+    return {'metadata':pd.concat(M), 'gps':pd.concat(G), 'data': D, 'header': header, 'problems': problems}
 
 ##########
 def _calculate_drift(L, fn, require_gps):
