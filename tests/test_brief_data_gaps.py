@@ -3,6 +3,16 @@ from gemlog.core import * # * doesn't load functions that start with _
 import pytest
 import shutil, os
 
+import platform
+import sys
+import numpy as np
+import scipy
+
+print(sys.version)
+print(platform.platform())
+print(np.__version__)
+print(scipy.__version__)
+
 def setup_module():
     try:
         shutil.rmtree('tmp') # exception if the directory doesn't exist

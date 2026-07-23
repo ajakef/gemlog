@@ -1565,6 +1565,17 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.151
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
         if(len(t_interp) == 0):
+            interval = (t_ends - t_starts)[i]
+            ratio = interval / dt
+            n = np.trunc(ratio)
+            assert len(t_interp) > 0, (
+                interval,
+                dt,
+                ratio,
+                np.trunc(ratio),
+                t_starts[i],
+                t_ends[i],
+            )
             breakpoint()
         tr.stats.starttime = t_interp[0]
         tr.stats.delta = dt
