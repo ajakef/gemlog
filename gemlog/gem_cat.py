@@ -64,7 +64,7 @@ def gem_cat(input_dir, output_dir, ext = '', cat_all = False):
 
         try:
             ## here and elsewhere, delimiter='\t' is used as a dummy to read each line as a whole string (read_csv doesn't accept '\n')
-            lines = pd.read_csv(gem_files[k], delimiter = '\t', dtype = 'str', names = ['line'])
+            lines = pd.read_csv(gem_files[k], delimiter = '\t', dtype = 'str', names = ['line'], encoding = 'latin-1', on_bad_lines = 'skip')
         except:
             raise EmptyRawFile(gem_files[k])
         #gps_grep = grepl("^G.*-?\\d+\\.\\d+,-?\\d+\\.\\d+$", lines)
@@ -132,7 +132,7 @@ def AppendFile(infile, outfile, prev_infile):
 
         ## adjust the data line and append it to the outfile
         s = pd.read_csv(infile, delimiter = ',', nrows=1, skiprows=j, dtype = 'str', names=['c1','c2'])
-        with open(outfile, 'a') as OF, open(infile, 'r') as IF:
+        with open(outfile, 'a') as OF, open(infile, 'r', encoding = 'utf-8', errors = 'ignore') as IF:
             OF.write(s['c1'].iloc[0] + ',' + str(int(s['c2'].iloc[0])-p_start) + '\n')
             ## append the rest of the file
             #system(paste0('tail -n +', j+2, ' ', infile, ' >> ', outfile))
