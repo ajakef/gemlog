@@ -19,7 +19,7 @@ def setup_module():
     
 def teardown_module():
     os.chdir('..')
-    shutil.rmtree('tmp') 
+    shutil.rmtree('tmp', ignore_errors = True) 
 
 # use scope='session' to only evaluate this fixture once:
 @pytest.fixture(scope='session')
@@ -37,6 +37,7 @@ def test_parser():
     assert x[0][0,0] == 49242
     assert x[2][0] == 6690
     assert np.sum(x[1] == b'D') == 54400
+    x = parse_gemfile(b'../data/AspenCSV/FILE0001.017', n_channels = 4) # 2026-07-22 4-channel aspen file with compression. 
 
     # aspen file of format 0.1 with normal compression, with multiple compression formats possible
     x, linetype, millis = parse_gemfile(b'../data/AspenCSV/FILE0077.977', n_channels = 1, dt_ms = 5)
@@ -135,13 +136,17 @@ def test_unit_read_several_aspen():
     L = _read_several(['../data/AspenCSV/FILE0020.977'], version = 'AspenCSV0.01')
     #L = _read_several(['../data/AspenCSV/FILE0108.006'], version = 'AspenCSV0.01')
     #assert np.shape(L['data'])[0] == 136564
+    x = _read_several(['../data/AspenCSV/FILE0001.017'], version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
     
-def test_read_gem_aspen():
+def test_read_single_aspen():
     L = _read_single('../data/AspenCSV/FILE0020.977', version = 'AspenCSV0.01')
     #L = _read_single('../data/AspenCSV/FILE0108.006', version = 'AspenCSV0.01')
     #assert np.shape(L['data'])[0] == 136564
+    x = _read_single('../data/AspenCSV/FILE0001.017', version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
 
-    
+def test_read_gem_aspen():
+    data_st = read_gem(path = '../data/AspenCSV/', nums = [1], SN = '10017')['data']
+
 @pytest.fixture(scope='session')
 def inputs():
     # this is a reasonable offset to use for this file;

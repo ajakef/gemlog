@@ -166,6 +166,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
                     DmsSamp = (prev_dD_millis + dt_ms) % (2**13)
             else: # should be n_channels + 1 for the time count
                 for i in range(n_channels):
+                    #print((n_channels, line_number, i))
                     view[line_number, i] = [ADC0, ADC1, ADC2, ADC3][i]
             millis_view[line_number] = DmsSamp
             prev_dD_millis = DmsSamp
