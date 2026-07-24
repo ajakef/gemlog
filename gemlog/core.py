@@ -1094,8 +1094,11 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             problems.append(message)
             print(message)
         ## end of fn loop
-    #_breakpoint()
-    return {'metadata':pd.concat(M), 'gps':pd.concat(G), 'data': D, 'header': header, 'problems': problems}
+    # pandas raises ValueError on concat([]); preserve empty table schemas when
+    # all files were skipped (e.g., due to GPS-related corruption).
+    metadata = pd.concat(M) if M else _make_empty_metadata()
+    gps = pd.concat(G) if G else _make_empty_gps()
+    return {'metadata': metadata, 'gps': gps, 'data': D, 'header': header, 'problems': problems}
 
 ##########
 def _calculate_drift(L, fn, require_gps):
