@@ -85,9 +85,10 @@ CLASSIFIERS = [
     'Intended Audience :: Developers',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
     'Topic :: Scientific/Engineering',
     'Topic :: Scientific/Engineering :: Physics'
 ]
@@ -128,6 +129,8 @@ setup(name=DISTNAME,
       maintainer_email=MAINTAINER_EMAIL,
       license=LICENSE,
       url=URL,
+    # Temporary upper bound: exclude Python 3.14 until upstream bug is fixed.
+    python_requires='>=3.10,<3.14',
       classifiers=CLASSIFIERS,
       entry_points=ENTRY_POINTS,
       **setuptools_kwargs)
