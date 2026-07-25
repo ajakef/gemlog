@@ -1,5 +1,4 @@
 __version__ = '1.8.2' # bug fixes 
-#__version__ = '1.8.1' # bug fix 
 #__version__ = '1.8.1' # updated dependency versions, removed old aliases, moved exceptions to their own source file 
 #__version__ = '1.8' # Minor changes; separated exceptions into new file; discontinued old aliases 
 #__version__ = '1.7.10' # github workflow bugfixes (non-functional for users) 
