@@ -1293,8 +1293,19 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             header.loc[i, 'SN'] = _read_SN(fn)
             header.loc[i, 'dt'] = _get_dt(fn)
             header.loc[i, 'channels'] = _get_channels(fn)
-            M = pd.concat((M, L['metadata']))
-            G = pd.concat((G, L['gps']))
+            metadata_chunk = L['metadata'].dropna(how = 'all')
+            if not metadata_chunk.empty:
+                if M.empty:
+                    M = metadata_chunk.copy()
+                else:
+                    M = pd.concat((M, metadata_chunk))
+
+            gps_chunk = L['gps'].dropna(how = 'all')
+            if not gps_chunk.empty:
+                if G.empty:
+                    G = gps_chunk.copy()
+                else:
+                    G = pd.concat((G, gps_chunk))
             D = np.vstack((D, L['data'][:,:(n_channels+1)]))
             startMillis = D[-1,0]
         except KeyboardInterrupt:

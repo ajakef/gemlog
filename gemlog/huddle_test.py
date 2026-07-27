@@ -290,7 +290,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if len(metadata) < 86400: 
             formatter = mdates.DateFormatter('%H:%M')
             xlabel = np.round(metadata.iloc[1,13])
-            xlabel = datetime.datetime.utcfromtimestamp(xlabel).strftime('%Y-%m-%d')
+            xlabel = datetime.datetime.fromtimestamp(xlabel, datetime.timezone.utc).strftime('%Y-%m-%d')
         else:
             formatter = mdates.DateFormatter('%m-%d')
             xlabel = "Month-Date"
@@ -362,7 +362,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         metadata_ind = time_unix_non_nans[::dec_factor]
         time_unix_dec = time_unix[metadata_ind]
         batt_dec = metadata.batt[metadata_ind]
-        time_datestamp_dec = [datetime.datetime.utcfromtimestamp(int(t)) for t in time_unix_dec]
+        time_datestamp_dec = [datetime.datetime.fromtimestamp(int(t), datetime.timezone.utc) for t in time_unix_dec]
         temp_dec = metadata.temp[metadata_ind]
         
         #Plot battery voltage
@@ -691,7 +691,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if len(x) > 0:
             error = True
             ts = int(times_checked[column])
-            time_lookup = datetime.datetime.utcfromtimestamp(ts)
+            time_lookup = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             err_message = (f"SN {x} recorded temperatures greater than {group_temp_diff_max} on either side of the temperature median {temp_median:.1f} on {time_lookup}. Total temperature range = {temp_range:.1f} (alpha)")
             _metadata_status("error", err_message, group_err, SN)
     if error == False:

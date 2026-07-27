@@ -427,7 +427,12 @@ def read_gps(gps_dir_pattern, SN):
         if len(fnList) > 0: # if any gps files matching SN are found, read and append the last
             df = pd.read_csv(fnList[-1])
             df['t'] = df['t'].apply(obspy.UTCDateTime)
-            gpsTable = pd.concat([gpsTable, df], ignore_index=True)
+            df = df.dropna(how = 'all')
+            if not df.empty:
+                if gpsTable.empty:
+                    gpsTable = df.copy()
+                else:
+                    gpsTable = pd.concat([gpsTable, df], ignore_index=True)
     return gpsTable
 ReadLoggerGPS = read_gps # alias; v1.0.0
 
@@ -523,12 +528,13 @@ def summarize_gps(gps_dir_pattern, station_info = None, output_file = None, t1 =
         gpsTable = _remove_outliers(read_gps(gps_dir_pattern, SN))
         gpsTable = gpsTable.iloc[np.where((gpsTable.t >= t1) & (gpsTable.t <= t2))[0], :]
         if gpsTable.shape[0] > 0:
-            coords = pd.concat([
-                coords,
-                pd.DataFrame(
-                    [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
-                    columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
-                ], ignore_index = True)
+            row_df = pd.DataFrame(
+                [[SN, avgFun(gpsTable.lat), avgFun(gpsTable.lon), seFun(gpsTable.lat), seFun(gpsTable.lon), gpsTable.t.min(), gpsTable.t.max(), gpsTable.shape[0]]],
+                columns = ['SN', 'lat', 'lon', 'lat_SE', 'lon_SE', 'starttime', 'endtime', 'num_samples'])
+            if coords.empty:
+                coords = row_df.copy()
+            else:
+                coords = pd.concat([coords, row_df], ignore_index = True)
                                
         else:
             print(f'No non-outliers remaining for gem {SN}')
