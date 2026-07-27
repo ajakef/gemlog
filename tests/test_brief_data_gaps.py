@@ -3,6 +3,16 @@ from gemlog.core import * # * doesn't load functions that start with _
 import pytest
 import shutil, os
 
+import platform
+import sys
+import numpy as np
+import scipy
+
+print(sys.version)
+print(platform.platform())
+print(np.__version__)
+print(scipy.__version__)
+
 def setup_module():
     try:
         shutil.rmtree('tmp') # exception if the directory doesn't exist
@@ -25,6 +35,7 @@ def test_unit_merge_gaps():
     tr_2.stats.starttime = tr_1.stats.endtime+0.03
     result = _merge_gaps(obspy.Stream([tr_1, tr_2]))
     assert len(result) == 1
+    # this test is excessive for now; allowing wider gaps is probably fine
     tr_2.stats.starttime = tr_1.stats.endtime+0.04
     result = _merge_gaps(obspy.Stream([tr_1, tr_2]))
     assert len(result) == 2

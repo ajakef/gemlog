@@ -1,0 +1,6 @@
+These files are identical except for their config line.
+FILE0078.977: full configuration written
+FILE0079.977: missing the last 3 (serial_outputs)
+FILE0080.977: only has gain info
+
+If reading the config results in the wrong number of channels detected, the file won't read because it'll think the sample timing is all messed up. So this is a major failure point if the config R/W ever changes.

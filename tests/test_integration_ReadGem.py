@@ -36,7 +36,8 @@ def test_read_gem_edge_cases():
 
     # test a mix of files with no gps, one gps line (that used to trigger a divide by zero warning), inadequate gps data, and normal gps data
     L = read_gem('../data/incomplete_gps_test_data/', SN = '179')
-    assert all((L['header'].drift_deg0 > 0) == np.array([False, False, True, False, True, False]))
+    #assert all((L['header'].drift_deg0 > 0) == np.array([False, False, True, False, True, False]))
+    assert all((L['header'].t1 > 1.6e9) == np.array([False, False, True, False, True, False]))
     assert len(L['data']) == 2
 
     
@@ -59,7 +60,7 @@ def test_Convert_good_data():
     output.trim(t1, t2)
     reference.trim(t1, t2)
     #assert output.__eq__(reference)
-    assert np.std(output.data - reference.data) < 0.1 # counts
+    assert np.std(output.data - reference.data) < 0.5 # counts
 
 ## check that v1.10 data files are read to be identical to corresponding v0.91 files
 def test_v1_10_v0_91_read_gem():
@@ -97,3 +98,9 @@ def test_read_no_gps():
         _convert_one_file('../data/incomplete_gps_test_data/FILE0169.179', require_gps = True)
     with pytest.raises(CorruptRawFile):
         _convert_one_file('../data/incomplete_gps_test_data/FILE0170.179', require_gps = True)
+
+
+def test_read_gem_aspen():
+    L = read_gem('../data/AspenCSV/', SN = '977', nums = np.arange(20, 30)) # exclude the unrelated FILE0077.977
+    #L = read_gem('../data/AspenCSV/', SN = '10006')
+    

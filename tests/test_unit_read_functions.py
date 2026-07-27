@@ -1,6 +1,9 @@
 from gemlog.core import EmptyRawFile, CorruptRawFileNoGPS, CorruptRawFile
+from gemlog.parsers import parse_gemfile
 from gemlog.core import (
-    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single, _slow__read_single_v0_9, _process_gemlog_data, _read_SN, _read_format_version, _read_config
+    _read_0_8_pd, _read_with_pandas, _read_with_cython, read_gem, _read_single,
+    _read_several, _slow__read_single_v0_9, _process_gemlog_data, _read_SN,
+    _read_format_version, _read_config_gem, _read_config_aspen
 )
 import numpy as np
 import pytest, shutil, os, obspy
@@ -16,7 +19,7 @@ def setup_module():
     
 def teardown_module():
     os.chdir('..')
-    shutil.rmtree('tmp') 
+    shutil.rmtree('tmp', ignore_errors = True) 
 
 # use scope='session' to only evaluate this fixture once:
 @pytest.fixture(scope='session')
@@ -26,19 +29,63 @@ def inputs():
     offset = 72000000.0 + 5263
     return '../data/v0.8/raw/FILE0000.TXT', offset
 
+def test_parser():
+    x = parse_gemfile(b'../data/v1.10/FILE0001.210')
+    assert x[0][0,0] == 635
+    assert x[2][0] == 7174
+    x = parse_gemfile(b'../data/AspenCSV/FILE0009.004', n_channels = 4) # very basic aspen file, no compression, bad millis rollover. Don't try to convert it.
+    assert x[0][0,0] == 49242
+    assert x[2][0] == 6690
+    assert np.sum(x[1] == b'D') == 54400
+    x = parse_gemfile(b'../data/AspenCSV/FILE0001.017', n_channels = 4) # 2026-07-22 4-channel aspen file with compression. 
+
+    # aspen file of format 0.1 with normal compression, with multiple compression formats possible
+    x, linetype, millis = parse_gemfile(b'../data/AspenCSV/FILE0077.977', n_channels = 1, dt_ms = 5)
+    w = np.where(linetype == b'D')[0]
+    data = x[w,0]
+    # lines being parsed shown in comments
+    assert millis[w[6670]] == 2393 # 13
+    assert data[6670] == 13
+    assert millis[w[6671]] == 2399 # zk
+    assert data[6671] == -2
+    assert millis[w[6672]] == 2409 # D2409,q
+    assert data[6672] == 4
+    assert millis[w[6673]] == 2414 # D2409,q
+    assert data[6673] == 4
+    
+    
+    
+
+    #x = parse_gemfile(b'../data/AspenCSV/FILE0108.006') # more recent 4-channel test file with compression (ERB backyard)
+    #assert x[0][0,0] == -5868
+    #assert x[2][0] == 1015
+    #assert np.sum(x[1] == b'D') == 136564
+    
 def test_read_SN():
     _read_SN('../data/v0.91/FILE0040.059')
     _read_SN('../data/v1.10/FILE0001.210')
+    _read_SN('../data/AspenCSV/FILE0020.977') # very basic aspen file
 
 def test_read_format():
     _read_format_version('../data/v0.91/FILE0040.059')
     _read_format_version('../data/v1.10/FILE0001.210')
+    _read_format_version('../data/AspenCSV/FILE0020.977') # very basic aspen file
 
 def test_read_config():
-    _read_config('../data/v0.91/FILE0040.059')
-    _read_config('../data/v1.10/FILE0001.210')
-
+    _read_config_gem('../data/v0.91/FILE0040.059')
+    _read_config_gem('../data/v1.10/FILE0001.210')
+    _read_config_aspen('../data/AspenCSV/FILE0020.977') # very basic aspen file--replace with one that has a proper config line
+    x = _read_config_aspen('../data/aspen_config/FILE0078.977')
+    assert x['n_channels'] == 1
+    assert x['sample_int_ms'] == 5
+    x = _read_config_aspen('../data/aspen_config/FILE0079.977')
+    assert x['n_channels'] == 1
+    assert x['sample_int_ms'] == 5
+    x = _read_config_aspen('../data/aspen_config/FILE0080.977')
+    assert x['n_channels'] == 1
+    assert x['sample_int_ms'] == 5
 @pytest.fixture(scope='session')
+
 def test_read_single_v0_8(inputs):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness
@@ -84,6 +131,22 @@ def test_read_gem_integration():
 # never raise an exception when given a valid data file.
 
 
+
+def test_unit_read_several_aspen():
+    L = _read_several(['../data/AspenCSV/FILE0020.977'], version = 'AspenCSV0.01')
+    #L = _read_several(['../data/AspenCSV/FILE0108.006'], version = 'AspenCSV0.01')
+    #assert np.shape(L['data'])[0] == 136564
+    x = _read_several(['../data/AspenCSV/FILE0001.017'], version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
+    
+def test_read_single_aspen():
+    L = _read_single('../data/AspenCSV/FILE0020.977', version = 'AspenCSV0.01')
+    #L = _read_single('../data/AspenCSV/FILE0108.006', version = 'AspenCSV0.01')
+    #assert np.shape(L['data'])[0] == 136564
+    x = _read_single('../data/AspenCSV/FILE0001.017', version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
+
+def test_read_gem_aspen():
+    data_st = read_gem(path = '../data/AspenCSV/', nums = [1], SN = '10017')['data']
+
 @pytest.fixture(scope='session')
 def inputs():
     # this is a reasonable offset to use for this file;
@@ -102,6 +165,7 @@ def reference_output(inputs):
 
 ## test a good format 0.91 file to make sure it at least doesn't crash
 @pytest.mark.parametrize('reader_function', [_read_with_cython, _read_with_pandas, _slow__read_single_v0_9])
+
 def test_good_data_no_crash_0_91(reader_function):
     # serves as an implicit check that the reference reader doesn't error, but
     # would still be good to test its return values for correctness
