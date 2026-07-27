@@ -47,7 +47,7 @@ jobs:
           python -m cibuildwheel --output-dir wheelhouse
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheelhouse-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
   build_sdist:
@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sdist-${{ matrix.os }}
+          name: sdist
           path: dist/*.tar.gz
 
   upload_pypi:
@@ -81,7 +81,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: artifact
+          pattern: wheelhouse-*
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdist
           path: dist
 
       - uses: pypa/gh-action-pypi-publish@master
