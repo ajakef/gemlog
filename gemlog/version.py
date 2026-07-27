@@ -1,4 +1,5 @@
-__version__ = '1.9.0' # adds support for aspen files; fully backwards compatible 
+__version__ = '1.9.1' # bug fix 
+#__version__ = '1.9.0' # adds support for aspen files; fully backwards compatible 
 #__version__ = '1.8.2' # bug fixes 
 #__version__ = '1.8.1' # bug fix 
 #__version__ = '1.8.1' # updated dependency versions, removed old aliases, moved exceptions to their own source file 
@@ -78,4 +79,4 @@ __version__ = '1.9.0' # adds support for aspen files; fully backwards compatible
 #__version__  = '0.2.2' # automated github tests, setup.py improvements, and modelst speed-up
 #__version__  = '0.2.1' # 
 #__version__ = '0.0.5' # added new functions to make network map from gps data and rename mseeds from serial_number.channel to network.station.location.channel codes
-## List of old versions is not comprehensive########################################################################
+## List of old versions is not comprehensive#########################################################################
