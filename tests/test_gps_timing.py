@@ -27,7 +27,7 @@ def approx_equal(x, y, d = 0.001):
 ## offset. Make sure that these discontinuities are detected in the raw file where they occur.
 ## Also, make sure that test_get_block_stats does its job otherwise.
 def test_get_block_stats():
-    slope_in = 0.001024 * (1-5e-5)
+    slope_in = 0.001024 * (1-5e-5) # perturb nominal slope by 50 ppm (crystal noise)
     x = np.arange(20)/slope_in + 1e6
     y = x * slope_in + 1e9
     #x = np.concatenate([np.arange(20), np.arange(100, 120)])
@@ -48,12 +48,19 @@ def test_get_block_stats():
     assert approx_equal(y_mean, np.mean(true_y))
     assert not _check_step_within_block(x, y, default_deg1)[0]
 
-    # This dataset has a step and should raise an exception
+    # This dataset has a major step (>0.5 sec) and should raise an exception
     y = (x > x[6]) + x * slope_in + 1e9
-    assert _check_step_within_block(x, y, default_deg1)[0]
+    assert _check_step_within_block(x, y, default_deg1, max_step_dy = 0.5)[0]
     with pytest.raises(gemlog.core.CorruptRawFileDiscontinuousGPS):
         slope, x_mean, y_mean = _get_block_stats(x, y, default_deg1)
 
+    # This dataset has a minor step (<0.5 sec) that should be ignored
+    y = (x > x[6])*0.05 + x * slope_in# + 1e9
+    assert not _check_step_within_block(x, y, default_deg1, max_step_dy = 0.5)[0] # fail to trigger major step
+    assert _check_step_within_block(x, y, default_deg1, max_step_dy = 0.005)[0] # trigger minor step
+    slope, x_mean, y_mean = _get_block_stats(x, y, default_deg1) # correct minor step and ignore
+    
+    
 def test_get_GPS_spline():
     # calculate a GPS spline and check that it handles outliers correctly
     fn = '../data/test_data/outlier_removal/FILE0011.202'
@@ -92,11 +99,18 @@ def test_integration_step_detection():
 
     ## test a file with a spike that should be ignored
     
-    ## this has a reversed GPS step that should be ignored and run without error
-    #fn = '/home/jake/2024-04-26_RoofTestGPS/raw/FILE0004.356' ## update this
-    #L = gemlog.core._read_single(fn, offset = 0)
-    #header_info = gemlog.core._calculate_drift(L, fn, require_gps = True)    
-    
+    ## this has a large but reversed GPS step that is expected to raise an error
+    ## ideally it wouldn't, but currently there's no way to treat a large reversed step as safe
+    fn = '../data/test_data/gps_time_discontinuity/FILE0004.356'
+    L = gemlog.core._read_single(fn, offset = 0)
+    with pytest.raises(gemlog.core.CorruptRawFileDiscontinuousGPS):
+        header_info = gemlog.core._calculate_drift(L, fn, 'GemCSV1.10', require_gps = True)
+
+    ## this has a small reversed GPS step that should not raise an error
+    fn = '../data/test_data/gps_time_discontinuity/FILE0015.296'
+    L = gemlog.core._read_single(fn, offset = 0)
+    header_info = gemlog.core._calculate_drift(L, fn, 'GemCSV1.10', require_gps = True)
+
 ## _robust_regress works by recursively removing outliers from a cubic fit until there are none with z>4 or max abs dev > 0.01. Here's an example file with outliers where recursion is required; make sure it gives the right answer and doesn't break.
 #def test_robust_regress_recursion():
 #    fn = '../data/test_data/outlier_removal/FILE0011.202'

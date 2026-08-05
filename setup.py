@@ -60,8 +60,8 @@ VERSION = version_dict['__version__']
 INSTALL_REQUIRES = [
     'setuptools>=18.0', # 18.0 needed to handle cython in installation
     'obspy>=1.3',
-    'numpy>=1.22,<2.0', # breaking changes in 2.*
-    'pandas>=1.3.3,<3.0', # minimum for numpy 1.22 compatibility; <3.0 for API compatibility
+    'numpy>=1.22', 
+    'pandas>=1.3.3', # minimum for numpy 1.22 compatibility
     'scipy>=1.10.0', # 1.10 for a security update in July 2023
     'matplotlib>=3.7.0', # required for compatibility with pandas>2
     'cython', # used for reading raw files quickly
@@ -129,8 +129,7 @@ setup(name=DISTNAME,
       maintainer_email=MAINTAINER_EMAIL,
       license=LICENSE,
       url=URL,
-    # Temporary upper bound: exclude Python 3.14 until upstream bug is fixed.
-    python_requires='>=3.10,<3.14',
+    python_requires='>=3.10,<3.15',
       classifiers=CLASSIFIERS,
       entry_points=ENTRY_POINTS,
       **setuptools_kwargs)

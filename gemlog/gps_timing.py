@@ -96,7 +96,7 @@ def check_compatibility(m1, x1, y1, m2, x2, y2, default_deg1):
 # Note that this is NOT the same as L1-norm, which is affected by outliers but much less than L2.
 # It also isn't trying to minimize the median absolute deviation, which is much less precise.
 def _calc_abs_resid(a, b, x, y):
-    return np.abs(y - a - b * (x - x[0]))
+    return np.abs(y - y[-1] - a - b * (x - x[-1])) # use -1 because the end of the block is most likely to be accurate
 
 def _rms_sub_med(params, xy):
     x = xy[0]
@@ -104,37 +104,46 @@ def _rms_sub_med(params, xy):
     resid = _calc_abs_resid(params[0], params[1], xy[0], xy[1])
     return np.sqrt(np.mean(resid[resid <= np.median(resid)]**2))
 
-def _check_step_within_block(x, y, default_deg1):
+def _check_step_within_block(x, y, default_deg1, max_step_dy = 0.5):
     # this is a different problem from check_step_between_blocks because we don't have block_slope
     # and there might be glitches
     # detrend and use medfilt to ignore glitches and detect steps
     yfilt = median_filter(y - y[0] - (x-x[0]) * default_deg1, 5)
-    w = np.where(np.abs(np.diff(yfilt)) > 0.5)[0]
-    return len(w)>0, x[w], y[w]
+    w = np.where(np.abs(np.diff(yfilt)) > max_step_dy)[0]
+    return len(w)>0, w, np.diff(yfilt)[w], x[w], y[w]
 
     
-def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2):
+def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_step_dy = 0.5):
     # Assume that GPS points are all either good, spikes, or steps.
     # If a brief (<len(x)/2) non-reversed step is present, raise an exception.
     # Reversed steps are treated the same as spikes. If either are present, drop them.
-    if _check_step_within_block(x, y, default_deg1)[0]:
-        raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS('Excessive unfit points in GPS data, likely step')
+    if _check_step_within_block(x, y, default_deg1, max_step_dy)[0]:
+        raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS(f'Excessive unfit points in GPS data, likely step > {max_step_dy} sec within GPS block')
 
-    # at this point, we think there is not a step in this block. calculate the stats.
+    # at this point, we think there are no major steps > max_step_dy in this block. calculate the stats.
     # Calculate the line of best fit for the 50% of the data that can be fit best.
     # This completely ignores spikes and the short half of a step.
     # Default method BFGS has failed in tests ("success: False") so using Nelder-Mead.
     dydx_estimate = (y[-1] - y[0])/(x[-1] - x[0])
-    result = minimize(_rms_sub_med, [y[0], dydx_estimate], [x, y], method = 'Nelder-Mead')
+    result = minimize(_rms_sub_med, [0, dydx_estimate], [x, y], method = 'Nelder-Mead')
     if not result.success:
         raise gemlog.core.CorruptRawFileInadequateGPS('Failed to fit GPS data')
     a, b = result.x # a intercept, b slope
-        
+
+    # at this point, there is no major step in the block, but there might be a minor one.
+    # these are generally uncommon, but when they do occur, the times are too low at the beginning of a block and self-correct partway through
+    # correct action is to detect them, apply a correction, and not throw out the file
+    minor_step_present, minor_step_i, minor_step_dyfilt, minor_step_x, minor_step_y = _check_step_within_block(x, y, b, max_dev)
+    if minor_step_present:
+        minor_step_i = minor_step_i[np.argmax(np.abs(minor_step_dyfilt))]
+        minor_step_dyfilt = minor_step_dyfilt[np.argmax(np.abs(minor_step_dyfilt))]
+        y[x <= x[minor_step_i]] += minor_step_dyfilt
+
     resid_excessive = _calc_abs_resid(a, b, x, y) > max_dev
     i_fit = np.where(~resid_excessive)[0]
     if np.sum(resid_excessive) > max_errors:
         # block couldn't be fit adequately as a line; check for a step to be safe
-        result2 = minimize(_rms_sub_med, [y[0], dydx_estimate], [x[resid_excessive], y[resid_excessive]], method = 'Nelder-Mead')
+        result2 = minimize(_rms_sub_med, [0, dydx_estimate], [x[resid_excessive], y[resid_excessive]], method = 'Nelder-Mead')
         a2, b2 = result2.x
         resid_excessive2 = _calc_abs_resid(a2, b2, x[resid_excessive], y[resid_excessive]) > max_dev
         i_fit2 = np.where(resid_excessive)[0][~resid_excessive2]
