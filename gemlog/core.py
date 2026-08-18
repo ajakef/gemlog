@@ -24,6 +24,12 @@ from gemlog.exceptions import (
 )
 
 _debug = False
+from itertools import (takewhile, repeat)
+
+def count_file_lines(filename):
+    f = open(filename, 'rb')
+    bufgen = takewhile(lambda x: x, (f.raw.read(1024*1024) for _ in repeat(None)))
+    return sum(buf.count(b'\n') for buf in bufgen)
 
 
 def _breakpoint():
@@ -789,6 +795,8 @@ def _read_with_cython(filename, require_gps = True):
     #return _process_gemlog_data(df, offset)
     return df
 
+
+
 def _read_Aspen_with_cython(filename, require_gps = True):
     """
     Read an Aspen logfile.
@@ -815,12 +823,13 @@ def _read_Aspen_with_cython(filename, require_gps = True):
             "C-extensions to use this function."
         )
 
-    # use cythonized reader file instead of pd.read_csv and slow string ops
-    try:
-        config = _read_config_aspen(filename)
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = config['n_channels'], dt_ms = config['sample_int_ms'])
-    except:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = config['n_channels'], n_row = 1560000 * 6*7, dt_ms = config['sample_int_ms']) # in case we're processing a long file, try again with a buffer big enough for 1 week
+    # Allocate from the actual file size; Aspen files have no duration header.
+    config = _read_config_aspen(filename)
+    estimated_rows = max(1560000, count_file_lines(filename))
+    values, types, millis = parse_gemfile(
+        str(filename).encode('utf-8'), n_channels=config['n_channels'],
+        n_row=estimated_rows, dt_ms=config['sample_int_ms']
+    )
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
