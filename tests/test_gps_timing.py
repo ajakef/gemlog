@@ -77,6 +77,21 @@ def test_get_GPS_spline():
 
     # check that it correctly ignores variation within a block and only connects block means
     assert np.std(spline(G['msPPS'][60:80]) - G['msPPS'][60:80] * 0.001024018) < (0.1 * np.std(G['t'][60:80] - G['msPPS'][60:80] * 0.001024018 - 1693668082.114023))
+
+
+def test_get_GPS_spline_single_block():
+    slope_in = default_deg1 * (1 - 5e-5)
+    x = np.arange(20) / slope_in + 1e6
+    y = x * slope_in + 1.693668082e9
+
+    spline = get_GPS_spline({'msPPS': x, 't': y}, default_deg1=default_deg1)
+
+    x_test = np.array([x[0] - 1000, x[5], x[-1] + 1000])
+    y_expected = y[0] + slope_in * (x_test - x[0])
+    y_actual = spline(x_test)
+
+    assert np.all(np.isfinite(y_actual))
+    assert np.allclose(y_actual, y_expected, rtol=0, atol=1e-3)
     
     
 def test_integration_step_detection():

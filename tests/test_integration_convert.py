@@ -10,6 +10,9 @@ import sys
 import os
 import shutil
 import numpy as np
+import pandas as pd
+
+from gemlog.core import _convert_incremental
 
 def setup_module():
     try:
@@ -34,6 +37,53 @@ def test_gemconvert_v110():
 def test_gemconvert_AspenCSV001():
     gemlog.convert(rawpath='../data/AspenCSV/', convertedpath = 'mseed', SN= '977', blockdays = 0.5, nums = np.arange(20, 30)) # there's an unrelated .977 file; exclude it with nums
     shutil.rmtree('mseed/')
+
+
+def test_incremental_conversion_assigns_midnight_boundary_once(monkeypatch):
+    start = obspy.UTCDateTime('2024-01-01T23:59:59Z')
+    traces = [obspy.Trace(
+        data=np.ones(400, dtype=np.int32),
+        header={'starttime': start, 'sampling_rate': 200,
+                'station': 'TEST', 'network': '', 'location': '',
+                'channel': 'HDF'})]
+
+    def fake_read_gem(*args, **kwargs):
+        number = kwargs['nums'][0]
+        return {
+            'data': obspy.Stream([traces[number - 1]]),
+            'metadata': pd.DataFrame({'millis': [number]}),
+            'gps': pd.DataFrame(),
+            'header': pd.DataFrame({'bitweight_Pa': [1.0]}),
+            'problems': [],
+        }
+
+    written = []
+    calls = []
+
+    def capture_window(stream, start, end, *args):
+        calls.append((start, end, len(stream)))
+        written.extend(stream.slice(start, end - 1e-6, nearest_sample=False).split())
+
+    monkeypatch.setattr(gemlog.core, 'read_gem', fake_read_gem)
+    monkeypatch.setattr(gemlog.core, '_write_utc_window', capture_window)
+    _convert_incremental(
+        rawpath='.', convertedpath='mseed', metadatapath='metadata',
+        metadatafile='', gpspath='gps', gpsfile='', t1=-np.inf, t2=np.inf,
+        nums=np.array([1]), SN='977', bitweight=np.nan, units='Pa',
+        time_adjustment=0, blockdays=1, file_length_hour=1,
+        station='TEST', network='', location='', output_format='MSEED')
+
+    assert calls == [
+        (obspy.UTCDateTime('2024-01-01T23:00:00Z'),
+         obspy.UTCDateTime('2024-01-02T00:00:00Z'), 1),
+        (obspy.UTCDateTime('2024-01-02T00:00:00Z'),
+         obspy.UTCDateTime('2024-01-02T01:00:00Z'), 1),
+    ]
+    assert sum(len(trace) for trace in written) == 400
+    assert sorted(trace.stats.starttime for trace in written) == [
+        obspy.UTCDateTime('2024-01-01T23:59:59Z'),
+        obspy.UTCDateTime('2024-01-02T00:00:00Z'),
+    ]
 
 ## test a block of files including a long data gap--e.g., old data was left on the disk and then new data recorded afterward
 ## if this works, it will only make mseed files for the 8 days when we actually have data

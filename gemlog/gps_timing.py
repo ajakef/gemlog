@@ -14,6 +14,11 @@ def get_GPS_spline(G, default_deg1 = 0.001024):
     y = np.array(G['t'])# - x # in a perfect world, y is constant
     block_slope, block_mean_x, block_mean_y = get_block_results(x, y, default_deg1)
 
+    if len(block_mean_x) == 1:
+        x_line = np.array([block_mean_x[0] - 1, block_mean_x[0] + 1], dtype=float)
+        y_line = block_mean_y[0] + block_slope[0] * (x_line - block_mean_x[0])
+        return interp1d(x_line, y_line, fill_value = 'extrapolate')
+
     ## comment out compatibility check. it's not wrong, but it's more aggressive than we need now.
     #for i in range(len(block_slope) - 1):
     #    if not check_compatibility(block_slope[i], block_mean_x[i], block_mean_y[i],

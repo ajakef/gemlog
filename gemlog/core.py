@@ -183,6 +183,12 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         else:
             raise MissingRawFiles('No data files for SN "' + SN + '" found in raw directory ' + rawpath)
 
+    return _convert_incremental(
+        rawpath, convertedpath, metadatapath, metadatafile, gpspath, gpsfile,
+        t1, t2, nums, SN, bitweight, units, time_adjustment, blockdays,
+        file_length_hour, station, network, location, output_format,
+    )
+
     ## start at the first file in 'nums'
     nums.sort()
     n1 = np.min(nums)
@@ -334,6 +340,121 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         else:
             break
     return problems
+####################################
+
+def _write_utc_window(stream, start, end, bitweight, convertedpath, output_format):
+    """Write samples in the half-open UTC interval [start, end)."""
+    eps = 1e-6
+    if end <= start:
+        return
+    for trace in stream.slice(start, end - eps, nearest_sample=False).split():
+        trace.stats.calib = bitweight
+        filename = _make_filename_converted(trace, output_format)
+        if output_format.lower() == 'wav':
+            write_wav(trace, filename=filename, path=convertedpath)
+        else:
+            trace.write(convertedpath + '/' + filename, format=output_format, encoding=10)
+
+
+def _convert_incremental(rawpath, convertedpath, metadatapath, metadatafile,
+                         gpspath, gpsfile, t1, t2, nums, SN, bitweight,
+                         units, time_adjustment, blockdays, file_length_hour,
+                         station, network, location, output_format):
+    """Convert available files without assuming a fixed raw-file duration."""
+    file_length_sec = 3600 * float(file_length_hour)
+    if file_length_sec <= 0:
+        raise ValueError('file_length_hour must be positive')
+
+    os.makedirs(convertedpath, exist_ok=True)
+    os.makedirs(metadatapath, exist_ok=True)
+    os.makedirs(gpspath, exist_ok=True)
+    if len(station) == 0:
+        station = SN
+    if len(metadatafile) == 0:
+        metadatafile = _make_filename(metadatapath, SN, 'metadata')
+    if len(gpsfile) == 0:
+        gpsfile = _make_filename(gpspath, SN, 'gps')
+
+    if np.isinf(float(t2)):
+        t2_value = np.inf
+    else:
+        t2_value = float(t2)
+    requested_start = -np.inf if np.isinf(float(t1)) else float(t1)
+    stream = obspy.Stream()
+    output_start = None
+    problems = []
+    wrote_metadata = False
+    wrote_gps = False
+    selected_bitweight = bitweight
+
+    for number in np.sort(np.asarray(nums, dtype=int)):
+        try:
+            current = read_gem(
+                path=rawpath, nums=[number], SN=SN, network=network,
+                station=station, location=location,
+            )
+        except (MissingRawFiles, CorruptRawFile) as exception_message:
+            problems.append(str(exception_message))
+            continue
+
+        if len(current['data']) == 0:
+            continue
+        if np.isnan(selected_bitweight):
+            if units == 'Pa':
+                selected_bitweight = current['header']['bitweight_Pa'][0]
+            elif units == 'V':
+                selected_bitweight = current['header']['bitweight_V'][0]
+            else:
+                selected_bitweight = 1
+
+        if not wrote_metadata:
+            current['metadata'].to_csv(metadatafile, index=False)
+            wrote_metadata = True
+        elif len(current['metadata']) > 0:
+            current['metadata'].to_csv(metadatafile, index=False, mode='a', header=False)
+        if len(current['gps']) > 0:
+            current['gps'].to_csv(gpsfile, index=False, mode='a' if wrote_gps else 'w', header=not wrote_gps)
+            wrote_gps = True
+
+        for trace in current['data']:
+            trace.stats.station = station
+            trace.stats.location = location
+            trace.stats.network = network
+        stream += current['data']
+        stream = _merge_gaps(stream)
+
+        first_start = float(stream[0].stats.starttime)
+        if output_start is None or output_start + file_length_sec <= first_start:
+            output_start = _trunc_UTCDateTime(max(first_start, requested_start), file_length_sec)
+        if requested_start > -np.inf:
+            output_start = max(output_start, _trunc_UTCDateTime(requested_start, file_length_sec))
+
+        while len(stream) > 0 and stream[-1].stats.endtime >= output_start + file_length_sec:
+            window_end = output_start + file_length_sec
+            if float(window_end) > requested_start and float(output_start) < t2_value:
+                _write_utc_window(
+                    stream, max(output_start, requested_start),
+                    min(window_end, t2_value), selected_bitweight,
+                    convertedpath, output_format,
+                )
+            output_start = window_end
+            stream.trim(output_start, None)
+            stream = stream.split()
+
+        if t2_value != np.inf and float(output_start) >= t2_value:
+            break
+
+    if len(stream) > 0 and output_start is not None and float(output_start) < t2_value:
+        _write_utc_window(
+            stream, max(output_start, requested_start),
+            min(output_start + file_length_sec, t2_value),
+            selected_bitweight, convertedpath, output_format,
+        )
+    if not wrote_metadata:
+        raise MissingRawFiles(f'No non-corrupt raw files found in folder "{rawpath}"')
+    return problems
+
+
 ####################################
 
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
@@ -815,12 +936,13 @@ def _read_Aspen_with_cython(filename, require_gps = True):
             "C-extensions to use this function."
         )
 
-    # use cythonized reader file instead of pd.read_csv and slow string ops
-    try:
-        config = _read_config_aspen(filename)
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = config['n_channels'], dt_ms = config['sample_int_ms'])
-    except:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_channels = config['n_channels'], n_row = 1560000 * 6*7, dt_ms = config['sample_int_ms']) # in case we're processing a long file, try again with a buffer big enough for 1 week
+    # Allocate from the actual file size; Aspen files have no duration header.
+    config = _read_config_aspen(filename)
+    estimated_rows = max(1560000, os.path.getsize(filename) // 2 + 1)
+    values, types, millis = parse_gemfile(
+        str(filename).encode('utf-8'), n_channels=config['n_channels'],
+        n_row=estimated_rows, dt_ms=config['sample_int_ms']
+    )
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
@@ -926,6 +1048,8 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     """
     # Try each of the three file readers in order of decreasing speed but
     # probably increasing likelihood of success.
+    if not os.path.isfile(filename):
+        raise MissingRawFiles(filename)
     if version in ['1.10', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
     elif version in ['AspenCSV0.01', 'AspenCSV0.1']:
