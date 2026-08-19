@@ -124,7 +124,7 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
     # If a brief (<len(x)/2) non-reversed step is present, raise an exception.
     # Reversed steps are treated the same as spikes. If either are present, drop them.
     if _check_step_within_block(x, y, default_deg1, max_step_dy)[0]:
-        raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS(f'Excessive unfit points in GPS data, likely step > {max_step_dy} sec within GPS block around {obspy.UTCDateTime(y[0]).isoformat().replace('T', ' ')}')
+        raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS(f'Excessive unfit points in GPS data, likely step > {max_step_dy} sec within GPS block around {obspy.UTCDateTime(y[0]).isoformat().replace("T", " ")}')
 
     # at this point, we think there are no major steps > max_step_dy in this block. calculate the stats.
     # Calculate the line of best fit for the 50% of the data that can be fit best.
