@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import CubicHermiteSpline, interp1d
 from scipy.optimize import minimize
-from scipy.stats import linregress
+from scipy.stats import linregress, theilslopes
 from scipy.ndimage import median_filter
 import matplotlib.pyplot as plt
 import gemlog
@@ -9,7 +9,6 @@ import pdb
 #default_deg1 = 0.001024 # make this an argument; different for Gem vs Aspen 100/200 sps
 
 def get_GPS_spline(G, default_deg1 = 0.001024):
-    breakpoint()
     ## account for default slope
     x = np.array(G['msPPS'])# * default_deg1
     y = np.array(G['t'])# - x # in a perfect world, y is constant
@@ -49,7 +48,6 @@ def get_block_results(x, y, default_deg1):
     for i in range(len(block_starts)):
         xb = x[block_starts[i]:block_ends[i]]
         yb = y[block_starts[i]:block_ends[i]]
-        print(i)
         block_slope[i], block_mean_x[i], block_mean_y[i] = _get_block_stats(xb, yb, default_deg1)
     block_slope = block_slope[~np.isnan(block_slope)]
     block_mean_x = block_mean_x[~np.isnan(block_mean_x)]
@@ -119,7 +117,6 @@ def _check_step_within_block(x, y, default_deg1, max_step_dy = 0.5):
 
     
 def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_step_dy = 0.5):
-    breakpoint()
     x_save = x.copy()
     y_save = y.copy()
     # Assume that GPS points are all either good, spikes, or steps.
@@ -132,10 +129,11 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
     # Calculate the line of best fit for the 50% of the data that can be fit best.
     # This completely ignores spikes and the short half of a step.
     # Default method BFGS has failed in tests ("success: False") so using Nelder-Mead.
-    #dydx_estimate = (y[-1] - y[0])/(x[-1] - x[0])
-    dydx_estimate = np.median(np.diff(y)/np.diff(x))
-    offset_estimate = np.median(y) - np.median(x-x[-1]) * dydx_estimate - y[-1]
-    result = minimize(_rms_sub_med, [offset_estimate, dydx_estimate], [x, y], method = 'Nelder-Mead')
+    #dydx_guess = (y[-1] - y[0])/(x[-1] - x[0]) # not robust
+    #dydx_guess = np.median(np.diff(y)/np.diff(x)) # not very accurate
+    dydx_guess = theilslopes(y-y[-1], x-x[-1])[0] # slope estimate that is robust to outliers
+    offset_guess = np.median(y - y[-1] - (x-x[-1]) * dydx_guess)
+    result = minimize(_rms_sub_med, [offset_guess, dydx_guess], [x, y], method = 'Nelder-Mead')
     if not result.success:
         raise gemlog.core.CorruptRawFileInadequateGPS('Failed to fit GPS data')
     a, b = result.x # a intercept, b slope
@@ -156,7 +154,7 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
     i_fit = np.where(~resid_excessive)[0]
     if np.sum(resid_excessive) > max_errors:
         # block couldn't be fit adequately as a line; check for a step to be safe
-        result2 = minimize(_rms_sub_med, [0, dydx_estimate], [x[resid_excessive], y[resid_excessive]], method = 'Nelder-Mead')
+        result2 = minimize(_rms_sub_med, [0, dydx_guess], [x[resid_excessive], y[resid_excessive]], method = 'Nelder-Mead')
         a2, b2 = result2.x
         resid_excessive2 = _calc_abs_resid(a2, b2, x[resid_excessive], y[resid_excessive]) > max_dev
         i_fit2 = np.where(resid_excessive)[0][~resid_excessive2]

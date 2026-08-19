@@ -53,12 +53,6 @@ def test_parser():
     assert millis[w[6673]] == 2414 # D2409,q
     assert data[6673] == 4
 
-    # 24-hour aspen file of format 0.1
-    x, linetype, millis = parse_gemfile(b'../data/test_data/24_hour_aspen_files/FILE0001.025', n_row = int(200*3600*24*1.1), n_channels = 1, dt_ms = 5)
-    
-    
-    
-
     #x = parse_gemfile(b'../data/AspenCSV/FILE0108.006') # more recent 4-channel test file with compression (ERB backyard)
     #assert x[0][0,0] == -5868
     #assert x[2][0] == 1015
@@ -147,7 +141,6 @@ def test_unit_read_several_aspen():
     #assert np.shape(L['data'])[0] == 136564
     x = _read_several(['../data/AspenCSV/FILE0001.017'], version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
 
-    x = _read_several(['../data/test_data/24_hour_aspen_files/FILE0001.025'], version = 'AspenCSV0.1')
     x = _read_several(['../data/test_data/24_hour_aspen_files/FILE0001.025', '../data/test_data/24_hour_aspen_files/FILE0002.025'], version = 'AspenCSV0.1')
     
 

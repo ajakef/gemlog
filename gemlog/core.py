@@ -1531,7 +1531,6 @@ def _assign_times(L):
     ## loop through channels and append to a Stream
     L['data'] = obspy.Stream()
     for i in range(n_channels):
-        print(i)
         st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = np.max(L['header'].dt)) # returns stream, populates known fields: channel, delta, and starttime
         for tr in st_tmp:
             if channels[i] == 0:
