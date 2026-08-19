@@ -6,6 +6,7 @@ from scipy.ndimage import median_filter
 import matplotlib.pyplot as plt
 import gemlog
 import pdb
+import obspy
 #default_deg1 = 0.001024 # make this an argument; different for Gem vs Aspen 100/200 sps
 
 def get_GPS_spline(G, default_deg1 = 0.001024):
@@ -123,7 +124,7 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
     # If a brief (<len(x)/2) non-reversed step is present, raise an exception.
     # Reversed steps are treated the same as spikes. If either are present, drop them.
     if _check_step_within_block(x, y, default_deg1, max_step_dy)[0]:
-        raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS(f'Excessive unfit points in GPS data, likely step > {max_step_dy} sec within GPS block')
+        raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS(f'Excessive unfit points in GPS data, likely step > {max_step_dy} sec within GPS block around {obspy.UTCDateTime(y[0]).isoformat().replace('T', ' ')}')
 
     # at this point, we think there are no major steps > max_step_dy in this block. calculate the stats.
     # Calculate the line of best fit for the 50% of the data that can be fit best.
@@ -135,7 +136,7 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
     offset_guess = np.median(y - y[-1] - (x-x[-1]) * dydx_guess)
     result = minimize(_rms_sub_med, [offset_guess, dydx_guess], [x, y], method = 'Nelder-Mead')
     if not result.success:
-        raise gemlog.core.CorruptRawFileInadequateGPS('Failed to fit GPS data')
+        raise gemlog.core.CorruptRawFileInadequateGPS(f'Failed to fit GPS data around {obspy.UTCDateTime(y[0]).isoformat().replace('T', ' ')}')
     a, b = result.x # a intercept, b slope
 
     # at this point, there is no major step in the block, but there might be a minor one.
@@ -163,9 +164,9 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
            np.abs(b - default_deg1)/default_deg1 < 0.1 and \
            np.abs(b2 - default_deg1)/default_deg1 < 0.1 and \
            np.abs(a - a2) > 0.5:
-            raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS('Excessive unfit points in GPS data, likely step')
+            raise gemlog.exceptions.CorruptRawFileDiscontinuousGPS(f'Excessive unfit points in GPS data, likely step around {obspy.UTCDateTime(y[0]).isoformat().replace('T', ' ')}')
         else:
-            raise gemlog.core.CorruptRawFileInadequateGPS('Excessive unfit points in GPS data')
+            raise gemlog.core.CorruptRawFileInadequateGPS(f'Excessive unfit points in GPS data around {obspy.UTCDateTime(y[0]).isoformat().replace('T', ' ')}')
     x = x[~resid_excessive]
     y = y[~resid_excessive]
     linreg = linregress(x, y)

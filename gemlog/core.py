@@ -1141,7 +1141,7 @@ def _gps_in_bounds(G):
         'day': (1, 31),
         'hour': (0, 24),
         'minute': (0, 60),
-        'second': (0, 60),
+        'second': (0, 60)
     }
     bad_gps = False
     for key, (lo, hi) in limits.items():
@@ -1152,7 +1152,8 @@ def _gps_in_bounds(G):
     bad_gps |= (
         (G['lat'] == 0) |
         (G['lon'] == 0) |
-        (G['second'] != np.round(G['second']))
+        (G['second'] != np.round(G['second'])) |
+        ((G['msPPS']) % rollover == 0) # msPPS == 0 probably means a GPS line was logged when it shouldn't have been
     )
 
     return ~bad_gps
