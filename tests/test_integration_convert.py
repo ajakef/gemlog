@@ -34,6 +34,9 @@ def test_gemconvert_v110():
 def test_gemconvert_AspenCSV001():
     gemlog.convert(rawpath='../data/AspenCSV/', convertedpath = 'mseed', SN= '977', blockdays = 0.5, nums = np.arange(20, 30)) # there's an unrelated .977 file; exclude it with nums
     shutil.rmtree('mseed/')
+def test_gemconvert_AspenCSV01_24hr():
+    gemlog.convert(rawpath='../data/test_data/24_hour_aspen_files/', convertedpath = 'mseed', SN= '10025') # there's an unrelated .977 file; exclude it with nums
+    shutil.rmtree('mseed/')
 
 ## test a block of files including a long data gap--e.g., old data was left on the disk and then new data recorded afterward
 ## if this works, it will only make mseed files for the 8 days when we actually have data

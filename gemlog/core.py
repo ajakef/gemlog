@@ -196,8 +196,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## read the first set of up to (24*blockdays) files
     L = _new_gem_var()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
-        nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
-        n1 = n1 + (12*blockdays) # increment file number counter
+        nums_block = nums[(nums >= n1) & (nums < (n1 + (1*blockdays)))] # files are 2 hours, so 12 files is 24 hours
+        n1 = n1 + (1*blockdays) # increment file number counter
         try:
             L = read_gem(path = rawpath, nums = nums_block, SN = SN, network = network, station = station, location = location)
         except MissingRawFiles: # if the block has no files, keep searching
@@ -284,7 +284,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             try:
-                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], SN = SN, network = network, station = station, location = location)
+                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (1*blockdays)))], SN = SN, network = network, station = station, location = location)
             except MissingRawFiles: # this can happen if a block of empty files is encountered
                 continue
             except CorruptRawFile: # if the block has no files, keep searching
@@ -292,7 +292,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             except: # especially for KeyboardInterrupt!
                 raise
             finally:
-                n1 = n1 + (12*blockdays) # increment file counter
+                n1 = n1 + (1*blockdays) # increment file counter
 
             if(len(L['data']) == 0):
                 continue # skip ahead if there aren't any readable data files here
@@ -825,7 +825,7 @@ def _read_Aspen_with_cython(filename, require_gps = True):
 
     # Allocate from the actual file size; Aspen files have no duration header.
     config = _read_config_aspen(filename)
-    estimated_rows = max(1560000, count_file_lines(filename))
+    estimated_rows = max(1560000, count_file_lines(filename)) #data lines are approx 99%-99.5% of total lines
     values, types, millis = parse_gemfile(
         str(filename).encode('utf-8'), n_channels=config['n_channels'],
         n_row=estimated_rows, dt_ms=config['sample_int_ms']
@@ -1348,7 +1348,6 @@ def _calculate_drift(L, fn, file_format_version, require_gps):
     ## 0 & no valid GPS: use end of previous file + 0.01 sec as start time, assume zero drift
     ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 1, otherwise: exception
-    _breakpoint()
     if file_format_version.find('Aspen') == 0:
         default_deg1 = 1.0/1024.0 # 1024 aspen TCXO ticks per second
     else:

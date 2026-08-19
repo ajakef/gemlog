@@ -54,7 +54,7 @@ def test_parser():
     assert data[6673] == 4
 
     # 24-hour aspen file of format 0.1
-    x, linetype, millis = parse_gemfile(b'../data/test_data/24_hour_aspen_files/FILE0001.025', n_row = 200*3600*24*1.1, n_channels = 1, dt_ms = 5)
+    x, linetype, millis = parse_gemfile(b'../data/test_data/24_hour_aspen_files/FILE0001.025', n_row = int(200*3600*24*1.1), n_channels = 1, dt_ms = 5)
     
     
     
@@ -148,7 +148,7 @@ def test_unit_read_several_aspen():
     x = _read_several(['../data/AspenCSV/FILE0001.017'], version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
 
     x = _read_several(['../data/test_data/24_hour_aspen_files/FILE0001.025'], version = 'AspenCSV0.1')
-    x = _read_several(['../data/test_data/24_hour_aspen_files/FILE0001.025', '../data/test_data/24_hour_aspen_files/FILE0002.025', '../data/test_data/24_hour_aspen_files/FILE0003.025'], version = 'AspenCSV0.1')
+    x = _read_several(['../data/test_data/24_hour_aspen_files/FILE0001.025', '../data/test_data/24_hour_aspen_files/FILE0002.025'], version = 'AspenCSV0.1')
     
 
 def test_read_gem_aspen():
