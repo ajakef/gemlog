@@ -9,7 +9,7 @@ import pdb
 #default_deg1 = 0.001024 # make this an argument; different for Gem vs Aspen 100/200 sps
 
 def get_GPS_spline(G, default_deg1 = 0.001024):
-    breakpoint()
+    #breakpoint()
     ## account for default slope
     x = np.array(G['msPPS'])# * default_deg1
     y = np.array(G['t'])# - x # in a perfect world, y is constant
@@ -119,7 +119,7 @@ def _check_step_within_block(x, y, default_deg1, max_step_dy = 0.5):
 
     
 def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_step_dy = 0.5):
-    breakpoint()
+    #breakpoint()
     x_save = x.copy()
     y_save = y.copy()
     # Assume that GPS points are all either good, spikes, or steps.
