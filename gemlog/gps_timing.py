@@ -119,6 +119,16 @@ def _check_step_within_block(x, y, default_deg1, max_step_dy = 0.5):
 
     
 def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_step_dy = 0.5):
+    # Nelder-Mead on the non-smooth fit objective can stall in a poor local minimum depending on its starting
+    # simplex. If the default start fails to fit, retry with a simplex scaled to the problem before giving up.
+    x_orig, y_orig = x.copy(), y.copy() # the fit can modify y in place
+    try:
+        return _get_block_stats_start(x, y, default_deg1, max_dev, max_errors, max_step_dy, False)
+    except gemlog.exceptions.CorruptRawFileInadequateGPS:
+        return _get_block_stats_start(x_orig, y_orig, default_deg1, max_dev, max_errors, max_step_dy, True)
+
+
+def _get_block_stats_start(x, y, default_deg1, max_dev, max_errors, max_step_dy, scaled_simplex):
     #breakpoint()
     x_save = x.copy()
     y_save = y.copy()
@@ -135,7 +145,15 @@ def _get_block_stats(x, y, default_deg1, max_dev = 0.005, max_errors = 2, max_st
     #dydx_estimate = (y[-1] - y[0])/(x[-1] - x[0])
     dydx_estimate = np.median(np.diff(y)/np.diff(x))
     offset_estimate = np.median(y) - np.median(x-x[-1]) * dydx_estimate - y[-1]
-    result = minimize(_rms_sub_med, [offset_estimate, dydx_estimate], [x, y], method = 'Nelder-Mead')
+    x0 = [offset_estimate, dydx_estimate]
+    options = {}
+    if scaled_simplex:
+        # the default simplex perturbs the slope by 5%, which is seconds of timing change over a block.
+        # Perturb the intercept and slope by about max_dev instead, and center the intercept on the residuals.
+        x0[0] = np.median(y - y[-1] - dydx_estimate * (x - x[-1]))
+        x_span = max(x[-1] - x[0], 1)
+        options['initial_simplex'] = np.array([x0, [x0[0] + max_dev, x0[1]], [x0[0], x0[1] + max_dev/x_span]])
+    result = minimize(_rms_sub_med, x0, [x, y], method = 'Nelder-Mead', options = options)
     if not result.success:
         raise gemlog.core.CorruptRawFileInadequateGPS('Failed to fit GPS data')
     a, b = result.x # a intercept, b slope

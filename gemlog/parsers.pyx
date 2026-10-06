@@ -3,10 +3,10 @@ Cython-based file parsers.
 """
 
 import numpy as np
-from libc.stdio cimport fopen, fclose, fgets, FILE, sscanf
+from libc.stdio cimport fopen, fclose, fgets, fseek, ftell, fgetc, rewind, FILE, sscanf, SEEK_END, SEEK_SET
 from libc.string cimport strcpy, strcat
 
-def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
+def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_bad_last_line = False):
     """
     Cythonized gem logfile parser.
 
@@ -26,6 +26,11 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     dt_ms : int
         Nominal sample interval in milliseconds (10 for Gem, 5 for Aspen at 200 sps)
 
+    drop_bad_last_line : bool
+        If True, ignore the last line of the file if it is incomplete (no terminating newline) or
+        cannot be parsed. This can happen when power is lost while the logger is writing.
+        Intended for AspenCSV0.2 and higher; the default (False) preserves the original behavior.
+
 
     Returns
     -------
@@ -42,6 +47,20 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     if cfile == NULL:
         msg = "No such file or directory: '{}'".format(filename)
         raise FileNotFoundError(2, msg)
+
+    # detect an incomplete last line (no terminating newline) once, before parsing
+    cdef bint file_incomplete = False
+    cdef bint last_bad = False # last kept line failed to parse completely
+    cdef bint last_skipped = False # last line read was not recognized, so not kept
+    cdef bint drop_last = drop_bad_last_line
+    cdef long file_size = 0
+    if drop_last:
+        fseek(cfile, 0, SEEK_END)
+        file_size = ftell(cfile)
+        if file_size > 0:
+            fseek(cfile, file_size - 1, SEEK_SET)
+            file_incomplete = (fgetc(cfile) != 10)
+        rewind(cfile)
 
     cdef char line[256]
     cdef char* read
@@ -70,13 +89,16 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
     # G placeholders
     cdef int yr = 0, mo = 0, day = 0, hr = 0, mn = 0
     cdef double msPPS = 0, msLag = 0, sec = 0, lat = 0, lon = 0
-    # M placeholders
+    # M/H placeholders
     cdef int maxLag = 0, minFree = 0, maxUsed = 0, maxOver = 0
     cdef int gpsFlag = 0, freeStack1 = 0, freeStackIdle = 0
     cdef double ms = 0, batt = 0, temp = 0, A2 = 0, A3 = 0
+    cdef double V = 0, mA = 0, RH = 0, Vcc = 0
+    cdef int maxSampleDiff = 0, maxReadTime = 0, maxWriteTime = 0
+    cdef int maxDrainTime = 0, drainDiff = 0, gpsOnFlag = 0
 
     # array to store parsed data
-    result_array = np.zeros((n_row, 11), dtype=np.double)
+    result_array = np.zeros((n_row, 12), dtype=np.double)
     # make a view for faster indexing.
     # see https://cython.readthedocs.io/en/latest/src/userguide/numpy_tutorial.html#efficient-indexing-with-memoryviews
     cdef double[:, :] view = result_array
@@ -121,6 +143,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
                 view[line_number, i] = line[i+offset] - 109 # diff_ADC
             prev_dD_millis = current_dD_millis
             millis_view[line_number] = current_dD_millis
+            last_bad = False
             line_type = 68 # ord('D') # because the D line is in an elif block, this is safe and the D line code won't be invoked
 
         ## Parse lines that are not all lowercase and begin with D,z,-,0-9 (partly compressed or not at all compressed)
@@ -148,6 +171,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             #print(offset)
             # try scanning it as if it's a line of comma-separated integers
             n_matched = sscanf(line + offset, "%lf,%d,%d,%d,%d", &DmsSamp, &ADC0, &ADC1, &ADC2, &ADC3)
+            last_bad = n_matched < 1
 
             # if only one number was matched but there's a comma, it's of the form D1529,qmxk
             if (line_type == 68) and (n_matched == 1) and D_with_comma: 
@@ -180,6 +204,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
                                "%lf,%lf,%d,%d,%d,%d,%d,%lf,%lf,%lf",
                                &msPPS, &msLag, &yr, &mo, &day, &hr, &mn,
                                &sec, &lat, &lon)
+            last_bad = n_matched != 10
             view[line_number, 0] = msLag
             view[line_number, 1] = yr
             view[line_number, 2] = mo
@@ -191,7 +216,30 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             view[line_number, 8] = lon
             millis_view[line_number] = msPPS
 
-        elif (line_type == 77) or (line_type == 72):  # ord('M') == 77, ord('H') == 72
+        elif line_type == 72:  # ord('H') == 72
+            # H,millis,batt,V,mA,temp,RH,Vcc,maxSampleDiff,maxReadTime,maxWriteTime,maxDrainTime,drainDiff,gpsOnFlag
+            # H,773,3.77,3.784,-8.0,22.7,31.9,3.29,6,1132,216,8375,101,0
+            n_matched = sscanf(line + 2,
+                               "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%d,%d,%d,%d,%d,%d",
+                               &ms, &batt, &V, &mA, &temp, &RH, &Vcc,
+                               &maxSampleDiff, &maxReadTime, &maxWriteTime,
+                               &maxDrainTime, &drainDiff, &gpsOnFlag)
+            last_bad = n_matched != 13
+            view[line_number, 0] = batt
+            view[line_number, 1] = V
+            view[line_number, 2] = mA
+            view[line_number, 3] = temp
+            view[line_number, 4] = RH
+            view[line_number, 5] = Vcc
+            view[line_number, 6] = maxSampleDiff
+            view[line_number, 7] = maxReadTime
+            view[line_number, 8] = maxWriteTime
+            view[line_number, 9] = maxDrainTime
+            view[line_number, 10] = drainDiff
+            view[line_number, 11] = gpsOnFlag
+            millis_view[line_number] = ms
+
+        elif line_type == 77:  # ord('M') == 77
             # M,ms,batt(V),temp(C),A2,A3,maxLag,minFree,maxUsed,maxOver,
             # gpsFlag,freeStack1,freeStackIdle
             # M,8001,3.02,22.1,1.412,2.052,94,66,9,0,0,57,86
@@ -200,6 +248,7 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
                                &ms, &batt, &temp, &A2, &A3, &maxLag,
                                &minFree, &maxUsed, &maxOver, &gpsFlag,
                                &freeStack1, &freeStackIdle)
+            last_bad = n_matched != 12
             view[line_number, 0] = batt
             view[line_number, 1] = temp
             view[line_number, 2] = A2
@@ -213,12 +262,18 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10):
             view[line_number, 10] = freeStackIdle
             millis_view[line_number] = ms
         else:
+            last_skipped = True
             continue
 
+        last_skipped = False
         type_view[line_number] = line_type
         line_number += 1
 
     fclose(cfile)
+
+    # an unrecognized trailing line was never kept, so there is nothing to drop
+    if drop_last and line_number > 0 and not last_skipped and (file_incomplete or last_bad):
+        line_number -= 1
 
     return (
         result_array[:line_number, :],

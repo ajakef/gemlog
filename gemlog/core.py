@@ -306,7 +306,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                     print('Problem with files, skipping: ' + L['header'].file[i])
 
             p = _merge_gaps(p + L['data'])
-                
             ## start metadata and gps files
             metadata = L['metadata']   
             gps = L['gps']
@@ -788,7 +787,7 @@ def _read_with_cython(filename, require_gps = True):
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
         raise CorruptRawFileNoGPS(filename)
-    df = pd.DataFrame(values, columns=range(2, 13))
+    df = pd.DataFrame(values, columns=range(2, values.shape[1] + 2))
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
     df['millis-sawtooth'] = millis
@@ -797,7 +796,22 @@ def _read_with_cython(filename, require_gps = True):
 
 
 
-def _read_Aspen_with_cython(filename, require_gps = True):
+def _aspen_drops_bad_last_line(version):
+    """
+    Whether raw files of this format version should have an incomplete or unparseable last line
+    ignored (AspenCSV0.2 and higher). Power loss at the end of a recording can truncate the last line.
+    """
+    version = str(version)
+    prefix = 'AspenCSV'
+    if not version.startswith(prefix):
+        return False
+    try:
+        return float(version[len(prefix):]) >= 0.2
+    except ValueError:
+        return False
+
+
+def _read_Aspen_with_cython(filename, require_gps = True, version = None):
     """
     Read an Aspen logfile.
 
@@ -805,8 +819,11 @@ def _read_Aspen_with_cython(filename, require_gps = True):
     ----------
     filename : str or pathlib.Path
         Filepath of a file containing data to read.
-    offset : int, default 0
-        A timing offset to include in the millisecond timestamp values.
+    require_gps : bool, default True
+        If True and gps tags are missing, raise a CorruptRawFileNoGPS exception.
+    version : str, optional
+        Raw format version (e.g. 'AspenCSV0.2'). For AspenCSV0.2 and higher, an incomplete or
+        unparseable last line in the file is ignored.
 
     Returns
     -------
@@ -828,13 +845,14 @@ def _read_Aspen_with_cython(filename, require_gps = True):
     estimated_rows = max(1560000, count_file_lines(filename)) #data lines are approx 99%-99.5% of total lines
     values, types, millis = parse_gemfile(
         str(filename).encode('utf-8'), n_channels=config['n_channels'],
-        n_row=estimated_rows, dt_ms=config['sample_int_ms']
+        n_row=estimated_rows, dt_ms=config['sample_int_ms'],
+        drop_bad_last_line=_aspen_drops_bad_last_line(version)
     )
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
         raise CorruptRawFileNoGPS(filename)
-    df = pd.DataFrame(values, columns=range(2, 13))
+    df = pd.DataFrame(values, columns=range(2, values.shape[1] + 2))
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
     df['millis-sawtooth'] = millis
@@ -944,7 +962,10 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     output_message = ''
     for reader in readers:
         try:
-            df = reader(filename, require_gps)
+            if reader is _read_Aspen_with_cython:
+                df = reader(filename, require_gps, version = version)
+            else:
+                df = reader(filename, require_gps)
             if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
                 output = _process_aspen_data(df, offset, version = version, require_gps = require_gps)
             else:
@@ -972,7 +993,7 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
     if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
         # old M_cols: ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed','maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
         rollover = 2**13
-        M_cols = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'maxWriteTime', 'gpsOnFlag']
+        M_cols = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime', 'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag']
     else:
         raise CorruptRawFile('Invalid raw format version')
     # unroll the ms rollover sawtooth

@@ -241,3 +241,73 @@ def test_read_cython_v1_1_v0_91(): # at this point, only supporting cython reade
     x = _read_with_cython('../data/v0.91/FILE0040.059')
     y = _read_with_cython('../data/v1.10/FILE0040.059')
     assert_gem_results_equal(_process_gemlog_data(x), _process_gemlog_data(y))
+
+
+## incomplete last lines (power loss at the end of a recording) are ignored for AspenCSV0.2 and higher
+def _make_aspen_fixture(src, dst, n_lines = 6000):
+    """Write a smaller AspenCSV0.2 fixture so truncation tests run quickly."""
+    with open(src, 'rb') as f_in, open(dst, 'wb') as f_out:
+        for i, line in enumerate(f_in):
+            if i >= n_lines:
+                break
+            f_out.write(line)
+
+
+def _write_variant(src, dst, tail):
+    """Copy src minus its last line (if incomplete) to dst, then append tail."""
+    with open(src, 'rb') as f:
+        lines = f.read().split(b'\n')
+    # drop the last (incomplete or empty) element so only complete lines remain
+    with open(dst, 'wb') as f:
+        f.write(b'\n'.join(lines[:-1]) + b'\n' + tail)
+
+def test_parser_drop_bad_last_line():
+    _make_aspen_fixture('../data/AspenCSV/FILE0003.032', 'fixture.txt')
+    _write_variant('fixture.txt', 'complete.txt', b'')
+    ref = parse_gemfile(b'complete.txt', n_channels = 4, dt_ms = 5, drop_bad_last_line = True)
+    n = len(ref[1])
+    assert n > 0
+    # complete last line is kept
+    assert len(parse_gemfile(b'complete.txt', n_channels = 4, dt_ms = 5)[1]) == n
+    tails = [b'D863,', b'D8', b'D', b'G,8171,70,2020,6,20,5,21,22.0,43.6', b'G,8171,70,2020,6,20,5,21,22.0,43.62226,-116.20594',
+             b'H,773,3.77,3.784,-8.0,22.7', b'H,773,3.77,3.784,-8.0,22.7,31.9,3.29,6,1132,216,8375,101,0', b'#junk']
+    for tail in tails:
+        _write_variant('fixture.txt', 'bad.txt', tail) # no trailing newline
+        x = parse_gemfile(b'bad.txt', n_channels = 4, dt_ms = 5, drop_bad_last_line = True)
+        expected = n if tail == b'#junk' else n # unrecognized or incomplete trailing line never adds rows
+        assert len(x[1]) == expected, tail
+        assert np.array_equal(x[0], ref[0]) and np.array_equal(x[2], ref[2])
+    # a truncated line that does end in a newline but can't be parsed is dropped too
+    for tail in [b'G,8171,70,2020\n', b'H,773,3.77\n']:
+        _write_variant('fixture.txt', 'bad.txt', tail)
+        x = parse_gemfile(b'bad.txt', n_channels = 4, dt_ms = 5, drop_bad_last_line = True)
+        assert len(x[1]) == n, tail
+        # default behavior is unchanged: the bad line is kept
+        assert len(parse_gemfile(b'bad.txt', n_channels = 4, dt_ms = 5)[1]) == n + 1
+    # a bad line in the middle is not dropped
+    with open('complete.txt', 'rb') as f:
+        lines = f.read().split(b'\n')
+    lines.insert(len(lines)//2, b'G,1,2')
+    with open('mid.txt', 'wb') as f:
+        f.write(b'\n'.join(lines))
+    assert len(parse_gemfile(b'mid.txt', n_channels = 4, dt_ms = 5, drop_bad_last_line = True)[1]) == n + 1
+
+def test_read_single_aspen_incomplete_last_line():
+    _make_aspen_fixture('../data/AspenCSV/FILE0003.032', 'fixture.txt')
+    _write_variant('fixture.txt', 'complete.txt', b'')
+    ref = _read_single('complete.txt', version = 'AspenCSV0.2')
+    for tail in [b'D863,', b'D8', b'G,8171,70,2020,6,20,5,21,22.0,43.6', b'H,773,3.7']:
+        _write_variant('fixture.txt', 'bad.txt', tail)
+        L = _read_single('bad.txt', version = 'AspenCSV0.2')
+        assert np.array_equal(L['data'], ref['data'])
+        assert len(L['gps']) == len(ref['gps'])
+        assert len(L['metadata']) == len(ref['metadata'])
+
+def test_aspen_drops_bad_last_line_versions():
+    from gemlog.core import _aspen_drops_bad_last_line
+    assert _aspen_drops_bad_last_line('AspenCSV0.2')
+    assert _aspen_drops_bad_last_line('AspenCSV0.3')
+    assert not _aspen_drops_bad_last_line('AspenCSV0.1')
+    assert not _aspen_drops_bad_last_line('AspenCSV0.01')
+    assert not _aspen_drops_bad_last_line('1.10')
+    assert not _aspen_drops_bad_last_line(None)
