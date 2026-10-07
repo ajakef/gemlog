@@ -522,7 +522,7 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, require_gps = require_gps)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
-    elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+    elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
@@ -599,6 +599,8 @@ def _new_gem_var():
 
 
 def _read_SN(fn):
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
     try:
         SN_lines = pd.read_csv(fn, delimiter = ',', skiprows = 3, nrows=4, dtype = 'str', names=['linetype', 'SN'], encoding_errors='ignore', comment = '#', on_bad_lines = 'skip')
         SN = SN_lines['SN'][SN_lines['linetype'] == 'S'][0]
@@ -614,6 +616,8 @@ def _read_format_version(fn):
     #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
     #0.8: file extension .TXT, 1-hour files
     #"""
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore', on_bad_lines = 'skip')
     if versionLine['s'][0][1] == 'G':
         version = versionLine['s'][0][7:]
@@ -624,6 +628,8 @@ def _read_format_version(fn):
     return version
     
 def _read_config_gem(fn):
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
     config = pd.Series({'gps_mode': 1,
                     'gps_cycle' : 15,
                     'gps_quota' : 20,
@@ -644,6 +650,9 @@ def _read_config_gem(fn):
 
 def _read_config_aspen(fn):
     #print(fn)
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
+    
     names = ['gain1', 'gain2', 'gain3', 'gain4', 'sample_int_ms', 'gps_mode', 'gps_cycle', 'gps_quota', 'serial_output_data', 'serial_output_gps', 'serial_output_health']
     config = pd.Series({
         'gain1' : 128,
@@ -846,7 +855,8 @@ def _read_Aspen_with_cython(filename, require_gps = True, version = None):
     values, types, millis = parse_gemfile(
         str(filename).encode('utf-8'), n_channels=config['n_channels'],
         n_row=estimated_rows, dt_ms=config['sample_int_ms'],
-        drop_bad_last_line=_aspen_drops_bad_last_line(version)
+        drop_bad_last_line=_aspen_drops_bad_last_line(version),
+        trailing_zeros_skipped=(str(version) == 'AspenCSV0.3')
     )
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
@@ -955,7 +965,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     # probably increasing likelihood of success.
     if version in ['1.10', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
-    elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+    elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
         readers = [_read_Aspen_with_cython]
     else:
         readers = [_read_0_8_pd]
@@ -966,7 +976,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
                 df = reader(filename, require_gps, version = version)
             else:
                 df = reader(filename, require_gps)
-            if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+            if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
                 output = _process_aspen_data(df, offset, version = version, require_gps = require_gps)
             else:
                 output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
@@ -990,12 +1000,16 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
 
 def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = True):
     ## figure out what settings to used according to the raw file format version
-    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
         # old M_cols: ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed','maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
         rollover = 2**13
         M_cols = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime', 'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag']
     else:
         raise CorruptRawFile('Invalid raw format version')
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+        polarity_correction = -1
+    else:
+        polarity_correction = 1
     # unroll the ms rollover sawtooth
     df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
     df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > (rollover/2)).cumsum()
@@ -1031,7 +1045,7 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
     # now that columns aren't mixed dtype anymore, convert to numeric where possible
     D = D.apply(pd.to_numeric)
 
-    D.iloc[:,1:] = D.iloc[:,1:].astype(float).cumsum(0) # calculate cumsum for each column
+    D.iloc[:,1:] = D.iloc[:,1:].astype(float).cumsum(0) * polarity_correction # calculate cumsum for each column
 
     ## gps stuff
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
@@ -1252,7 +1266,7 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
 
 def _get_channels(filename):
     version = _read_format_version(filename)
-    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
         #return 4 # eventually check config info here
         config = _read_config_aspen(filename)
         return np.sum(np.array([config[f'gain{i}'] for i in range(1,5)]) > 0)
@@ -1262,7 +1276,7 @@ def _get_channels(filename):
 
 def _get_dt(filename):
     version = _read_format_version(filename)
-    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
         return 0.005
     else:
         return 0.01
@@ -1289,7 +1303,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             ## read the data file (using reader for this format version)
             if version in ['1.10', '0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis, require_gps = require_gps)
-            elif version in ['0.8', '0.85', 'AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+            elif version in ['0.8', '0.85', 'AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
                 raise CorruptRawFile('Invalid raw file format version: ' + version)
@@ -1860,7 +1874,8 @@ _time_corrections = { # milliseconds
     '1.10':8.93,
     'AspenCSV0.01':0,
     'AspenCSV0.1':0,
-    'AspenCSV0.2':0
+    'AspenCSV0.2':0,
+    'AspenCSV0.3':0
 }
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):

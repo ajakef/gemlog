@@ -63,6 +63,13 @@ def test_parser():
     #assert x[0][0,0] == -5868
     #assert x[2][0] == 1015
     #assert np.sum(x[1] == b'D') == 136564
+
+    # AspenCSV0.3 (where trailing zero-diffs are skipped in data lines)
+    x, linetype, millis = parse_gemfile(b'../data/test_data/AspenCSV0.3/FILE0000.022', n_channels = 4, dt_ms = 5, trailing_zeros_skipped = True) # 2026-07-22 4-channel aspen file with compression.
+    data = x[linetype == b'D',:]
+    assert data[1:,1:].max() == 0
+    assert data[9,0] == -15
+    assert data[10,0] == -10
     
 def test_read_SN():
     _read_SN('../data/v0.91/FILE0040.059')
@@ -135,10 +142,14 @@ def test_read_gem_integration():
 
 def test_read_single_aspen():
     L = _read_single('../data/AspenCSV/FILE0020.977', version = 'AspenCSV0.01')
+    assert L['data'][1,2] == 8 # D1020,4842,-7; tl; polarity correction -1 for AspenCSV0.01
     #L = _read_single('../data/AspenCSV/FILE0108.006', version = 'AspenCSV0.01')
     #assert np.shape(L['data'])[0] == 136564
     x = _read_single('../data/AspenCSV/FILE0001.017', version = 'AspenCSV0.1') # 4-channel, recorded in lab in 2026-07
     x = _read_single('../data/test_data/24_hour_aspen_files/FILE0001.025', version = 'AspenCSV0.1')
+    assert x['data'][1,1] == 685 # D1021,-687;o; polarity correction -1 for AspenCSV0.1
+    x = _read_single('../data/test_data/AspenCSV0.3/FILE0000.022', version = 'AspenCSV0.3')
+    assert x['data'][1,1] == 4304 # D8186,4299,524287,524287,524287;zr; polarity correction 1 for AspenCSV0.3
 
 
 def test_unit_read_several_aspen():

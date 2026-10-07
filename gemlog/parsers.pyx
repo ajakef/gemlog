@@ -6,7 +6,7 @@ import numpy as np
 from libc.stdio cimport fopen, fclose, fgets, fseek, ftell, fgetc, rewind, FILE, sscanf, SEEK_END, SEEK_SET
 from libc.string cimport strcpy, strcat
 
-def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_bad_last_line = False):
+def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_bad_last_line = False, trailing_zeros_skipped = False):
     """
     Cythonized gem logfile parser.
 
@@ -31,6 +31,9 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_ba
         cannot be parsed. This can happen when power is lost while the logger is writing.
         Intended for AspenCSV0.2 and higher; the default (False) preserves the original behavior.
 
+    trailing_zeros_skipped : bool
+        If True, data lines omit trailing deltas of 0 (AspenCSV0.3).
+
 
     Returns
     -------
@@ -53,6 +56,8 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_ba
     cdef bint last_bad = False # last kept line failed to parse completely
     cdef bint last_skipped = False # last line read was not recognized, so not kept
     cdef bint drop_last = drop_bad_last_line
+    cdef bint skip0 = trailing_zeros_skipped
+    cdef int k = 0, start = 0, comma = 0
     cdef long file_size = 0
     if drop_last:
         fseek(cfile, 0, SEEK_END)
@@ -123,8 +128,55 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_ba
         line_type = line[0]
         #print(line_type)
 
+        ## AspenCSV0.3: trailing zero deltas are omitted. Only lines starting with D or z carry a time
+        ## prefix (D<millis>[,deltas] or z[deltas], where z means dt+1); all others are pure deltas.
+        if skip0 and ( ((line_type >= 97) and (line_type <= 122)) or line_type == 68 or line_type == 45 or
+                       ((line_type >= 48) and (line_type <= 57)) ):
+            for i in range(n_channels):
+                view[line_number, i] = 0
+            ADC0 = 0
+            ADC1 = 0
+            ADC2 = 0
+            ADC3 = 0
+            current_dD_millis = (prev_dD_millis + dt_ms) % (2**13)
+            last_bad = False
+            start = 0 # index where the deltas begin
+            comma = 0 # nonzero if there is no delta field at all
+            if line_type == 122:
+                current_dD_millis = (prev_dD_millis + dt_ms + 1) % (2**13)
+                start = 1
+            elif line_type == 68:
+                n_matched = sscanf(line + 1, "%lf", &DmsSamp)
+                last_bad = n_matched < 1
+                current_dD_millis = DmsSamp
+                j = 1
+                while (line[j] != 44) and (line[j] != 10) and (line[j] != 0):
+                    j = j + 1
+                if line[j] == 44:
+                    start = j + 1
+                else:
+                    comma = 1
+            if comma == 0:
+                if (line[start] >= 97) and (line[start] <= 122): # letter-coded deltas
+                    k = start
+                    for i in range(n_channels):
+                        if (line[k] < 97) or (line[k] > 122):
+                            break
+                        view[line_number, i] = line[k] - 109
+                        k = k + 1
+                elif (line[start] != 10) and (line[start] != 0): # comma-separated integers
+                    n_matched = sscanf(line + start, "%d,%d,%d,%d", &ADC0, &ADC1, &ADC2, &ADC3)
+                    if n_matched < 1:
+                        last_bad = True
+                    for i in range(n_channels):
+                        if i < n_matched:
+                            view[line_number, i] = [ADC0, ADC1, ADC2, ADC3][i]
+            prev_dD_millis = current_dD_millis
+            millis_view[line_number] = current_dD_millis
+            line_type = 68
+
         ## Parse lines that are all-lowercase (fully compressed)
-        if ( ( (line[0] >= 97) and (line[0] <= 121) ) or  # e.g. q
+        elif ( ( (line[0] >= 97) and (line[0] <= 121) ) or  # e.g. q
            ( (line[0] == 122) and (line[1] >= 97) and (line[1] <= 122) ) ): # e.g. zm; ord('a', 'y', 'z')
             # if line is length n_channels, use default dt
             # example: q
