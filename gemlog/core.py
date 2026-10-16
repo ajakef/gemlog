@@ -667,27 +667,24 @@ def _read_config_aspen(fn):
         'serial_output_gps': 1,
         'serial_output_health': 1
     })
-    ## this is ugly but functional. pd.read_csv raises an exception when the number of columns is
-    ## wrong, and the number of columns will be wrong for all rows except the C rows
-    for j in range(10):
-        try:
-            line = pd.read_csv(fn, skiprows = j+1, nrows=1, delimiter = ',', dtype = 'str', encoding_errors='ignore', on_bad_lines = 'skip', header = None)
-            
-            #print(line)
-            if line.iloc[0,0] == 'C':
-                #config = {key:int(line.loc[0,key]) for key in list(line.keys())[1:]}
-                expected = ['linetype'] + names
-                # pad or trim to match expected length
-                if line.shape[1] < len(expected):
-                    line = line.reindex(columns=range(len(expected)), fill_value = -999)  # pad missing
-                elif line.shape[1] > len(expected):
-                    line = line.iloc[:, :len(expected)]  # drop extras
-                #config = line.iloc[:,1:] # drop the 'C' label
-                #config.columns = names
-                config = {names[i]:int(line.iloc[0,i+1]) for i in range(line.shape[1]-1)}
+    ## the C line is within the first few lines. Read them once as text; calling pd.read_csv for each
+    ## candidate line is slow, and this function is called several times per file.
+    try:
+        with open(fn, errors = 'ignore') as f:
+            header_lines = [f.readline() for _ in range(11)][1:]
+        for text in header_lines:
+            if text == '': # end of file before finding the C line
+                raise CorruptRawFile(f'{fn}: missing config info')
+            fields = text.rstrip('\r\n').split(',')
+            if fields[0] == 'C':
+                values = fields[1:len(names)+1]
+                # values missing from a short C line get -999, which is handled below
+                config = {names[i]:int(values[i]) if i < len(values) else -999 for i in range(len(names))}
                 break
-        except:
-            raise CorruptRawFile(f'{fn}: missing config info')
+    except CorruptRawFile:
+        raise
+    except Exception:
+        raise CorruptRawFile(f'{fn}: missing config info')
     #print(config)
     for key in ['gain1', 'gain2', 'gain3', 'gain4']:
         if config[key] == -999:
@@ -1566,7 +1563,9 @@ def _assign_times(L):
     ## loop through channels and append to a Stream
     L['data'] = obspy.Stream()
     for i in range(n_channels):
-        print(i)
+        # skip additional channels whose data never change (e.g. unconnected inputs); always keep the first
+        if (i > 0) and np.all(D[:,i+1] == D[0,i+1]):
+            continue
         st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = np.max(L['header'].dt)) # returns stream, populates known fields: channel, delta, and starttime
         for tr in st_tmp:
             if channels[i] == 0:

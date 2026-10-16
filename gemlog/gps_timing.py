@@ -49,7 +49,6 @@ def get_block_results(x, y, default_deg1):
     for i in range(len(block_starts)):
         xb = x[block_starts[i]:block_ends[i]]
         yb = y[block_starts[i]:block_ends[i]]
-        print(i)
         block_slope[i], block_mean_x[i], block_mean_y[i] = _get_block_stats(xb, yb, default_deg1)
     block_slope = block_slope[~np.isnan(block_slope)]
     block_mean_x = block_mean_x[~np.isnan(block_mean_x)]
