@@ -1,5 +1,6 @@
 from gemlog import parsers # cython file
 from gemlog.core import convert, read_gem, get_gem_specs
+from gemlog.aspen_log import read_aspen_log, extract_aspen_logs, summarize_aspen_logs, clean_aspen_health, plot_aspen_summary
 from gemlog.exceptions import (
     EmptyRawFile,
     CorruptRawFile,

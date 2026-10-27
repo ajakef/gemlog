@@ -139,6 +139,20 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## make sure the raw directory exists and has real data
     if not os.path.isdir(rawpath):
         raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
+    ## Aspen firmware 0.9 and later write miniSEED directly, so only their logs need processing (gemlog.aspen_log)
+    from gemlog.aspen_log import find_aspen_logs, extract_aspen_logs
+    aspen_problems = []
+    if len(find_aspen_logs(rawpath, str(SN))) > 0:
+        aspen_problems = extract_aspen_logs(rawpath, SN = str(SN), metadatapath = metadatapath, gpspath = gpspath)
+        old_format_files = []
+        for fn in glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???'):
+            try:
+                if _read_SN(fn) == str(SN):
+                    old_format_files.append(fn)
+            except Exception:
+                pass
+        if len(old_format_files) == 0:
+            return aspen_problems
     if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
         raise MissingRawFiles('No data files found in directory ' + rawpath)
     try:
@@ -338,7 +352,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             hour_to_write = p[0].stats.starttime
         else:
             break
-    return problems
+    return aspen_problems + problems
 ####################################
 
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
@@ -524,6 +538,8 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
     elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
+    elif version in _ASPEN_GRIDDED_VERSIONS:
+        L = _read_several_aspen04(fnList, require_gps = require_gps)
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
 
@@ -549,7 +565,10 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             L['gps']['day'] = [1]
             
     
-    L, timing_info = _assign_times(L)
+    if version in _ASPEN_GRIDDED_VERSIONS:
+        L, timing_info = _assign_times_aspen04(L)
+    else:
+        L, timing_info = _assign_times(L)
     
     for tr in L['data']:
         ## populate the rest of the trace stats
@@ -1650,6 +1669,237 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.151
 #    tr.stats.delta = 0.01
 #    tr.stats.channel = 'HDF'
 #    return tr
+
+#########################################################
+## AspenCSV0.4 and later: the logger corrects its own timing. Data lines are exactly one sample interval apart on
+## the UTC grid (e.g. ...00.000, ...00.005), and each T line gives the time of the data line after it. So no drift
+## fit or interpolation is needed, except for data recorded before the logger's first GPS fix.
+_ASPEN_GRIDDED_VERSIONS = ['AspenCSV0.4']
+_ASPEN04_GPS_COLS = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
+_ASPEN04_METADATA_COLS = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime',
+                          'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag', 'sync', 'timeErr_us', 'tcxo_ppm',
+                          'adc_ppm', 'maxRetimeTime']
+
+def _read_aspen04_single(filename):
+    """
+    Read one AspenCSV0.4 raw file.
+
+    Returns
+    -------
+    dict with keys:
+        - values: 2-d array (samples x enabled channels) of ADC counts
+        - utc: sample times (seconds since 1970); nan before the logger's first GPS fix (sync 0)
+        - tcxo: sample times on the logger's own clock (seconds since the logger started)
+        - sync: sync state of each sample (0 no GPS time yet, 1 GPS locked, 2 GPS off, coasting on the TCXO)
+        - gps: dataframe of G lines (same columns as other formats, plus 't')
+        - metadata: dataframe of H lines, plus 'row': the latest sample written before the H line
+        - dt: sample interval (s)
+    """
+    try:
+        from gemlog.parsers import parse_aspen04
+    except ImportError:
+        raise ImportError(
+            "gemlog's C-extensions are not available. Reinstall gemlog with "
+            "C-extensions to use this function."
+        )
+    config = _read_config_aspen(filename)
+    n_channels = int(config['n_channels'])
+    dt_ms = int(config['sample_int_ms'])
+    values, others = parse_aspen04(str(filename).encode('utf-8'), n_channels = n_channels,
+                                   n_row = max(1000, count_file_lines(filename)))
+    n = values.shape[0]
+    if n == 0:
+        raise EmptyRawFile(filename)
+
+    ## T, G, and H lines (rare) are parsed here; incomplete or corrupt lines are skipped
+    T_rows, G_rows, H_rows = [], [], []
+    for data_index, line in others:
+        fields = line.decode('ascii', errors = 'ignore').rstrip('\r\n').split(',')
+        try:
+            if fields[0] == 'T':
+                utc = float(fields[2]) if fields[2] != '' else np.nan
+                T_rows.append([data_index, float(fields[1]), utc, int(fields[3])])
+            elif fields[0] == 'G':
+                vals = [float(x) for x in fields[1:len(_ASPEN04_GPS_COLS)+1]]
+                if len(vals) == len(_ASPEN04_GPS_COLS):
+                    G_rows.append(vals)
+            elif fields[0] == 'H':
+                vals = [float(x) for x in fields[1:len(_ASPEN04_METADATA_COLS)+1]]
+                if len(vals) == len(_ASPEN04_METADATA_COLS):
+                    H_rows.append(vals + [data_index - 1])
+        except (ValueError, IndexError):
+            pass
+    T = np.array(T_rows, dtype = float).reshape(-1, 4)
+    if (T.shape[0] == 0) or (T[0,0] >= n):
+        raise CorruptRawFile(f'{filename}: no time (T) lines before the data')
+
+    ## Each T line starts a segment whose first line is absolute and the rest are deltas. Data lines before the
+    ## first T line (should never happen) are dropped.
+    starts = T[:,0].astype(np.int64)
+    seg = np.searchsorted(starts, np.arange(n), side = 'right') - 1
+    first_row = starts[0]
+    seg = seg[first_row:]
+    rows = np.arange(first_row, n)
+    cumulative = np.cumsum(values, axis = 0)
+    cumulative_before = np.vstack([np.zeros((1, n_channels)), cumulative]) # sum of all rows before row j
+    absolute = cumulative[first_row:] - cumulative_before[starts[seg]]
+
+    ## sample times: segment start time plus a whole number of sample intervals (integer ms to keep them exact)
+    k = rows - starts[seg]
+    utc = (np.round(T[seg, 2] * 1000) + k * dt_ms) / 1000
+    tcxo = T[seg, 1] + k * dt_ms / 1000
+    sync = T[seg, 3].astype(int)
+
+    if len(G_rows) > 0:
+        G = pd.DataFrame(G_rows, columns = _ASPEN04_GPS_COLS)
+        G = G.loc[_gps_in_bounds(G), :].copy()
+        G['t'] = [float(_make_gps_time(row)) for row in G[_ASPEN04_GPS_COLS].values]
+        G = G.loc[~G['t'].isna(), :].reset_index(drop = True)
+    else:
+        G = _make_empty_gps()
+    M = pd.DataFrame(H_rows, columns = _ASPEN04_METADATA_COLS + ['row'])
+    M['row'] = np.clip(M['row'] - first_row, 0, len(rows) - 1).astype(int)
+    return {'values': absolute, 'utc': utc, 'tcxo': tcxo, 'sync': sync, 'gps': G, 'metadata': M,
+            'dt': dt_ms / 1000}
+
+
+def _fill_unsynced_times(utc, tcxo):
+    """
+    Give UTC times to samples recorded before the logger's first GPS fix (utc is nan), using the TCXO-to-UTC offset
+    of the first GPS-timed sample after them from the same run of the logger. The TCXO clock restarts from 0 when
+    the logger restarts, so a decrease in tcxo marks a new run. Samples in a run that never got GPS time stay nan.
+    """
+    utc = utc.copy()
+    run = np.concatenate([[0], np.cumsum(np.diff(tcxo) < 0)])
+    for r in np.unique(run[np.isnan(utc)]):
+        w = run == r
+        timed = w & ~np.isnan(utc)
+        if np.any(timed):
+            j = np.argmax(timed)
+            fill = w & np.isnan(utc)
+            utc[fill] = tcxo[fill] + (utc[j] - tcxo[j])
+    return utc
+
+
+def _read_several_aspen04(fnList, require_gps = True):
+    header = _make_empty_header(fnList)
+    problems = []
+    files = []
+    n_channels = None
+    for i, fn in enumerate(fnList):
+        print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
+        try:
+            F = _read_aspen04_single(fn)
+            config = _read_config_aspen(fn)
+            if n_channels is None:
+                n_channels = F['values'].shape[1]
+            elif F['values'].shape[1] != n_channels:
+                raise CorruptRawFile(f'{fn} has {F["values"].shape[1]} channels instead of {n_channels}')
+        except KeyboardInterrupt:
+            raise
+        except (EmptyRawFile, CorruptRawFile) as exception_message:
+            message = f'Corrupt raw file {fn}: {exception_message}'
+        except Exception as exception_message:
+            message = f'Failed to read {fn}: {exception_message}'
+        else:
+            for key in [f'gain{j}' for j in range(1,5)]:
+                header.loc[i, key] = config[key]
+            header.loc[i, 'dt'] = F['dt']
+            header.loc[i, 'SN'] = _read_SN(fn)
+            header.loc[i, 'channels'] = n_channels
+            header.loc[i, 'num_data_pts'] = F['values'].shape[0]
+            header.loc[i, 'num_gps_pts'] = F['gps'].shape[0]
+            header.loc[i, 'lat'] = np.median(F['gps']['lat']) if F['gps'].shape[0] > 0 else np.nan
+            header.loc[i, 'lon'] = np.median(F['gps']['lon']) if F['gps'].shape[0] > 0 else np.nan
+            F['file_index'] = i
+            files.append(F)
+            continue
+        problems.append(message)
+        print(message)
+
+    if len(files) == 0:
+        return {'metadata': _make_empty_metadata(), 'gps': _make_empty_gps(), 'data': np.zeros((0, 1)),
+                'header': header, 'problems': problems}
+
+    values = np.vstack([F['values'] for F in files])
+    tcxo = np.concatenate([F['tcxo'] for F in files])
+    sync = np.concatenate([F['sync'] for F in files])
+    utc = _fill_unsynced_times(np.concatenate([F['utc'] for F in files]), tcxo)
+    file_index = np.concatenate([np.full(F['values'].shape[0], F['file_index']) for F in files])
+    row_offsets = np.cumsum([0] + [F['values'].shape[0] for F in files[:-1]])
+    M = pd.concat([F['metadata'].assign(row = F['metadata']['row'] + offset) for F, offset in zip(files, row_offsets)])
+    gps_chunks = [F['gps'] for F in files if F['gps'].shape[0] > 0]
+    G = pd.concat(gps_chunks) if len(gps_chunks) > 0 else _make_empty_gps()
+
+    no_time = np.isnan(utc)
+    if np.any(no_time):
+        if require_gps:
+            message = f'{np.sum(no_time)} samples have no GPS time (the logger never got a GPS fix); skipping them'
+            problems.append(message)
+            print(message)
+        else:
+            utc[no_time] = tcxo[no_time] # no GPS: time since the logger started, as for other formats without GPS
+    M['t'] = utc[M['row'].to_numpy()]
+    M = M.drop(columns = 'row').reset_index(drop = True)
+    keep = ~np.isnan(utc)
+    for F in files:
+        w = keep & (file_index == F['file_index'])
+        if np.any(w):
+            header.loc[F['file_index'], 't1'] = utc[w][0]
+            header.loc[F['file_index'], 't2'] = utc[w][-1]
+    return {'metadata': M, 'gps': G.reset_index(drop = True), 'data': values[keep,:], 'utc': utc[keep],
+            'sync': sync[keep], 'header': header, 'problems': problems}
+
+
+def _interp_onto_grid(t, v, dt):
+    """Cubic-spline interpolation of samples v at times t onto times that are whole multiples of dt."""
+    k0 = int(np.ceil(t[0] / dt - 1e-9))
+    k1 = int(np.floor(t[-1] / dt + 1e-9))
+    if (len(t) < 2) or (k1 < k0):
+        return None
+    f = scipy.interpolate.CubicSpline(t, v)
+    tr = obspy.Trace(np.array(np.round(f(np.arange(k0, k1 + 1) * dt)), dtype = 'int32'))
+    tr.stats.starttime = obspy.UTCDateTime(ns = k0 * int(round(dt * 1e9)))
+    return tr
+
+
+def _assign_times_aspen04(L):
+    """
+    Make the data stream for AspenCSV0.4 and later. Samples are already on the UTC grid, so each run of evenly
+    spaced samples becomes a trace as is. Runs off the grid (recorded before the first GPS fix) are interpolated
+    onto it.
+    """
+    dt = np.max(L['header'].dt)
+    utc = L['utc']
+    values = L['data']
+    channels = np.where([any(L['header'].loc[:,f'gain{i}'] > 0) for i in range(1,5)])[0]
+    n_channels = len(channels)
+    breaks = np.where(np.abs(np.diff(utc) - dt) > 1e-6)[0]
+    run_starts = np.concatenate([[0], breaks + 1])
+    run_ends = np.concatenate([breaks + 1, [len(utc)]])
+
+    st = obspy.Stream()
+    for i in range(n_channels):
+        # skip additional channels whose data never change (e.g. unconnected inputs); always keep the first
+        if (i > 0) and np.all(values[:,i] == values[0,i]):
+            continue
+        for a, b in zip(run_starts, run_ends):
+            t = utc[a:b]
+            if np.abs(t[0] / dt - np.round(t[0] / dt)) < 1e-4: # on the grid
+                tr = obspy.Trace(np.array(np.round(values[a:b, i]), dtype = 'int32'))
+                tr.stats.starttime = obspy.UTCDateTime(ns = int(round(t[0] * 1000)) * 1000000)
+            else:
+                tr = _interp_onto_grid(t, values[a:b, i], dt)
+                if tr is None:
+                    continue
+            tr.stats.delta = dt
+            tr.stats.channel = 'HDF' if channels[i] == 0 else f'XX{i}'
+            st += tr
+    L['data'] = st
+    L['gps'] = _reformat_GPS(L['gps'])
+    timing_info = {'utc': utc, 'sync': L['sync']}
+    return (L, timing_info)
+
 
 ###############################################################
 #  version bitweight_Pa  bitweight_V min_SN max_SN

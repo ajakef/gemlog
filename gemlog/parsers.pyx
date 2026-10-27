@@ -332,3 +332,112 @@ def parse_gemfile(filename, n_channels = 1, n_row = 1560000, dt_ms = 10, drop_ba
         result_linetypes[:line_number],
         result_millis[:line_number],
     )
+
+
+def parse_aspen04(filename, n_channels = 1, n_row = 1560000, drop_bad_last_line = True):
+    """
+    Cythonized parser for AspenCSV0.4 files.
+
+    In this format, data lines carry no time. They are exactly one sample interval apart, and each T line gives
+    the time of the data line after it. That data line holds absolute ADC values; all other data lines hold deltas
+    from the previous data line. Trailing zero deltas may be omitted (they are 0).
+
+    Parameters
+    ----------
+    filename : bytes
+        The filename to parse. Must be of type `bytes` -- use filename.encode('utf-8') if needed.
+
+    n_channels : int
+        Number of channels being logged.
+
+    n_row : int
+        Max number of data lines to be able to store (the number of lines in the file is always enough).
+
+    drop_bad_last_line : bool
+        If True, ignore the last line of the file if it is incomplete (no terminating newline) or a data line that
+        cannot be parsed. This can happen when power is lost while the logger is writing.
+
+    Returns
+    -------
+    tuple:
+        - 2-d array (number of data lines, n_channels) of the values exactly as written (absolute or delta)
+        - list of (data_index, line) for each T, G, and H line, where data_index is the number of data lines before
+          it and line is the raw line (bytes)
+    """
+    cdef char* fname = filename
+
+    cdef FILE* cfile
+    cfile = fopen(fname, "rb")
+    if cfile == NULL:
+        msg = "No such file or directory: '{}'".format(filename)
+        raise FileNotFoundError(2, msg)
+
+    # detect an incomplete last line (no terminating newline) once, before parsing
+    cdef bint file_incomplete = False
+    cdef long file_size = 0
+    if drop_bad_last_line:
+        fseek(cfile, 0, SEEK_END)
+        file_size = ftell(cfile)
+        if file_size > 0:
+            fseek(cfile, file_size - 1, SEEK_SET)
+            file_incomplete = (fgetc(cfile) != 10)
+        rewind(cfile)
+
+    cdef char line[256]
+    cdef char* read
+    cdef char c = 0
+    cdef int n_matched = 0, i = 0, k = 0
+    cdef int adc[4]
+    cdef int last_kind = 0 # kind of the last line read: 0 skipped, 1 data, 2 T/G/H
+    cdef bint last_bad = False # last data line failed to parse completely
+
+    result_array = np.zeros((n_row, n_channels), dtype=np.double)
+    cdef double[:, :] view = result_array
+    others = []
+    cdef Py_ssize_t n = 0
+
+    while True:
+        read = fgets(line, sizeof(line), cfile)
+        if read == NULL:
+            break # EOF
+        c = line[0]
+        ## data lines: letter-coded deltas (a-y) or comma-separated integers (start with a digit or '-')
+        if ((c >= 97) and (c <= 121)) or (c == 45) or ((c >= 48) and (c <= 57)):
+            if n >= n_row:
+                fclose(cfile)
+                raise ValueError('parse_aspen04: more data lines than n_row')
+            last_bad = False
+            if c >= 97:
+                k = 0
+                for i in range(n_channels):
+                    if (line[k] < 97) or (line[k] > 121):
+                        break
+                    view[n, i] = line[k] - 109
+                    k = k + 1
+                if (line[k] != 10) and (line[k] != 13) and (line[k] != 0):
+                    last_bad = True
+            else:
+                n_matched = sscanf(line, "%d,%d,%d,%d", &adc[0], &adc[1], &adc[2], &adc[3])
+                if n_matched < 1:
+                    last_bad = True
+                for i in range(n_channels):
+                    if i < n_matched:
+                        view[n, i] = adc[i]
+            n += 1
+            last_kind = 1
+        ## T, G, and H lines are rare: keep the raw text and parse it in python
+        elif (c == 84) or (c == 71) or (c == 72): # ord('T'), ord('G'), ord('H')
+            others.append((n, <bytes>line))
+            last_kind = 2
+        else:
+            last_kind = 0
+
+    fclose(cfile)
+
+    if drop_bad_last_line:
+        if (last_kind == 1) and (file_incomplete or last_bad):
+            n -= 1
+        elif (last_kind == 2) and file_incomplete:
+            others.pop()
+
+    return result_array[:n, :], others
