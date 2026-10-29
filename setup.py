@@ -129,8 +129,7 @@ setup(name=DISTNAME,
       maintainer_email=MAINTAINER_EMAIL,
       license=LICENSE,
       url=URL,
-    # Temporary upper bound: exclude Python 3.14 until upstream bug is fixed.
-    python_requires='>=3.10,<3.14',
+    python_requires='>=3.10,<3.15',
       classifiers=CLASSIFIERS,
       entry_points=ENTRY_POINTS,
       **setuptools_kwargs)

@@ -4,7 +4,7 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import os, glob, getopt, sys, shutil
+import os, re, glob, getopt, sys, shutil
 import obspy, gemlog
 import time
 import datetime
@@ -42,7 +42,7 @@ def _metadata_status(status, message, status_list, serial_num, dataframe = None,
     message : string - resulting message that prints to console
     status_list : list - contains printed status messages
     col_name : string - name of metadata test
-    serial_num : int - serial number of gem
+    serial_num : int - serial number of logger
     dataframe : pandas dataframe - Change from none if saving into individual test dataframe
     
     Returns
@@ -91,10 +91,10 @@ class PDF(FPDF):
         self.ln()
         self.set_font('helvetica', size=8)
         
-    def import_df(self, dataframe, SN_list):
-        self.set_font('helvetica', size=6)
+    def import_df(self, dataframe, SN_list, cell_width = cell_width, cell_height = cell_height, font_size = 6, sn_width = 8):
+        self.set_font('helvetica', size=font_size)
         for i in range(0,len(dataframe)):
-           self.cell(8,cell_height, '%s' % SN_list[i])
+           self.cell(sn_width,cell_height, '%s' % SN_list[i])
            for j in range(0,len(dataframe.columns)): 
                if type(dataframe.iloc[i,j]) is not str:
                    self.cell(cell_width,cell_height, '%s' % np.round(dataframe.iloc[i,j],3), 1, 0, 'C')
@@ -107,7 +107,8 @@ class PDF(FPDF):
         for i, value in enumerate(list_name):
             self.cell(cell_width,4, '%s' % list_name[i], ln=1)
             
-    def table_col(self, dataframe):
+    def table_col(self, dataframe, cell_width = cell_width, cell_height = cell_height, font_size = 8, sn_width = 8):
+        self.set_font('helvetica', size = font_size)
         status_header = []
         for index, col in enumerate(dataframe.columns):
            col_header = [[],[]]
@@ -136,30 +137,30 @@ class PDF(FPDF):
             
         for j in range(0,4):
             if j == 2:
-                self.cell(8,cell_height, 'SN') # Create SN column heading
+                self.cell(sn_width,cell_height, 'SN') # Create SN column heading
             else:
-                self.cell(8,cell_height, ' ') #Other lines are blank in SN column heading
+                self.cell(sn_width,cell_height, ' ') #Other lines are blank in SN column heading
             for i, header in enumerate(status_header):
-                self.cell(cell_width, 5, '%s' % status_header[i][j]) # cell width, height
+                self.cell(cell_width, cell_height/2, '%s' % status_header[i][j]) # cell width, height
             self.ln() 
             
 def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only = False, run_crosscorrelation_checks = False, generate_report = True):
-    """Perform a battery of tests on converted data from a huddle test to ensure that no Gems are
+    """Perform a battery of tests on converted data from a huddle test to ensure that no loggers are
     obviously malfunctioning. 
 
-    verify_huddle_test assumes that the Gems start recording data simultaneously, stop recording 
+    verify_huddle_test assumes that the loggers start recording data simultaneously, stop recording 
     data simultaneously, and are all located in the same place (barbs within about 30 cm). 
     
-    Checks performed on each Gem individually include the following:
+    Checks performed on each logger individually include the following:
     --Reported temperature, battery power, and A2/A3 are reasonable. Unreasonable values could 
     indicate hardware problems.
     --Other metadata show no evidence of memory overruns or other computational problems.
     --GPS information is collected frequently and shows a consistent location.
     --Waveforms do not appear to be clipped or otherwise problematic.
 
-    Checks performed by comparing Gems to each other for consistency include the following:
-    --All Gems record approximately the same temperature time series.
-    --GPS data show all Gems being in approximately the same place.
+    Checks performed by comparing loggers to each other for consistency include the following:
+    --All loggers record approximately the same temperature time series.
+    --GPS data show all loggers being in approximately the same place.
     --During high signal/noise ratio periods, time lags among sensors are mostly zero. If this is 
     not true, it means that sample timing is being calculated badly, so array analyses could be
     inaccurate.
@@ -226,7 +227,9 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
 
     ## identify the list of serial numbers to test, including user input to include/exclude
     if len(SN_list) == 0:
-        SN_list = unique([filename[-14:-11] for filename in glob.glob(path + '/gps/*')])
+        # gps filenames are '<SN>gps_<n>.txt'; SN length varies (3 digits for Gem, 5 for Aspen)
+        SN_list = unique([re.match(r'(.+)gps_\d+\.txt$', os.path.basename(filename)).group(1)
+                          for filename in glob.glob(path + '/gps/*')])
     SN_list = [SN for SN in SN_list if SN not in SN_to_exclude]
     print('Identified serial numbers ' + str(SN_list))
    
@@ -246,14 +249,19 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     plot_dir = 'plots'
     
     ##Create battery and temperature time series graphs for all SN
-    batt_temp_fig = plt.figure(0,figsize = (6.5,5))
-    batt_temp_ax = batt_temp_fig.subplots(2)
-    batt_temp_ax[0].set_title("Battery Voltage")
-    batt_temp_ax[0].set_ylabel("voltage (V)")
-    batt_temp_ax[1].set_title("Temperature")
-    batt_temp_ax[1].set_ylabel("temperature (C)")
-    batt_temp_ax[1].set_xlabel("month-date hour")
-    batt_temp_fig.tight_layout(h_pad = 3.0)
+    voltage_fig = plt.figure(0, figsize = (6.5,5))
+    voltage_ax = voltage_fig.subplots()
+    voltage_ax.set_title("Voltage")
+    voltage_ax.set_ylabel("voltage (V)")
+    voltage_ax.set_ylim([0, 16])
+    voltage_ax.set_xlabel("month-date hour")
+
+    temp_fig = plt.figure(9, figsize = (6.5,5))
+    temp_ax = temp_fig.subplots()
+    temp_ax.set_title("Temperature")
+    temp_ax.set_ylabel("temperature (C)")
+    temp_ax.set_ylim([0, 40])
+    temp_ax.set_xlabel("month-date hour")
     
     ##Create A2 and A3 time series graphs for all SN
     A2_A3_fig = plt.figure(1, figsize = (6.5,5))
@@ -281,16 +289,41 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     wave_ax.set_yticklabels(SN_list)
     wave_fig.suptitle('Normalized Detrended Waveforms')
     # find minimum start time for each stream
-    
+
+    ## Create humidity time series graph (Aspen-format loggers only)
+    rh_fig = plt.figure(6, figsize = (6.5,5))
+    rh_ax = rh_fig.subplots()
+    rh_ax.set_title("Relative Humidity")
+    rh_ax.set_ylabel("RH (%)")
+
+    ## Create current time series graph (Aspen-format loggers only)
+    current_fig = plt.figure(7, figsize = (6.5,5))
+    current_ax = current_fig.subplots()
+    current_ax.set_title("Current")
+    current_ax.set_ylabel("Current (mA)")
+    current_ax.set_ylim(top = 50)
+
+    ## Create power time series graph (Aspen-format loggers only)
+    power_fig = plt.figure(8, figsize = (6.5,5))
+    power_ax = power_fig.subplots()
+    power_ax.set_title("Power")
+    power_ax.set_ylabel("Power (mW)")
+    power_ax.set_ylim(top = 200)
+    power_ax.axhline(25, color="red", linestyle = ":", linewidth = 1)
+    power_ax.axhline(35, color="red", linestyle = ":", linewidth = 1)
+
+    any_gem_format = False # tracks whether any SN has the old (non-Aspen) A2/A3 metadata
+
     ## Individual Metadata tests:
     for SN_index, SN in enumerate(SN_list):
         print('\nChecking metadata for ' + SN)
         metadata = pd.read_csv(path +'/metadata/' + SN + 'metadata_000.txt', sep = ',')
         metadata_dict[SN] = metadata
+        is_aspen = {'V', 'mA', 'RH'}.issubset(metadata.columns) # Aspen boards report V/mA/RH instead of A2/A3/FIFO/overruns/stack
         if len(metadata) < 86400: 
             formatter = mdates.DateFormatter('%H:%M')
-            xlabel = np.round(metadata.iloc[1,13])
-            xlabel = datetime.datetime.utcfromtimestamp(xlabel).strftime('%Y-%m-%d')
+            xlabel = np.round(metadata.t.iloc[1])
+            xlabel = datetime.datetime.fromtimestamp(xlabel, datetime.timezone.utc).strftime('%Y-%m-%d')
         else:
             formatter = mdates.DateFormatter('%m-%d')
             xlabel = "Month-Date"
@@ -327,14 +360,15 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ##%%%%%##
         ## Temperature must be within reasonable range
         
-        # Save a few statistics from temperature metadata
-        pstats_df.loc[SN, "Temperature min"] = min(metadata.temp)
-        pstats_df.loc[SN, "Temperature max"] = max(metadata.temp)
-        pstats_df.loc[SN, "Temperature average"] = np.mean(metadata.temp)
+        # Save a few statistics from temperature metadata, excluding known sensor-glitch sentinel values
+        temp_valid = metadata.temp[(metadata.temp != -45) & (metadata.temp != 130)]
+        pstats_df.loc[SN, "Temperature min"] = min(temp_valid)
+        pstats_df.loc[SN, "Temperature max"] = max(temp_valid)
+        pstats_df.loc[SN, "Temperature average"] = np.mean(temp_valid)
      
         # Temperature minimum check
         if pstats_df.loc[SN,"Temperature min"] < temp_min: #degrees Celsius
-            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(metadata.temp)+20,decimals=2))} degrees below minimum threshold ({temp_min} C)."
+            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.abs(np.round(min(temp_valid)+20,decimals=2))} degrees below minimum threshold ({temp_min} C)."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "Temperature min")
         elif pstats_df.loc[SN,"Temperature min"] < (temp_min + temp_diff_warning): 
             warn_message = f"{SN} TEMPERATURE WARNING: temperature within {temp_diff_warning} degrees of minimum threshold ({temp_min} C)"
@@ -343,7 +377,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
             errors_df.loc[SN, "Temperature min"] = "OKAY" 
         # Temperature maximum check
         if pstats_df.loc[SN, "Temperature max"] > temp_max: #degrees Celsius
-            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(metadata.temp)-60,decimals=2)} degrees above threshold ({temp_max} C)."
+            err_message = f"{SN} TEMPERATURE ERROR: temperature {np.round(max(temp_valid)-60,decimals=2)} degrees above threshold ({temp_max} C)."
             _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "Temperature max")
         elif pstats_df.loc[SN, "Temperature max"] > (temp_max - temp_diff_warning): #modify as needed, just a backbone structure for now.
             warn_message = f"{SN} TEMPERATURE WARNING: temperature within {temp_diff_warning} degrees of maximum threshold ({temp_max})."
@@ -361,126 +395,200 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         time_unix_non_nans = np.where(~np.isnan(time_unix))[0]
         metadata_ind = time_unix_non_nans[::dec_factor]
         time_unix_dec = time_unix[metadata_ind]
-        batt_dec = metadata.batt[metadata_ind]
-        time_datestamp_dec = [datetime.datetime.utcfromtimestamp(int(t)) for t in time_unix_dec]
+        time_datestamp_dec = [datetime.datetime.fromtimestamp(int(t), datetime.timezone.utc) for t in time_unix_dec]
         temp_dec = metadata.temp[metadata_ind]
         
-        #Plot battery voltage
-        batt_temp_ax[0].plot(time_datestamp_dec, batt_dec, label= int(SN))
-        batt_temp_ax[0].legend()
-        batt_temp_ax[0].xaxis.set_major_formatter(formatter)
-        batt_temp_ax[0].set_xlabel(xlabel)
-        batt_temp_ax[0].axhline(batt_min, color="red", linestyle = ":", linewidth = 1)
-        batt_temp_ax[0].axhline(batt_max, color="red", linestyle=":", linewidth = 1)
+        #Plot voltage (V, Aspen current-sensor voltage reading; excludes non-positive readings)
+        if is_aspen:
+            V_valid_mask = ~np.isnan(time_unix) & (metadata.V > 0)
+            V_ind = np.where(V_valid_mask)[0][::dec_factor]
+            V_time_dec = [datetime.datetime.fromtimestamp(int(time_unix[i]), datetime.timezone.utc) for i in V_ind]
+            voltage_ax.plot(V_time_dec, metadata.V[V_ind], label=int(SN))
+            voltage_ax.legend()
+        voltage_ax.xaxis.set_major_formatter(formatter)
+        voltage_ax.set_xlabel(xlabel)
+        voltage_ax.axhline(batt_min, color="red", linestyle = ":", linewidth = 1)
+        voltage_ax.axhline(batt_max, color="red", linestyle=":", linewidth = 1)
 
     
         #Plot temperature
-        batt_temp_ax[1].plot(time_datestamp_dec, temp_dec)
-        batt_temp_ax[1].legend(SN_list)
-        batt_temp_ax[1].xaxis.set_major_formatter(formatter)
-        batt_temp_ax[1].set_xlabel(xlabel)
+        temp_ax.plot(time_datestamp_dec, temp_dec)
+        temp_ax.legend(SN_list)
+        temp_ax.xaxis.set_major_formatter(formatter)
+        temp_ax.set_xlabel(xlabel)
                   
         ##%%%%%##         
         #### A2 and A3 must be within a specified range, and dV/dt = 0 should be true <1% of record
-         
-        ## A2
-        # Calculate the proportion where A2 is zero
-        A2_zerodiff_proportion = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) 
-        pstats_df.loc[SN, "A2 flat"] = A2_zerodiff_proportion 
-        # True/False test to see whether all data is within range
-        within_A2_range = (all(metadata.A2 >= A_min) & all(metadata.A2 <= A_max))
-        
-        #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
-        if pstats_df.loc[SN, "A2 flat"] > 0.99: 
-            err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A2 flat")
-        elif pstats_df.loc[SN,"A2 flat"] > 0.95: #95% placeholder; uncertain interpretation
-            warn_message = f"{SN} A2 WARNING: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "A2 flat")
-        else:
-            errors_df.loc[SN, "A2 flat"] = "OKAY" 
+        #### (not applicable to Aspen boards, which have no A2/A3 pins)
+        if not is_aspen:
+            any_gem_format = True
+            ## A2
+            # Calculate the proportion where A2 is zero
+            A2_zerodiff_proportion = (np.sum(np.diff(metadata.A2) == 0) / (len(metadata.A2) -1 )) 
+            pstats_df.loc[SN, "A2 flat"] = A2_zerodiff_proportion 
+            # True/False test to see whether all data is within range
+            within_A2_range = (all(metadata.A2 >= A_min) & all(metadata.A2 <= A_max))
             
-       #Check A2 is within range
-        if not within_A2_range:
-            err_message = f"{SN} A2 ERROR: A2 outside of range"
-            _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name= "A2 range")
-        else:
-            #pstats_df.loc[SN,"A2 range"] = 1 #within range(true)
-            errors_df.loc[SN,"A2 range"] = "OKAY" 
-        ##%%%%%## 
-        ## A3
-        # Calculate the proportion where A3 is zero
-        A3_nonzero = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
-        pstats_df.loc[SN,"A3 flat"] = A3_nonzero
-        #True/False test to see whether all data is within range
-        within_A3_range = (all(metadata.A3 >= A_min) & all(metadata.A3 <= A_max))
-        
-        #Check that A3 dV/dt == 0 less than 99% of time
-        if pstats_df.loc[SN,"A3 flat"] > 0.99: 
-            err_message = f"{SN} A3 ERROR: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 flat")
-        elif pstats_df.loc[SN,"A3 flat"] > 0.95: #placeholder of 95%
-            warn_message = f"{SN} A3 WARNING: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
-            _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "A3 flat")
-        else:
-            errors_df.loc[SN,"A3 flat"] = "OKAY"
+            #Check that A2 dV/dt == 0 less than 99% of time. >99% indicates a likely short circuit.
+            if pstats_df.loc[SN, "A2 flat"] > 0.99: 
+                err_message = f"{SN} A2 ERROR: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
+                _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A2 flat")
+            elif pstats_df.loc[SN,"A2 flat"] > 0.95: #95% placeholder; uncertain interpretation
+                warn_message = f"{SN} A2 WARNING: {np.round(A2_zerodiff_proportion*100,decimals=1)}% of A2 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
+                _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "A2 flat")
+            else:
+                errors_df.loc[SN, "A2 flat"] = "OKAY" 
+                
+           #Check A2 is within range
+            if not within_A2_range:
+                err_message = f"{SN} A2 ERROR: A2 outside of range"
+                _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name= "A2 range")
+            else:
+                #pstats_df.loc[SN,"A2 range"] = 1 #within range(true)
+                errors_df.loc[SN,"A2 range"] = "OKAY" 
+            ##%%%%%## 
+            ## A3
+            # Calculate the proportion where A3 is zero
+            A3_nonzero = (np.sum(np.diff(metadata.A3) == 0) / (len(metadata.A3) -1 ))
+            pstats_df.loc[SN,"A3 flat"] = A3_nonzero
+            #True/False test to see whether all data is within range
+            within_A3_range = (all(metadata.A3 >= A_min) & all(metadata.A3 <= A_max))
             
-       #Check A3 is within range     
-        if not within_A3_range:
-            err_message = f"{SN} A3 ERROR: A3 outside of range."
-            _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 range")
-        else:
-            errors_df.loc[SN, "A3 range"] = "OKAY" 
+            #Check that A3 dV/dt == 0 less than 99% of time
+            if pstats_df.loc[SN,"A3 flat"] > 0.99: 
+                err_message = f"{SN} A3 ERROR: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
+                _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 flat")
+            elif pstats_df.loc[SN,"A3 flat"] > 0.95: #placeholder of 95%
+                warn_message = f"{SN} A3 WARNING: {np.round(A3_nonzero*100,decimals=1)}% of A3 dV/dt is exactly 0. More than 99% indicates a likely short circuit."
+                _metadata_status("warning", warn_message, warnings, SN, dataframe=errors_df, col_name = "A3 flat")
+            else:
+                errors_df.loc[SN,"A3 flat"] = "OKAY"
+                
+           #Check A3 is within range     
+            if not within_A3_range:
+                err_message = f"{SN} A3 ERROR: A3 outside of range."
+                _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "A3 range")
+            else:
+                errors_df.loc[SN, "A3 range"] = "OKAY" 
+                
+            ##%%%%%## 
+            ##format data to plot A2 and A3 metadata
+            A2_dec = metadata.A2[metadata_ind]
+            A3_dec = metadata.A3[metadata_ind]
             
-        ##%%%%%## 
-        ##format data to plot A2 and A3 metadata
-        A2_dec = metadata.A2[metadata_ind]
-        A3_dec = metadata.A3[metadata_ind]
-        
-        #Plot A2 data
-        A2_A3_ax[0].plot(time_datestamp_dec, A2_dec)  
-        A2_A3_ax[0].legend(SN_list)
-        A2_A3_ax[0].xaxis.set_major_formatter(formatter)
-        A2_A3_ax[0].set_xlabel(xlabel)
-        #Plot A3 data
-        A2_A3_ax[1].plot(time_datestamp_dec, A3_dec)
-        A2_A3_ax[1].legend(SN_list)
-        A2_A3_ax[1].xaxis.set_major_formatter(formatter)
-        A2_A3_ax[1].set_xlabel(xlabel)
+            #Plot A2 data
+            A2_A3_ax[0].plot(time_datestamp_dec, A2_dec)  
+            A2_A3_ax[0].legend(SN_list)
+            A2_A3_ax[0].xaxis.set_major_formatter(formatter)
+            A2_A3_ax[0].set_xlabel(xlabel)
+            #Plot A3 data
+            A2_A3_ax[1].plot(time_datestamp_dec, A3_dec)
+            A2_A3_ax[1].legend(SN_list)
+            A2_A3_ax[1].xaxis.set_major_formatter(formatter)
+            A2_A3_ax[1].set_xlabel(xlabel)
         
         
         ##%%%%%##
         #### maxFifoUsed should be less than soft limit 99% of the time, and should never exceed hard limit
-        fifo_exceeds_soft_limit = np.sum(metadata.maxFifoUsed > fifo_soft_limit)/len(metadata.maxFifoUsed)
-        pstats_df.loc[SN,"fifo over limit"] = fifo_exceeds_soft_limit
-        if fifo_exceeds_soft_limit > 0.01:
-            notes_message = f"{SN} max fifo info: fifo use exceeds soft limit {np.round(100*fifo_exceeds_soft_limit, 1)}% of time"
-            _metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "Unusual FIFO use")
-        else:
-            errors_df.loc[SN, "Unusual FIFO use"] = "OKAY"
-            
-        if any(metadata.maxFifoUsed > fifo_hard_limit):  
-            notes_message = f"{SN} max fifo note: max fifo use is {max(metadata.maxFifoUsed)}; exceeds limit of {fifo_hard_limit} on {np.sum(metadata.maxFifoUsed > fifo_hard_limit)} samples"
-            _metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "Excessive FIFO use")
-        else:
-            errors_df.loc[SN, "Excessive FIFO use"] = "OKAY"
-            
-        ##%%%%%##             
-        #### maxOverruns should always be zero 
-        pstats_df.loc[SN, "Max overruns"] = max(metadata.maxOverruns)
-        if any(metadata.maxOverruns) !=0:
-            warn_message = f"{SN} OVERRUNS WARNING: number of overruns ({max(metadata.maxOverruns)}) is not zero."
-            _metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "Max overruns")
-        else:
-            errors_df.loc[SN, "Max overruns"] = "OKAY"
-            
-        ##%%%%%##             
-        #### unusedStack1 and unusedStackIdle should always be above some threshold 
-        if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
-            warn_message = f"UNUSED STACK WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
-            _metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "Unused stack")
-        else:
-            errors_df.loc[SN, "Unused stack"] = "OKAY"
+        #### (not applicable to Aspen boards, which do not report FIFO/overrun/stack metadata)
+        if not is_aspen:
+            fifo_exceeds_soft_limit = np.sum(metadata.maxFifoUsed > fifo_soft_limit)/len(metadata.maxFifoUsed)
+            pstats_df.loc[SN,"fifo over limit"] = fifo_exceeds_soft_limit
+            if fifo_exceeds_soft_limit > 0.01:
+                notes_message = f"{SN} max fifo info: fifo use exceeds soft limit {np.round(100*fifo_exceeds_soft_limit, 1)}% of time"
+                _metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "Unusual FIFO use")
+            else:
+                errors_df.loc[SN, "Unusual FIFO use"] = "OKAY"
+                
+            if any(metadata.maxFifoUsed > fifo_hard_limit):  
+                notes_message = f"{SN} max fifo note: max fifo use is {max(metadata.maxFifoUsed)}; exceeds limit of {fifo_hard_limit} on {np.sum(metadata.maxFifoUsed > fifo_hard_limit)} samples"
+                _metadata_status("note", notes_message, notes, SN, dataframe = errors_df, col_name = "Excessive FIFO use")
+            else:
+                errors_df.loc[SN, "Excessive FIFO use"] = "OKAY"
+                
+            ##%%%%%##             
+            #### maxOverruns should always be zero 
+            pstats_df.loc[SN, "Max overruns"] = max(metadata.maxOverruns)
+            if any(metadata.maxOverruns) !=0:
+                warn_message = f"{SN} OVERRUNS WARNING: number of overruns ({max(metadata.maxOverruns)}) is not zero."
+                _metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "Max overruns")
+            else:
+                errors_df.loc[SN, "Max overruns"] = "OKAY"
+                
+            ##%%%%%##             
+            #### unusedStack1 and unusedStackIdle should always be above some threshold 
+            if any(metadata.unusedStack1 <= 30) or any(metadata.unusedStackIdle <= 30):
+                warn_message = f"UNUSED STACK WARNING: One value of unused stack exceeds maximum by {np.round(max(metadata.unusedStack1)-30,decimals=2)}."
+                _metadata_status("warning", warn_message, warnings, SN, dataframe = errors_df, col_name = "Unused stack")
+            else:
+                errors_df.loc[SN, "Unused stack"] = "OKAY"
+
+        ##%%%%%##
+        #### Aspen-only metadata: V (current-sensor voltage), mW (power), RH (humidity)
+        if is_aspen:
+            V_valid = metadata.V[metadata.V > 0]
+            mA_abs = metadata.mA.abs() # mA can be reported as negative; magnitude is what matters, so use absolute value rather than excluding negatives
+            if len(V_valid) > 0:
+                pstats_df.loc[SN, "V min"] = min(V_valid)
+                pstats_df.loc[SN, "V max"] = max(V_valid)
+                pstats_df.loc[SN, "V average"] = np.mean(V_valid)
+            mW_series = mA_abs[metadata.V > 0] * V_valid # power requires a valid (positive) voltage reading
+            mW_valid = mW_series[mW_series <= 300] # exclude power spikes above 300 mW from stats/checks
+            if len(mW_valid) > 0:
+                mW_min_val = min(mW_valid)
+                mW_max_val = max(mW_valid)
+                pstats_df.loc[SN, "mW min"] = mW_min_val
+                pstats_df.loc[SN, "mW max"] = mW_max_val
+                pstats_df.loc[SN, "mW average"] = np.mean(mW_valid)
+
+                if 20 <= mW_min_val <= 35:
+                    errors_df.loc[SN, "mW min"] = "OKAY"
+                else:
+                    err_message = f"{SN} POWER ERROR: minimum power ({mW_min_val:.1f} mW) is outside the expected range (20-35 mW)."
+                    _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "mW min")
+
+                if 125 <= mW_max_val <= 200:
+                    errors_df.loc[SN, "mW max"] = "OKAY"
+                else:
+                    err_message = f"{SN} POWER ERROR: maximum power ({mW_max_val:.1f} mW) is outside the expected range (125-200 mW)."
+                    _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "mW max")
+            RH_valid = metadata.RH[metadata.RH != 0] # 0 is a sensor-glitch sentinel value, not a real reading
+            if len(RH_valid) > 0:
+                pstats_df.loc[SN, "RH min"] = min(RH_valid)
+                pstats_df.loc[SN, "RH max"] = max(RH_valid)
+                pstats_df.loc[SN, "RH average"] = np.mean(RH_valid)
+
+            #### most mA readings should be strictly positive; a majority-negative sign indicates a wiring/polarity problem
+            if (metadata.mA > 0).sum() > len(metadata.mA) / 2:
+                errors_df.loc[SN, "mA polarity"] = "OKAY"
+            else:
+                err_message = f"{SN} MA POLARITY ERROR: most mA readings are not strictly positive; check current-sensor wiring polarity."
+                _metadata_status("error", err_message, errors, SN, dataframe=errors_df, col_name = "mA polarity")
+
+            # Plot humidity (reuses the same decimated timestamps as the battery/temperature plot)
+            RH_dec = metadata.RH[metadata_ind]
+            rh_ax.plot(time_datestamp_dec, RH_dec, label = int(SN))
+            rh_ax.legend()
+            rh_ax.xaxis.set_major_formatter(formatter)
+            rh_ax.set_xlabel(xlabel)
+
+            # Plot current (mA, absolute value; all readings kept, since mA sign is not meaningful)
+            current_ind = np.where(~np.isnan(time_unix))[0][::dec_factor]
+            current_time_dec = [datetime.datetime.fromtimestamp(int(time_unix[i]), datetime.timezone.utc) for i in current_ind]
+            current_ax.plot(current_time_dec, metadata.mA[current_ind].abs(), label = int(SN))
+            current_ax.legend()
+            current_ax.xaxis.set_major_formatter(formatter)
+            current_ax.set_xlabel(xlabel)
+
+            # Plot power (mA*V in mW, using absolute mA), excluding non-positive V readings
+            power_mask = ~np.isnan(time_unix) & (metadata.V > 0)
+            power_ind = np.where(power_mask)[0][::dec_factor]
+            if len(power_ind) > 0:
+                power_time_dec = [datetime.datetime.fromtimestamp(int(time_unix[i]), datetime.timezone.utc) for i in power_ind]
+                power_ax.plot(power_time_dec, metadata.mA[power_ind].abs() * metadata.V[power_ind], label = int(SN))
+                power_ax.legend()
+                power_ax.xaxis.set_major_formatter(formatter)
+                power_ax.set_xlabel(xlabel)
 
         ##%%%%%##             
         #### find time differences among samples with gps off that are > 180 sec
@@ -570,15 +678,28 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         # #### SKIP FOR NOW: 20% quantile spectra should be close to self-noise spec
         # #### SKIP FOR NOW: noise spectra of sensors must agree within 3 dB everywhere and within 1 dB for 90% of frequencies
 
-    A2_A3_fig_path = f"{path}/figures/A2_A3.png"
-    A2_A3_fig.savefig(A2_A3_fig_path, dpi = 300)
+    A2_A3_fig_path = None
+    if any_gem_format: # A2/A3 only exist for non-Aspen boards
+        A2_A3_fig_path = f"{path}/figures/A2_A3.png"
+        A2_A3_fig.savefig(A2_A3_fig_path, dpi = 300)
     gps_fig_path = f"{path}/figures/gps_runtime.png"
     gps_fig.tight_layout()
     gps_fig.savefig(gps_fig_path, dpi=300)#, bbox_inches = 'tight', pad_inches = 0.1)
-    batt_temp_fig_path = f"{path}/figures/batt_temp.png"
-    batt_temp_fig.savefig(batt_temp_fig_path, dpi=300)
+    voltage_fig_path = f"{path}/figures/voltage.png"
+    voltage_fig.savefig(voltage_fig_path, dpi=300)
+    temp_fig_path = f"{path}/figures/temperature.png"
+    temp_fig.savefig(temp_fig_path, dpi=300)
     wave_path = f"{path}/figures/waveforms.png"
     wave_fig.savefig(wave_path, dpi=300)
+    rh_fig_path = f"{path}/figures/humidity.png"
+    rh_fig.tight_layout()
+    rh_fig.savefig(rh_fig_path, dpi=300)
+    current_fig_path = f"{path}/figures/current.png"
+    current_fig.tight_layout()
+    current_fig.savefig(current_fig_path, dpi=300)
+    power_fig_path = f"{path}/figures/power.png"
+    power_fig.tight_layout()
+    power_fig.savefig(power_fig_path, dpi=300)
     #Do not omit rows and columns when displaying in console
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
@@ -597,7 +718,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     ## If we're at this point, we have data from multiple loggers and are clear 
     # to run group tests.
     # =============================================================================
-    ## Before running the group tests, ensure that we actually have data more than one Gem!
+    ## Before running the group tests, ensure that we actually have data more than one logger!
     ## If not, add a warning, and return without conducting group tests.
     group_err = []
     group_warn = []
@@ -643,7 +764,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     # interval of 061 and 065 is 10 seconds
     check_interval = 60 #seconds (time between checks)
     all_interval= interval_dict.values()
-    df_width = check_interval / int(min(all_interval)) # use largest interval to calculate size
+    df_width = check_interval / max(1, round(min(all_interval))) # use largest interval to calculate size; round because Aspen intervals average slightly less than 1 sec
    
     
     # Determine start and stop times (Unix time)
@@ -661,7 +782,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     
     for SN_index, SN in enumerate(SN_list):
         metadata = metadata_dict[SN]
-        temp_interval = check_interval / int(interval_dict[SN])
+        temp_interval = check_interval / max(1, round(interval_dict[SN]))
         argstart_list = [] # reset closest start list
         argend_list = [] # reset closest end list
         times = metadata.t # call all the time metadata
@@ -691,7 +812,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         if len(x) > 0:
             error = True
             ts = int(times_checked[column])
-            time_lookup = datetime.datetime.utcfromtimestamp(ts)
+            time_lookup = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             err_message = (f"SN {x} recorded temperatures greater than {group_temp_diff_max} on either side of the temperature median {temp_median:.1f} on {time_lookup}. Total temperature range = {temp_range:.1f} (alpha)")
             _metadata_status("error", err_message, group_err, SN)
     if error == False:
@@ -740,27 +861,39 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     trouble = []
 
     ## Battery test information and troubleshooting ##
-    info.append(f"""BATTERY TEST INFO: This test ensures the voltage of each Gem is within {batt_min} to {batt_max} Volts at each recorded instance. Gems within this specified range, but within a range {batt_diff_warning} Volts from the threshold will result in a warning message. See battery voltage figure for details.""")
-    trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery error or warning, either the battery voltage is outside the specified range and the Gem managed to record anyway (possibly because the battery died during the test), or the battery voltage sensor is malfunctioning. If the actual battery voltage does not match what was recorded, there may be a bad connection involving the battery voltage sensor (R8 and R9) or pin A1.""")
+    info.append(f"""BATTERY TEST INFO: This test ensures the voltage of each logger is within {batt_min} to {batt_max} Volts at each recorded instance. loggers within this specified range, but within a range {batt_diff_warning} Volts from the threshold will result in a warning message. See battery voltage figure for details.""")
+    trouble.append("""BATTERY TROUBLESHOOTING: If you received a battery error or warning, either the battery voltage is outside the specified range and the logger managed to record anyway (possibly because the battery died during the test), or the battery voltage sensor is malfunctioning. If the actual battery voltage does not match what was recorded, there may be a bad connection involving the battery voltage sensor (R8 and R9) or pin A1.""")
                    
     ## Temperature test information and troubleshooting ##
-    info.append(f"""TEMPERATURE TEST INFO: This test ensures the gemlogger is recording ambient air temperatures within an reasonable range. This range is set at {temp_min} to {temp_max} Celsius or {(temp_min * 9/5) + 32} to {(temp_max * 9/5) + 32} Fahrenheit. Temperatures outside this range are considered unlikely for a lab test and could cause malfunctioning or damage.""")
-    trouble.append(f"""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching within {temp_diff_warning} C the limit of the temperature range operation for the gem logger ({temp_min} to {temp_max} C). If this value does not reflect an accurate ambient air temperature, the TMP36 sensor on the board (U4) may be damaged, or there may be a bad connection involving the sensor or pin A0.""")
+    info.append(f"""TEMPERATURE TEST INFO: This test ensures the logger is recording ambient air temperatures within an reasonable range. This range is set at {temp_min} to {temp_max} Celsius or {(temp_min * 9/5) + 32} to {(temp_max * 9/5) + 32} Fahrenheit. Temperatures outside this range are considered unlikely for a lab test and could cause malfunctioning or damage.""")
+    trouble.append(f"""TEMPERATURE TROUBLESHOOTING: If you received a temperature warning, you are approaching within {temp_diff_warning} C the limit of the temperature range operation for the logger ({temp_min} to {temp_max} C). If this value does not reflect an accurate ambient air temperature, the TMP36 sensor on the board (U4) may be damaged, or there may be a bad connection involving the sensor or pin A0.""")
                    
-    ## A2 and A3 test information and troubleshooting ##
-    info.append(f"""A2 AND A3 TEST INFO: These tests ensures that the A2 and A3 "auxiliary" inputs on the circuit board are functioning properly. The first test ensures that the metadata has not flatlined for more than 99% of the recorded time (which would indicate a short circuit). The second test ensures it is within a range of {A_min} - {A_max} V.""")
+    ## A2 and A3 test information and troubleshooting (Gem-only; Aspen boards have no A2/A3 pins) ##
+    info.append(f"""A2 AND A3 TEST INFO (GEM-ONLY): These tests ensures that the A2 and A3 "auxiliary" inputs on the circuit board are functioning properly. The first test ensures that the metadata has not flatlined for more than 99% of the recorded time (which would indicate a short circuit). The second test ensures it is within a range of {A_min} - {A_max} V.""")
     trouble.append(f"""A2 AND A3 TROUBLESHOOTING: If you consistently see A2 or A3 flatlined, it may mean that those pins have a short circuit.""")
-    ## FIFO 
-    info.append(f"""FIFO TEST INFO: The FIFO (first-in first-out) is a 75-sample buffer for storing samples while waiting for them to write to the memory card. Use of the FIFO should generally be low. FIFO use should not exceed {fifo_soft_limit} more than 1% of the time, and should never exceed {fifo_hard_limit}.""")
+    ## FIFO (Gem-only; Aspen boards do not report FIFO/overrun/stack metadata)
+    info.append(f"""FIFO TEST INFO (GEM-ONLY): The FIFO (first-in first-out) is a 75-sample buffer for storing samples while waiting for them to write to the memory card. Use of the FIFO should generally be low. FIFO use should not exceed {fifo_soft_limit} more than 1% of the time, and should never exceed {fifo_hard_limit}.""")
     trouble.append(f"""FIFO TROUBLESHOOTING: FIFO-related problems are unusual and generally do not disqualify a Gem from service in the absence of observed malfunctioning. Consistent FIFO problems could be due to communication problems with the memory card. In this case, try a different card (SanDisk brand strongly preferred). If that doesn't fix it, the problem may be due to poor connections between the microcontroller and card, or problems with the microcontroller. This is all speculative because the problem is not known to have occurred and has not been studied.""") 
 
-    ## Max Overruns
-    info.append(f"""OVERRUNS INFO: An overrun is when the FIFO buffer fills and samples are lost. This is uncommon, and recurring overrun issues are particularly uncommon. Any overruns are cause for concern (not alarm) and justify investigating and re-testing a Gem to see whether they persist.""")     
+    ## Max Overruns (Gem-only)
+    info.append(f"""OVERRUNS INFO (GEM-ONLY): An overrun is when the FIFO buffer fills and samples are lost. This is uncommon, and recurring overrun issues are particularly uncommon. Any overruns are cause for concern (not alarm) and justify investigating and re-testing a Gem to see whether they persist.""")     
     trouble.append(f"""OVERRUNS TROUBLESHOOTING: Overrun problems are a more serious symptom of the same problems that cause FIFO issues. Consistent overrun problems could be due to communication problems with the memory card. In this case, try a different card (SanDisk brand strongly preferred). If that doesn't fix it, the problem may be due to poor connections between the microcontroller and card, or problems with the microcontroller. This is all speculative because overruns are uncommon and have not been studied in any detail.""")
 
     ## GPS Runtime
     info.append(f"""'GPS RUNTIME' and 'GPS ON-TIME RATIO' INFO: These tests ensure that the GPS runs for a reasonable length of time over the course of the test. The first GPS cycle is long (9-15 minutes) due to the need to listen to a complete almanac transmission from the satellites. Subsequent cycles are just long enough to record 20 GPS fixes; given the 10-30 seconds typically needed to find a fix, the GPS should run for about 30-50 seconds per 15-minute cycle. The 'GPS run time' stat is the average duration of GPS cycles after the first one, and the similar 'GPS ON-TIME RATIO' stat averages the run time of the GPS over the entire recording period in units of seconds per 15-minute GPS cycle.""")
-    trouble.append(f"""GPS TROUBLESHOOTING: Ensure that the test site has good GPS signal (many sites that are secure and convenient for testing have very poor views of the sky). A GPS with a fix blinks red briefly once every 15 seconds, and the Gem connected to it should be blinking blue 3x/second if it's getting all the information from the GPS. If GPS signal is strong but a Gem is running for long periods of time, a communication issue between GPS and microcontroller is the most likely explanation. Check that all GPS terminal screws are tight and that the GPS does not somehow have a short circuit to another component. There may be a poor connection along the three GPS communication pins.""")
+    trouble.append(f"""GPS TROUBLESHOOTING: Ensure that the test site has good GPS signal (many sites that are secure and convenient for testing have very poor views of the sky). A GPS with a fix blinks red briefly once every 15 seconds, and the logger connected to it should be blinking blue 3x/second if it's getting all the information from the GPS. If GPS signal is strong but a logger is running for long periods of time, a communication issue between GPS and microcontroller is the most likely explanation. Check that all GPS terminal screws are tight and that the GPS does not somehow have a short circuit to another component. There may be a poor connection along the three GPS communication pins.""")
+
+    ## mA polarity (Aspen-only; Gem boards do not report a current-sensor mA reading)
+    info.append("""MA POLARITY TEST INFO (ASPEN-ONLY): This test ensures that most of the current-sensor mA readings are strictly positive. A majority-negative sign suggests the current sensor is wired with reversed polarity.""")
+    trouble.append("""MA POLARITY TROUBLESHOOTING: If most mA readings are negative, check the wiring/orientation of the current sensor on the Aspen board.""")
+
+    ## mW (power) test (Aspen-only)
+    info.append("""POWER (MW) TEST INFO (ASPEN-ONLY): This test checks that power (mA * V, excluding spikes above 300 mW) stays within expected bounds: the minimum power should be 20-35 mW, and the maximum power should be 125-200 mW.""")
+    trouble.append("""POWER (MW) TROUBLESHOOTING: A minimum or maximum power outside the expected range may indicate the logger is drawing abnormal current (e.g. due to a hardware fault) or that the voltage/current sensor readings are unreliable.""")
+
+    ## RH (humidity) test (Aspen-only; Gem boards have no humidity sensor)
+    info.append("""RELATIVE HUMIDITY TEST INFO (ASPEN-ONLY): This reports the minimum, maximum, and average relative humidity recorded by the Aspen board's humidity sensor, excluding 0% readings (a known sensor-glitch sentinel value). There is currently no pass/fail threshold; it is informational.""")
+    trouble.append("""RELATIVE HUMIDITY TROUBLESHOOTING: Humidity values outside a plausible range for the test environment may indicate a malfunctioning humidity sensor.""")
                  
     #%%
    
@@ -809,23 +942,30 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         pdf.import_list(notes)
         
         # Insert sensor status for each test from errors_df
-        pdf.heading('Gem Sensor Status Summary')
+        pdf.heading('Logger Sensor Status Summary')
         pdf.table_col(errors_df)
         pdf.import_df(errors_df, SN_list)
     
-        # Insert statistics from pstats_df
-        pdf.heading("Gem Sensor Metadata Details") # section heading
-        pdf.table_col(pstats_df) # column headings
-        pdf.import_df(pstats_df,SN_list) # table values   
+        # Insert statistics from pstats_df (own page, so the heading and table stay together)
+        pdf.add_page(orientation = 'L' if landscape else 'P')
+        pdf.heading("Logger Sensor Metadata Details") # section heading
+        pdf.table_col(pstats_df, cell_width = 16, cell_height = 8, font_size = 7, sn_width = 12) # column headings, sized to fill the landscape page width
+        pdf.import_df(pstats_df, SN_list, cell_width = 16, cell_height = 8, font_size = 7, sn_width = 12) # table values   
         
-        ## Add figures into report
+        ## Add figures into report, in order: V, mA, power, GPS, temp, RH, A2/A3, waveforms
         pdf.ln()
-        pdf.image(batt_temp_fig_path, w = img_width , h = img_height) 
+        pdf.image(voltage_fig_path, w = img_width , h = img_height) 
+        pdf.image(current_fig_path, w = img_width, h = img_height)
         pdf.ln()
+        pdf.image(power_fig_path, w = img_width, h = img_height)
         pdf.image(gps_fig_path, w = img_width, h = img_height)
         pdf.ln()
+        pdf.image(temp_fig_path, w = img_width, h = img_height)
+        pdf.image(rh_fig_path, w = img_width, h = img_height)
+        pdf.ln()
+        if A2_A3_fig_path is not None:
+            pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
         pdf.image(wave_path, w = img_width, h = img_height)
-        pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
         pdf.ln()
         ## Group test results
         pdf.heading("Group Test Results")
@@ -850,7 +990,26 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## Close and name file    
         pdf.output(f"{report_path}/{filename}.pdf")
         print("A pdf report has been generated")
+
+##############################################
+## separate command to check sample timing and clock drift (may eventually be merged into verify_huddle_test)
+def check_timing(fn):
+    L = gemlog.core._read_single(fn, version = 'AspenCSV0.01', require_gps = False)
+    L['gps'] = L['gps'].reset_index()
     
+    ## plot drift in PPS pulses
+    plt.subplot(2,1,1)
+    plt.plot(L['gps'].msPPS, L['gps'].t - 1/1024 * L['gps'].msPPS - L['gps'].t[0], 'k.')
+    plt.xlim([L['data'][0,0], L['data'][-1,0]])
+
+    ## plot sample intervals
+    plt.subplot(2,1,2)
+    plt.plot(L['data'][1:,0], np.diff(L['data'][:,0]), 'k.')
+    plt.xlim([L['data'][0,0], L['data'][-1,0]])
+
+## 75-ms delays every 900 s
+## irregularly spaced 10-15 ms delays every couple s
+        
 ##############################################
 def print_call():
     print('gemconvert -i <inputdir> -s <serialnumbers> -x <exclude_serialnumbers>')

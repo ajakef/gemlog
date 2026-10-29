@@ -15,7 +15,7 @@ jobs:
       matrix:
         # Temporary: avoid Python 3.14 due to upstream bug; revert by adding 3.14
         # or returning to 3.x once upstream is fixed.
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.14"]
         # run this on the oldest and newest supported versions
     steps:
     - uses: actions/checkout@v4
@@ -42,8 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Temporary: keep tests <=3.13 until upstream 3.14 issue is resolved.
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         env: [
           '--upgrade --upgrade-strategy=eager .[test]'
         ]

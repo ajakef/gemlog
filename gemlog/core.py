@@ -10,7 +10,10 @@ import obspy
 import sys
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
-from scipy.interpolate import CubicHermiteSpline
+from gemlog.gps_timing import get_GPS_spline
+from scipy.interpolate import interp1d
+
+from scipy.interpolate import CubicHermiteSpline, interp1d
 from gemlog.exceptions import (
     EmptyRawFile,
     CorruptRawFile,
@@ -21,6 +24,12 @@ from gemlog.exceptions import (
 )
 
 _debug = False
+from itertools import (takewhile, repeat)
+
+def count_file_lines(filename):
+    f = open(filename, 'rb')
+    bufgen = takewhile(lambda x: x, (f.raw.read(1024*1024) for _ in repeat(None)))
+    return sum(buf.count(b'\n') for buf in bufgen)
 
 
 def _breakpoint():
@@ -130,6 +139,20 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## make sure the raw directory exists and has real data
     if not os.path.isdir(rawpath):
         raise MissingRawFiles('Raw directory ' + rawpath + ' does not exist')
+    ## Aspen firmware 0.9 and later write miniSEED directly, so only their logs need processing (gemlog.aspen_log)
+    from gemlog.aspen_log import find_aspen_logs, extract_aspen_logs
+    aspen_problems = []
+    if len(find_aspen_logs(rawpath, str(SN))) > 0:
+        aspen_problems = extract_aspen_logs(rawpath, SN = str(SN), metadatapath = metadatapath, gpspath = gpspath)
+        old_format_files = []
+        for fn in glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???'):
+            try:
+                if _read_SN(fn) == str(SN):
+                    old_format_files.append(fn)
+            except Exception:
+                pass
+        if len(old_format_files) == 0:
+            return aspen_problems
     if len(glob.glob(rawpath + '/FILE' +'[0-9]'*4 + '.???')) == 0:
         raise MissingRawFiles('No data files found in directory ' + rawpath)
     try:
@@ -137,9 +160,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         int(SN) # make sure it's number-like
     except:
         raise Exception('Invalid serial number')
-    if len(SN) != 3:
+    if (len(SN) < 3) or (len(SN) > 5):
         raise Exception('Invalid serial number; SN type is length-'+ str(len(SN)) +' ' + str(type(SN)) + ', not length-3 str')
-    
     ## make sure bitweight is a scalar
     if((type(nums) is int) or (type(nums) is float)):
         nums = np.array([nums])
@@ -188,8 +210,8 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
     ## read the first set of up to (24*blockdays) files
     L = _new_gem_var()
     while((L['data'].count() == 0) & (n1 <= max(nums))): ## read sets of files until we get one that isn't empty
-        nums_block = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))] # files are 2 hours, so 12 files is 24 hours
-        n1 = n1 + (12*blockdays) # increment file number counter
+        nums_block = nums[(nums >= n1) & (nums < (n1 + (1*blockdays)))] # files are 2 hours, so 12 files is 24 hours
+        n1 = n1 + (1*blockdays) # increment file number counter
         try:
             L = read_gem(path = rawpath, nums = nums_block, SN = SN, network = network, station = station, location = location)
         except MissingRawFiles: # if the block has no files, keep searching
@@ -265,7 +287,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         gps[wgps].to_csv(gpsfile, index=False)
 
     hour_to_write = max(t1, p[0].stats.starttime)
-    
     ## read sets of (12*blockdays) files until all the files are converted
     while(True):
         ## check to see if we're done
@@ -277,7 +298,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
         tt2 = min(t2, _trunc_UTCDateTime(t1, 86400*blockdays) + 86400*blockdays)
         while((p[-1].stats.endtime < tt2) & (n1 <= max(nums))):
             try:
-                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (12*blockdays)))], SN = SN, network = network, station = station, location = location)
+                L = read_gem(path = rawpath, nums = nums[(nums >= n1) & (nums < (n1 + (1*blockdays)))], SN = SN, network = network, station = station, location = location)
             except MissingRawFiles: # this can happen if a block of empty files is encountered
                 continue
             except CorruptRawFile: # if the block has no files, keep searching
@@ -285,7 +306,7 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             except: # especially for KeyboardInterrupt!
                 raise
             finally:
-                n1 = n1 + (12*blockdays) # increment file counter
+                n1 = n1 + (1*blockdays) # increment file counter
 
             if(len(L['data']) == 0):
                 continue # skip ahead if there aren't any readable data files here
@@ -299,7 +320,6 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
                     print('Problem with files, skipping: ' + L['header'].file[i])
 
             p = _merge_gaps(p + L['data'])
-                
             ## start metadata and gps files
             metadata = L['metadata']   
             gps = L['gps']
@@ -332,13 +352,15 @@ def convert(rawpath = '.', convertedpath = 'converted', metadatapath = 'metadata
             hour_to_write = p[0].stats.starttime
         else:
             break
-    return problems
+    return aspen_problems + problems
 ####################################
 
 def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, convertedpath, hour_end = np.nan, output_format='mseed'):
     eps = 1e-6
+    hour_to_write = _trunc_UTCDateTime(hour_to_write+0.9, 1)
     if(np.isnan(hour_end)):
-        hour_end = _trunc_UTCDateTime(hour_to_write, file_length_sec) + file_length_sec
+        hour_end = _trunc_UTCDateTime(hour_to_write + 1, file_length_sec) + file_length_sec
+    print((hour_to_write, hour_end))
     pp = p.slice(hour_to_write, hour_end - eps, nearest_sample = False) # nearest sample and eps avoid overlapping samples between files
     # Ideally, this would write mseed files with data gaps (masked arrays) if the stream here has
     # a gap. Unfortunately, those fail to write, so we have to write multiple files instead.
@@ -352,7 +374,8 @@ def _write_hourlong_mseed(p, hour_to_write, file_length_sec, bitweight, converte
                 write_wav(tr, filename = fn, path = convertedpath)
             else:
                 tr.write(convertedpath +'/'+ fn, format = output_format, encoding=10) # encoding 10 is Steim 1
-    hour_to_write = hour_end
+    hour_to_write = _trunc_UTCDateTime(hour_end + 1, file_length_sec) # add and truncate to ensure it doesn't get stuck in an infinite loop
+    print(hour_to_write)
     return hour_to_write
 
 def write_wav(tr, filename = None, path = '.', time_format = '%Y-%m-%dT%H_%M_%S'):
@@ -501,7 +524,10 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             raise CorruptRawFile(str(path) + ': ' + str(nums))
         try:
             version = _read_format_version(fnList[0])
-            config = _read_config(fnList[0])
+            if version.find('Aspen') == 0:
+                config = _read_config_aspen(fnList[0])
+            else:
+                config = _read_config_gem(fnList[0])
         except: # if we can't read the config for the first file here, drop it and try the next one
             fnList = fnList[1:] # 
         else:
@@ -510,8 +536,23 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
         L = _read_several(fnList, require_gps = require_gps)# same function works for all
     elif (version == '0.85') | (version == '0.8') :
         L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
+    elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
+        L = _read_several(fnList, version = version, require_gps = require_gps) # same function works for both
+    elif version in _ASPEN_GRIDDED_VERSIONS:
+        L = _read_several_aspen04(fnList, require_gps = require_gps)
     else:
         raise Exception(fnList[0] + ': Invalid or missing data format')
+
+    ## add bitweight and config info to header
+    bitweight_info = get_bitweight_info(SN, config)
+    #header = L['header']
+    for key in bitweight_info.keys():
+        L['header'][key] = bitweight_info[key]
+    for key in config.keys():
+        #print(key)
+        L['header'][key] = config[key]
+    L['header']['file_format_version'] = version
+
     ## stop early if we don't have data to process
     if len(L['data']) == 0:
         raise CorruptRawFileInadequateGPS('Inadequate GPS information in data files ' + str(nums) + ' for SN "' + SN + '" in raw directory ' + str(path))
@@ -524,42 +565,41 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
             L['gps']['day'] = [1]
             
     
-    L, timing_info = _assign_times(L)
+    if version in _ASPEN_GRIDDED_VERSIONS:
+        L, timing_info = _assign_times_aspen04(L)
+    else:
+        L, timing_info = _assign_times(L)
     
     for tr in L['data']:
         ## populate the rest of the trace stats
         tr.stats.station = station
         tr.stats.location = location # this may well be ''
         tr.stats.network = network # can be '' for now and set later
-    ## add bitweight and config info to header
-    bitweight_info = get_bitweight_info(SN, config)
-    header = L['header']
-    for key in bitweight_info.keys():
-        L['header'][key] = bitweight_info[key]
-    for key in config.keys():
-        L['header'][key] = config[key]
-    L['header']['file_format_version'] = version
-
     ## done processing
     if return_debug_output:
         L['debug_output'] = timing_info
     return L
 
 #################################################################
-def _merge_gaps(st, max_gap=0.031):
-    st = st.split()
-    output_st = st[:1] 
-    for i in range(1, len(st)):
-        tr1 = output_st[-1]
-        tr2 = st[i]
-        gap = (tr2.stats.starttime - tr1.stats.endtime)
-        if(gap <= max_gap):
-            st_tmp = obspy.Stream([tr1, tr2])
-            st_tmp.merge(fill_value = 'interpolate')
-            output_st += st_tmp
-        else:
-            output_st += tr2
-    output_st.merge()
+def _merge_gaps(st, max_gap=0.0351): # originally tested gap of 0.1 for aspen
+    channels = np.unique([tr.stats.channel for tr in st])
+    output_st = obspy.Stream()
+    for channel in channels:
+        st_channel = st.select(channel = channel)
+        st_channel = st_channel.split()
+        output_st_channel = st_channel[:1] 
+        for i in range(1, len(st_channel)):
+            tr1 = output_st_channel[-1]
+            tr2 = st_channel[i]
+            gap = (tr2.stats.starttime - tr1.stats.endtime)
+            if(gap <= max_gap):
+                st_tmp = obspy.Stream([tr1, tr2])
+                st_tmp.merge(fill_value = 'interpolate')
+                output_st_channel += st_tmp
+            else:
+                output_st_channel += tr2
+        output_st_channel.merge()
+        output_st += output_st_channel
     return output_st.split()
 
 def _new_gem_var():
@@ -578,6 +618,8 @@ def _new_gem_var():
 
 
 def _read_SN(fn):
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
     try:
         SN_lines = pd.read_csv(fn, delimiter = ',', skiprows = 3, nrows=4, dtype = 'str', names=['linetype', 'SN'], encoding_errors='ignore', comment = '#', on_bad_lines = 'skip')
         SN = SN_lines['SN'][SN_lines['linetype'] == 'S'][0]
@@ -593,11 +635,20 @@ def _read_format_version(fn):
     #0.85: ser. num. as extension, added A2 and A3 to metadata, otherwise same as 0.8
     #0.8: file extension .TXT, 1-hour files
     #"""
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
     versionLine = pd.read_csv(fn, delimiter = ',', nrows=1, dtype = 'str', names=['s'], encoding_errors='ignore', on_bad_lines = 'skip')
-    version = versionLine['s'][0][7:]
+    if versionLine['s'][0][1] == 'G':
+        version = versionLine['s'][0][7:]
+    elif versionLine['s'][0][1] == 'A':
+        version = versionLine['s'][0][1:]
+    else:
+        raise CorruptRawFile('Unsupported file format version')
     return version
     
-def _read_config(fn):
+def _read_config_gem(fn):
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
     config = pd.Series({'gps_mode': 1,
                     'gps_cycle' : 15,
                     'gps_quota' : 20,
@@ -616,6 +667,58 @@ def _read_config(fn):
             pass
     return config
 
+def _read_config_aspen(fn):
+    #print(fn)
+    if not os.path.isfile(fn):
+        raise MissingRawFiles(f'{fn} does not exist or is not a file')
+    
+    names = ['gain1', 'gain2', 'gain3', 'gain4', 'sample_int_ms', 'gps_mode', 'gps_cycle', 'gps_quota', 'serial_output_data', 'serial_output_gps', 'serial_output_health']
+    config = pd.Series({
+        'gain1' : 128,
+        'gain2' : 32,
+        'gain3' : 32,
+        'gain4' : 32,
+        'gps_mode': 1,
+        'gps_cycle' : 15,
+        'gps_quota' : 15,
+        'sample_int_ms': 5,
+        'serial_output_data': 1,
+        'serial_output_gps': 1,
+        'serial_output_health': 1
+    })
+    ## the C line is within the first few lines. Read them once as text; calling pd.read_csv for each
+    ## candidate line is slow, and this function is called several times per file.
+    try:
+        with open(fn, errors = 'ignore') as f:
+            header_lines = [f.readline() for _ in range(11)][1:]
+        for text in header_lines:
+            if text == '': # end of file before finding the C line
+                raise CorruptRawFile(f'{fn}: missing config info')
+            fields = text.rstrip('\r\n').split(',')
+            if fields[0] == 'C':
+                values = fields[1:len(names)+1]
+                # values missing from a short C line get -999, which is handled below
+                config = {names[i]:int(values[i]) if i < len(values) else -999 for i in range(len(names))}
+                break
+    except CorruptRawFile:
+        raise
+    except Exception:
+        raise CorruptRawFile(f'{fn}: missing config info')
+    #print(config)
+    for key in ['gain1', 'gain2', 'gain3', 'gain4']:
+        if config[key] == -999:
+            config[key] = 0
+    if config['sample_int_ms'] == -999:
+        config['sample_int_ms'] = 5
+    gains = np.array([config[f'gain{i}'] for i in range(1,5)])
+    config['n_channels'] = np.sum(gains > 0)
+    ## can't add arrays in config to header (data frame)
+    #config['channel_indices'] = np.where(gains > 0)[0]
+    #config['channel_gains'] = gains[config['channel_indices']] 
+    config['adc_range'] = 0 # temporary for back-compatibility; fix this eventually
+    #print(config)
+    return config
+
 
 def _find_nonmissing_files(path, SN, nums):
     ## list all Gem files in the path
@@ -625,9 +728,10 @@ def _find_nonmissing_files(path, SN, nums):
     fnList = np.array(fnList)
     
     ## find out what all the files' SNs are
-    ext = np.array([x[-3:] for x in fnList])
+    #ext = np.array([x[-3:] for x in fnList])
+    ext = [x.split('.')[-1] for x in fnList]
     for i in range(len(ext)):
-        if ext[i] == 'TXT':
+        if True:#ext[i] == 'TXT':
             try:
                 ext[i] = _read_SN(fnList[i])
             except: # if we're here, it's a corrupt/empty file
@@ -701,14 +805,80 @@ def _read_with_cython(filename, require_gps = True):
 
     # use cythonized reader file instead of pd.read_csv and slow string ops
     try:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'))
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), dt_ms = 10)
     except:
-        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_row = 1560000 * 6*7) # in case we're processing a long file, try again with a buffer big enough for 1 week
+        values, types, millis = parse_gemfile(str(filename).encode('utf-8'), n_row = 1560000 * 6*7, dt_ms = 10) # in case we're processing a long file, try again with a buffer big enough for 1 week
     if values.shape[0] == 0:
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
         raise CorruptRawFileNoGPS(filename)
-    df = pd.DataFrame(values, columns=range(2, 13))
+    df = pd.DataFrame(values, columns=range(2, values.shape[1] + 2))
+    # note that linetype has type bytes here, not str like in the pandas func
+    df['linetype'] = types
+    df['millis-sawtooth'] = millis
+    #return _process_gemlog_data(df, offset)
+    return df
+
+
+
+def _aspen_drops_bad_last_line(version):
+    """
+    Whether raw files of this format version should have an incomplete or unparseable last line
+    ignored (AspenCSV0.2 and higher). Power loss at the end of a recording can truncate the last line.
+    """
+    version = str(version)
+    prefix = 'AspenCSV'
+    if not version.startswith(prefix):
+        return False
+    try:
+        return float(version[len(prefix):]) >= 0.2
+    except ValueError:
+        return False
+
+
+def _read_Aspen_with_cython(filename, require_gps = True, version = None):
+    """
+    Read an Aspen logfile.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Filepath of a file containing data to read.
+    require_gps : bool, default True
+        If True and gps tags are missing, raise a CorruptRawFileNoGPS exception.
+    version : str, optional
+        Raw format version (e.g. 'AspenCSV0.2'). For AspenCSV0.2 and higher, an incomplete or
+        unparseable last line in the file is ignored.
+
+    Returns
+    -------
+    dict of dataframes
+        - data: the analog readings and associated timings
+        - metadata: datalogger metadata
+        - gps: GPS timing and location values
+    """
+    try:
+        from gemlog.parsers import parse_gemfile
+    except ImportError:
+        raise ImportError(
+            "gemlog's C-extensions are not available. Reinstall gemlog with "
+            "C-extensions to use this function."
+        )
+
+    # Allocate from the actual file size; Aspen files have no duration header.
+    config = _read_config_aspen(filename)
+    estimated_rows = max(1560000, count_file_lines(filename)) #data lines are approx 99%-99.5% of total lines
+    values, types, millis = parse_gemfile(
+        str(filename).encode('utf-8'), n_channels=config['n_channels'],
+        n_row=estimated_rows, dt_ms=config['sample_int_ms'],
+        drop_bad_last_line=_aspen_drops_bad_last_line(version),
+        trailing_zeros_skipped=(str(version) == 'AspenCSV0.3')
+    )
+    if values.shape[0] == 0:
+        raise EmptyRawFile(filename)
+    if (b'G' not in types) and require_gps:
+        raise CorruptRawFileNoGPS(filename)
+    df = pd.DataFrame(values, columns=range(2, values.shape[1] + 2))
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
     df['millis-sawtooth'] = millis
@@ -809,18 +979,23 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
     """
     # Try each of the three file readers in order of decreasing speed but
     # probably increasing likelihood of success.
-
     if version in ['1.10', '0.91', '0.9', '0.85C']:
         readers = [ _read_with_cython, _read_with_pandas]#, _slow__read_single_v0_9 ]
+    elif version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
+        readers = [_read_Aspen_with_cython]
     else:
         readers = [_read_0_8_pd]
-
     output_message = ''
     for reader in readers:
         try:
-            df = reader(filename, require_gps)
-            
-            output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
+            if reader is _read_Aspen_with_cython:
+                df = reader(filename, require_gps, version = version)
+            else:
+                df = reader(filename, require_gps)
+            if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
+                output = _process_aspen_data(df, offset, version = version, require_gps = require_gps)
+            else:
+                output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
         except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem.
@@ -839,9 +1014,83 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
 
     raise CorruptRawFile(output_message)
 
+def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = True):
+    ## figure out what settings to used according to the raw file format version
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
+        # old M_cols: ['millis', 'batt', 'temp', 'A2', 'A3', 'maxWriteTime', 'minFifoFree', 'maxFifoUsed','maxOverruns', 'gpsOnFlag', 'unusedStack1', 'unusedStackIdle']
+        rollover = 2**13
+        M_cols = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime', 'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag']
+    else:
+        raise CorruptRawFile('Invalid raw format version')
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2']:
+        polarity_correction = -1
+    else:
+        polarity_correction = 1
+    # unroll the ms rollover sawtooth
+    df['millis-stairstep'] = (df['millis-sawtooth'].diff() < -(rollover/2)).cumsum()
+    df['millis-stairstep'] -= (df['millis-sawtooth'].diff() > (rollover/2)).cumsum()
+    df['millis-stairstep'] *= rollover
+    df['millis-corrected'] = df['millis-stairstep'] + df['millis-sawtooth']
+    first_millis = df['millis-corrected'].iloc[0]
+    df['millis-corrected'] += (
+        (offset-first_millis)
+        + ((first_millis-(offset % rollover)+rollover/2) % rollover)
+        - rollover/2
+    )
+    # groupby is somewhat faster than repeated subsetting like
+    # df.loc[df['linetype'] == 'D', :], ...
+    grouper = df.groupby('linetype')
+    # the cython reader uses bytes; the python reader uses str but isn't used for aspen
+    Dkey = b'D'
+    Gkey = b'G'
+    Mkey = b'H'
+    data_col = 2
+    D = grouper.get_group(Dkey)
+    #_breakpoint()
+    # pick out columns of interest and rename
+    D_cols = ['msSamp', 'ADC0', 'ADC1', 'ADC2', 'ADC3']
+
+    # column names are currently integers (except for the calculated cols)
+    D = D[['millis-corrected', 2, 3, 4, 5]]
+    D.columns = D_cols
+
+    M = grouper.get_group(b'H')
+    M = M[['millis-corrected'] + list(range(2, len(M_cols)+1))]
+    M.columns = M_cols
+    M = M.apply(pd.to_numeric)
+    # now that columns aren't mixed dtype anymore, convert to numeric where possible
+    D = D.apply(pd.to_numeric)
+
+    D.iloc[:,1:] = D.iloc[:,1:].astype(float).cumsum(0) * polarity_correction # calculate cumsum for each column
+
+    ## gps stuff
+    G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
+    try:
+        G = grouper.get_group(Gkey)
+        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1)) + ['millis-sawtooth']]
+        G.columns = G_cols + ['millis-sawtooth']
+        G = G.apply(pd.to_numeric)
+        
+        # filter bad GPS data and combine into datetimes
+        valid_gps = _gps_in_bounds(G)
+        G = G.iloc[:,:-1] # drop the millis-sawtooth column AFTER checking valid GPS
+        G = G.loc[valid_gps, :]
+        G['t'] = G.apply(_make_gps_time, axis=1)
+        G = G.loc[~G['t'].isna(),:]
+        G = G.reset_index().astype('float')
+    except:
+        if require_gps:
+            raise CorruptRawFileNoGPS()
+        else:
+            G = pd.DataFrame(columns = G_cols)
+        
+    return {'data': np.array(D),
+            'metadata': M.reset_index().astype('float'),
+            'gps': G}
+
 def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     ## figure out what settings to used according to the raw file format version
-    if version in ['1.10', '0.9', '0.85C']:
+    if version in ['1.10', '0.9', '0.91', '0.85C']:
         rollover = 2**13
         M_cols = ['millis', 'batt', 'temp', 'A2', 'A3',
                   'maxWriteTime', 'minFifoFree', 'maxFifoUsed',
@@ -910,12 +1159,13 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
     try:
         G = grouper.get_group(Gkey)
-        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1))]
-        G.columns = G_cols
+        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1)) + ['millis-sawtooth']]
+        G.columns = G_cols + ['millis-sawtooth']
         G = G.apply(pd.to_numeric)
         
         # filter bad GPS data and combine into datetimes
         valid_gps = _gps_in_bounds(G)
+        G = G.iloc[:,:-1] # drop the millis-sawtooth column AFTER checking valid GPS
         G = G.loc[valid_gps, :]
         G['t'] = G.apply(_make_gps_time, axis=1)
         G = G.loc[~G['t'].isna(),:]
@@ -929,6 +1179,8 @@ def _process_gemlog_data(df, offset=0, version = '0.9', require_gps = True):
     return {'data': np.array(D), 'metadata': M.reset_index().astype('float'), 'gps': G}
 
 def _gps_in_bounds(G):
+    rollover = 2**13
+    G['msLag'] = G['msLag'] % rollover # revert this once fixed in FW
     # vectorized GPS data validation
     # basic lower and upper bounds:
     limits = {
@@ -1028,27 +1280,59 @@ def _slow__read_single_v0_9(filename, offset=0, require_gps = True):
     D[:,1] = D[:,1].cumsum()
     return {'data': D, 'metadata': M, 'gps': G}
 
+def _get_channels(filename):
+    version = _read_format_version(filename)
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
+        #return 4 # eventually check config info here
+        config = _read_config_aspen(filename)
+        return np.sum(np.array([config[f'gain{i}'] for i in range(1,5)]) > 0)
+
+    else:
+        return 1
+
+def _get_dt(filename):
+    version = _read_format_version(filename)
+    if version in ['AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
+        return 0.005
+    else:
+        return 0.01
+    
 def _read_several(fnList, version = 0.9, require_gps = True):
     ## initialize the output variables
-    D = np.ndarray([0,2]) # expected number 7.2e5
+    n_channels = _get_channels(fnList[0])
+    D = np.ndarray([0, 1 + n_channels]) # expected number 7.2e5
     header = _make_empty_header(fnList)
-    G = [] #_make_empty_gps()
-    M = [] #_make_empty_metadata()
+    G = _make_empty_gps()
+    M = _make_empty_metadata()
     problems = []
+    version = str(version)
     
     ## loop through the files
     startMillis = 0
+    if not require_gps:
+        #breakpoint()
+        pass
     for i,fn in enumerate(fnList):
         message = ''
         print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
         try:
             ## read the data file (using reader for this format version)
-            if str(version) in ['1.10', '0.91', '0.9', '0.85C']:
+            if version in ['1.10', '0.91', '0.9', '0.85C']:
                 L = _read_single(fn, startMillis, require_gps = require_gps)
-            elif str(version) in ['0.8', '0.85']:
+            elif version in ['0.8', '0.85', 'AspenCSV0.01', 'AspenCSV0.1', 'AspenCSV0.2', 'AspenCSV0.3']:
                 L = _read_single(fn, startMillis, require_gps = require_gps, version = version)
             else:
-                raise CorruptRawFile('Invalid raw file format version: ' + str(version))
+                raise CorruptRawFile('Invalid raw file format version: ' + version)
+            ## read config and add the info for all channel gains to the header
+            if version.find('Aspen') == 0:
+                config = _read_config_aspen(fn)
+                for key in [f'gain{i}' for i in range(1,5)]:
+                    header.loc[i,key] = config[key]
+                header.loc[i, 'dt'] = config['sample_int_ms']/1000
+            else:
+                config = _read_config_gem(fn)
+                header.loc[i,'gain1'] = 1/2**config['adc_range'] # gain 0.5 if adc_range == 1, 1 if adc_range == 0
+                header.loc[i, 'dt'] = 0.01
             ## make sure the first millis is > startMillis
             if(L['data'][0,0] < startMillis):
                 L['metadata'].millis += 2**13
@@ -1059,7 +1343,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
             if any(dMillis < 0) or any(dMillis > 1000):
                 raise CorruptRawFile(f'{fn} sample times are discontinuous, skipping this file')
 
-            header_info = _calculate_drift(L, fn, require_gps)
+            header_info = _calculate_drift(L, fn, version, require_gps)
 
             if (not require_gps) or (L['gps'].shape[0] > 0) :
                 for key in header_info.keys():
@@ -1067,15 +1351,22 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                 
             header.loc[i, 'num_data_pts'] = L['data'].shape[0]
             header.loc[i, 'SN'] = _read_SN(fn)
+            header.loc[i, 'dt'] = _get_dt(fn)
+            header.loc[i, 'channels'] = _get_channels(fn)
+            metadata_chunk = L['metadata'].dropna(how = 'all')
+            if not metadata_chunk.empty:
+                if M.empty:
+                    M = metadata_chunk.copy()
+                else:
+                    M = pd.concat((M, metadata_chunk))
 
-            #M = pd.concat((M, L['metadata']))
-            #G = pd.concat((G, L['gps']))
-            if not L['metadata'].empty:
-                M.append(L['metadata'])
-            if not L['gps'].empty:
-                G.append(L['gps'])
-
-            D = np.vstack((D, L['data']))
+            gps_chunk = L['gps'].dropna(how = 'all')
+            if not gps_chunk.empty:
+                if G.empty:
+                    G = gps_chunk.copy()
+                else:
+                    G = pd.concat((G, gps_chunk))
+            D = np.vstack((D, L['data'][:,:(n_channels+1)]))
             startMillis = D[-1,0]
         except KeyboardInterrupt:
             raise
@@ -1096,51 +1387,58 @@ def _read_several(fnList, version = 0.9, require_gps = True):
         ## end of fn loop
     # pandas raises ValueError on concat([]); preserve empty table schemas when
     # all files were skipped (e.g., due to GPS-related corruption).
-    metadata = pd.concat(M) if M else _make_empty_metadata()
-    gps = pd.concat(G) if G else _make_empty_gps()
-    return {'metadata': metadata, 'gps': gps, 'data': D, 'header': header, 'problems': problems}
+    #metadata = pd.concat(M) if M else _make_empty_metadata()
+    #gps = pd.concat(G) if G else _make_empty_gps()
+    return {'metadata': M, 'gps': G, 'data': D, 'header': header, 'problems': problems}
 
 ##########
-def _calculate_drift(L, fn, require_gps):
+def _calculate_drift(L, fn, file_format_version, require_gps):
     ## require_gps levels:
     ## 0 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 0 & at least one valid GPS: use GPS to estimate start time only, assume zero drift
     ## 0 & no valid GPS: use end of previous file + 0.01 sec as start time, assume zero drift
     ## 1 & frequent valid GPS: use GPS data to estimate start time and drift
     ## 1, otherwise: exception
-    _breakpoint()
-    default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
+    if file_format_version.find('Aspen') == 0:
+        default_deg1 = 1.0/1024.0 # 1024 aspen TCXO ticks per second
+    else:
+        default_deg1 = 0.001024 # 1024 microseconds per gem "millisecond"
+
     if ('t' not in L['gps'].keys()) or (len(L['gps'].t) == 0):
         any_gps = False
         sufficient_gps = False
     else:
         any_gps = True
         sufficient_gps = (0.001024*(L['data'][-1,0] - L['data'][0,0]) / (L['gps'].t.iloc[-1] - L['gps'].t.iloc[0] + 1e-9)) < 2 # 1e-9 to prevent div by 0
-
     if require_gps and not any_gps:
         raise CorruptRawFileNoGPS('No GPS data in ' + fn + ', skipping this file')
     if require_gps and not sufficient_gps:
         raise CorruptRawFileInadequateGPS('Inadequate GPS data in ' + fn + ', skipping this file')
-    if require_gps and _detect_step(L['gps'].msPPS, L['gps'].t):
-        print(f'GPS timing discontinuity found in {fn}; files before/after may be affected!')
-        raise CorruptRawFileDiscontinuousGPS(f'GPS timing discontinuity found in {fn}, skipping this file')
+    #if require_gps and _detect_step(L['gps'].msPPS, L['gps'].t):
+    #    print(f'GPS timing discontinuity found in {fn}; files before/after may be affected!')
+    #    raise CorruptRawFileDiscontinuousGPS(f'GPS timing discontinuity found in {fn}, skipping this file')
 
     done = False
     if sufficient_gps:
         try:
             ## run the GPS time vs millis regression
-            reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
+            #reg, num_gps_nonoutliers, MAD_nonoutliers, resid, xx, yy = _robust_regress(L['gps'].msPPS, L['gps'].t)
             ## ensure that the regression was successful
-            if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
-               or (num_gps_nonoutliers < 10) \
-               or MAD_nonoutliers > 0.01:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+            #if ((0.001024*(L['data'][-1,0] - L['data'][0,0]) / (xx.iloc[-1] - xx.iloc[0])) > 2) \
+            #   or (num_gps_nonoutliers < 10) \
+            #   or MAD_nonoutliers > 0.01:
+            #    raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+            spline = get_GPS_spline(L['gps'], default_deg1 = default_deg1)
         except:
             if require_gps:
-                raise CorruptRawFileInadequateGPS('No useful GPS data in ' + fn + ', skipping this file')
+                raise
+            else:
+                spline = CubicHermiteSpline([L['data'][0,0], L['data'][-1,0]], [L['data'][0,0], L['data'][-1,0]], [1,1])
         else: # if regression was successful, no need to try the zero-drift methods
             done = True
-                
+    else:
+        spline = CubicHermiteSpline([L['data'][0,0], L['data'][-1,0]], [L['data'][0,0], L['data'][-1,0]], [1,1])
+        
     if not done: # if a regression couldn't be performed, assume zero drift
         if any_gps:
             gps_zero_drift_starts = L['gps'].t - default_deg1 * L['gps'].msPPS
@@ -1167,15 +1465,12 @@ def _calculate_drift(L, fn, require_gps):
         'lon' : lon,
         'start_ms' : L['data'][0,0], # save this as a millis first, then convert
         'end_ms' : L['data'][-1,0],
-        'drift_deg3' : reg[0],
-        'drift_deg2' : reg[1],
-        'drift_deg1' : reg[2],
-        'drift_deg0' : reg[3],
-        'drift_resid_std' : np.std(resid),
-        'drift_resid_MAD' : np.max(np.abs(resid)),
+        'drift_spline' : spline,
+        #'drift_resid_std' : np.std(resid),
+        #'drift_resid_MAD' : np.max(np.abs(resid)),
         'num_gps_pts' : len(L['gps'].msPPS),
-        'drift_resid_MAD_nonoutliers' : MAD_nonoutliers,
-        'num_gps_nonoutliers' : num_gps_nonoutliers,
+        #'drift_resid_MAD_nonoutliers' : MAD_nonoutliers,
+        #'num_gps_nonoutliers' : num_gps_nonoutliers,
     }
     return header_info
 
@@ -1238,19 +1533,25 @@ def _plot_drift_several(file_list, z = 4, recursive_depth = np.inf):
     plt.plot(xg, _apply_segments(xg, output['header']) - _no_drift(xg) - yg[0] - xg * drift_slope, 'k.')
 
 def _apply_fit(x, model):
-    return model['drift_deg0'] + model['drift_deg1'] * x + model['drift_deg2'] * x**2 + model['drift_deg3'] * x**3
+    if isinstance(model['drift_spline'], CubicHermiteSpline) or isinstance(model['drift_spline'], interp1d):
+        return model['drift_spline'](x)
+    elif not np.isnan(model['drift_deg0']):
+        return model['drift_deg0'] + model['drift_deg1'] * x + model['drift_deg2'] * x**2 + model['drift_deg3'] * x**3
+    else:
+        return x + np.nan
              
 def _apply_segments(x, model):
     y = np.zeros(len(x))
     y[:] = np.nan
+    #breakpoint()
     for i in range(len(model['start_ms'])):
         w = (x >= model['start_ms'][i]) & (x <= model['end_ms'][i])
         #y[w] = model['drift_deg0'][i] + model['drift_deg1'][i] * x[w] + model['drift_deg2'][i] * x[w]**2 + model['drift_deg3'][i] * x[w]**3
         y[w] = _apply_fit(x[w], model.iloc[i,:])
+
     return y
     
 def _assign_times(L):
-    _breakpoint()
     fnList = np.array(L['header'].file)
     #if L['gps'].shape[0] == 0:
     #    raise Exception('No GPS data in files ' + fnList[0] + '-' + fnList[-1] + '; stopping conversion')
@@ -1266,57 +1567,94 @@ def _assign_times(L):
     header['t1'] = _apply_segments(header.start_ms, piecewiseTimeFit)
     header['t2'] = _apply_segments(header.end_ms, piecewiseTimeFit)
     L['header'] = header
-    
+
     ## Interpolate data to equal spacing to make obspy trace.
     ## Note that data gaps just get interpolated through as a straight line. Not ideal.
     D = L['data']
+    #n_channels = D.shape[1] - 1
+    channels = np.where([any(L['header'].loc[:,f'gain{i}'] > 0) for i in range(1,5)])[0]
+    n_channels = len(channels)
+
+    ## append sample times (sec since 1970) as last column in D
     D = np.hstack((D, _apply_segments(D[:,0], piecewiseTimeFit).reshape([D.shape[0],1])))
     timing_info = [L['gps'], L['data'], breaks, piecewiseTimeFit]
-    L['data'] = _interp_time(D) # returns stream, populates known fields: channel, delta, and starttime
+
+    ## loop through channels and append to a Stream
+    L['data'] = obspy.Stream()
+    for i in range(n_channels):
+        # skip additional channels whose data never change (e.g. unconnected inputs); always keep the first
+        if (i > 0) and np.all(D[:,i+1] == D[0,i+1]):
+            continue
+        st_tmp = _interp_time(D[:,np.array([0, i+1, n_channels+1])], dt = np.max(L['header'].dt)) # returns stream, populates known fields: channel, delta, and starttime
+        for tr in st_tmp:
+            if channels[i] == 0:
+                tr.stats.channel = 'HDF'
+            else:
+                tr.stats.channel = f'XX{i}'
+        L['data'] += st_tmp
     L['gps'] = G
     return (L, timing_info)
     
 
 
 #########################################################
-def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025):
+def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.151, dt = 0.01): ## Aspen change: max_step is much higher now
     ## min_step, max_step are min/max interval allowed before a break is identified
     eps = 0.001 # this might need some adjusting to prevent short data gaps
     ## break up the data into continuous chunks, then round off the starts to the appropriate unit
     ## t1 is the first output sample; should be first integer second after or including the first sample (ceiling)
+    #breakpoint()
     w_nonnan = ~np.isnan(data[:,2])
-    t_in = data[w_nonnan,2]
+    t_in = data[w_nonnan,-1]
+    t_in[np.where(np.diff(t_in) == 0)] -= dt # temporary to fix bad files on 2025-11-15; can remove this later
     p_in = data[w_nonnan,1]
-    _breakpoint()
     #t1 = np.trunc(t_in[t_in >= t1][0]+1-0.01) ## added on 2019-09-11. 2021-07-11: this line is responsible for losing samples before the start of a second
-    t1 = t_in[t_in >= (t1 - 0.01 - eps)][0]
-    t2 = t_in[t_in <= (t2 + .01 + eps)][-1] # add a sample because t2 is 1 sample before the hour
+    t1 = t_in[t_in >= (t1 - dt - eps)][0]
+    t2 = t_in[t_in <= (t2 + dt + eps)][-1] # add a sample because t2 is 1 sample before the hour
     breaks_raw = np.where((np.diff(t_in) > max_step) | (np.diff(t_in) < min_step) )[0] # 2020-11-04: check for backwards steps too
     breaks = breaks_raw[(t_in[breaks_raw] > t1) & (t_in[breaks_raw+1] < t2)]
-    starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
-    ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
-    w_same = (starts != ends)
-    starts = starts[w_same]
-    ends = ends[w_same]
+    t_starts = np.hstack([t1, t_in[breaks+1]]) # start times of continuous chunks
+    t_ends = np.hstack([t_in[breaks], t2]) # end times of continuous chunks
+    w_same = (t_starts != t_ends)
+    t_starts = t_starts[w_same]
+    t_ends = t_ends[w_same]
+    breaks = breaks[w_same[:-1]]
+    bounds = np.hstack([0, breaks+1, len(t_in)])
     ## make an output time vector excluding data gaps, rounded to the nearest samples
     #t_interp = np.zeros(0)
     output = obspy.Stream()
-    for i in range(len(starts)):
-        w = (t_in >= (starts[i] - 0.01 - eps)) & (t_in <= (ends[i] + 0.01 - eps))
+    for i in range(len(t_starts)):
+        if (t_ends - t_starts)[i] < dt: # it's possible to have just two appropriately spaced samples with a longer gap on each side. if the interval < dt, this is a problem and there's no harm in tossing it.
+            continue
+        #w = (t_in >= (t_starts[i] - dt - eps)) & (t_in <= (t_ends[i] + dt - eps)) # can cause problems at breaks
+        w = np.arange(bounds[i], bounds[i+1])
         try:
             f = scipy.interpolate.CubicSpline(t_in[w], p_in[w])
         except:
             _breakpoint()
             continue
             ##if not _debug: # so pdb doesn't end immediately with this exception
-            ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(starts[i])) +\
-            ##                    ' and ' + str(obspy.UTCDateTime(ends[i]))))
-        #t_interp = np.arange(starts[i], ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
-        t_interp = np.round(starts[i] + np.arange(np.trunc((ends-starts)[i]/0.01)) * 0.01, 2)
+            ##    raise(Exception('_interp_time failed between ' +str(obspy.UTCDateTime(t_starts[i])) +\
+            ##                    ' and ' + str(obspy.UTCDateTime(t_ends[i]))))
+        #t_interp = np.arange(t_starts[i], t_ends[i] + eps, 0.01) # this is a bug in np.arange--intervals can be inconsistent when delta is float. This can result in significant timing errors, especially for long traces.
+        t_interp = np.round(t_starts[i], 3) + np.arange(np.trunc((t_ends-t_starts)[i]/dt)) * dt
         p_interp = np.array(f(t_interp).round(), dtype = 'int32')
         tr = obspy.Trace(p_interp)
+        if(len(t_interp) == 0):
+            interval = (t_ends - t_starts)[i]
+            ratio = interval / dt
+            n = np.trunc(ratio)
+            assert len(t_interp) > 0, (
+                interval,
+                dt,
+                ratio,
+                np.trunc(ratio),
+                t_starts[i],
+                t_ends[i],
+            )
+            breakpoint()
         tr.stats.starttime = t_interp[0]
-        tr.stats.delta = 0.01
+        tr.stats.delta = dt
         tr.stats.channel = 'HDF'
         output += tr
     return output
@@ -1331,6 +1669,237 @@ def _interp_time(data, t1 = -np.inf, t2 = np.inf, min_step = 0, max_step = 0.025
 #    tr.stats.delta = 0.01
 #    tr.stats.channel = 'HDF'
 #    return tr
+
+#########################################################
+## AspenCSV0.4 and later: the logger corrects its own timing. Data lines are exactly one sample interval apart on
+## the UTC grid (e.g. ...00.000, ...00.005), and each T line gives the time of the data line after it. So no drift
+## fit or interpolation is needed, except for data recorded before the logger's first GPS fix.
+_ASPEN_GRIDDED_VERSIONS = ['AspenCSV0.4']
+_ASPEN04_GPS_COLS = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
+_ASPEN04_METADATA_COLS = ['millis', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime',
+                          'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag', 'sync', 'timeErr_us', 'tcxo_ppm',
+                          'adc_ppm', 'maxRetimeTime']
+
+def _read_aspen04_single(filename):
+    """
+    Read one AspenCSV0.4 raw file.
+
+    Returns
+    -------
+    dict with keys:
+        - values: 2-d array (samples x enabled channels) of ADC counts
+        - utc: sample times (seconds since 1970); nan before the logger's first GPS fix (sync 0)
+        - tcxo: sample times on the logger's own clock (seconds since the logger started)
+        - sync: sync state of each sample (0 no GPS time yet, 1 GPS locked, 2 GPS off, coasting on the TCXO)
+        - gps: dataframe of G lines (same columns as other formats, plus 't')
+        - metadata: dataframe of H lines, plus 'row': the latest sample written before the H line
+        - dt: sample interval (s)
+    """
+    try:
+        from gemlog.parsers import parse_aspen04
+    except ImportError:
+        raise ImportError(
+            "gemlog's C-extensions are not available. Reinstall gemlog with "
+            "C-extensions to use this function."
+        )
+    config = _read_config_aspen(filename)
+    n_channels = int(config['n_channels'])
+    dt_ms = int(config['sample_int_ms'])
+    values, others = parse_aspen04(str(filename).encode('utf-8'), n_channels = n_channels,
+                                   n_row = max(1000, count_file_lines(filename)))
+    n = values.shape[0]
+    if n == 0:
+        raise EmptyRawFile(filename)
+
+    ## T, G, and H lines (rare) are parsed here; incomplete or corrupt lines are skipped
+    T_rows, G_rows, H_rows = [], [], []
+    for data_index, line in others:
+        fields = line.decode('ascii', errors = 'ignore').rstrip('\r\n').split(',')
+        try:
+            if fields[0] == 'T':
+                utc = float(fields[2]) if fields[2] != '' else np.nan
+                T_rows.append([data_index, float(fields[1]), utc, int(fields[3])])
+            elif fields[0] == 'G':
+                vals = [float(x) for x in fields[1:len(_ASPEN04_GPS_COLS)+1]]
+                if len(vals) == len(_ASPEN04_GPS_COLS):
+                    G_rows.append(vals)
+            elif fields[0] == 'H':
+                vals = [float(x) for x in fields[1:len(_ASPEN04_METADATA_COLS)+1]]
+                if len(vals) == len(_ASPEN04_METADATA_COLS):
+                    H_rows.append(vals + [data_index - 1])
+        except (ValueError, IndexError):
+            pass
+    T = np.array(T_rows, dtype = float).reshape(-1, 4)
+    if (T.shape[0] == 0) or (T[0,0] >= n):
+        raise CorruptRawFile(f'{filename}: no time (T) lines before the data')
+
+    ## Each T line starts a segment whose first line is absolute and the rest are deltas. Data lines before the
+    ## first T line (should never happen) are dropped.
+    starts = T[:,0].astype(np.int64)
+    seg = np.searchsorted(starts, np.arange(n), side = 'right') - 1
+    first_row = starts[0]
+    seg = seg[first_row:]
+    rows = np.arange(first_row, n)
+    cumulative = np.cumsum(values, axis = 0)
+    cumulative_before = np.vstack([np.zeros((1, n_channels)), cumulative]) # sum of all rows before row j
+    absolute = cumulative[first_row:] - cumulative_before[starts[seg]]
+
+    ## sample times: segment start time plus a whole number of sample intervals (integer ms to keep them exact)
+    k = rows - starts[seg]
+    utc = (np.round(T[seg, 2] * 1000) + k * dt_ms) / 1000
+    tcxo = T[seg, 1] + k * dt_ms / 1000
+    sync = T[seg, 3].astype(int)
+
+    if len(G_rows) > 0:
+        G = pd.DataFrame(G_rows, columns = _ASPEN04_GPS_COLS)
+        G = G.loc[_gps_in_bounds(G), :].copy()
+        G['t'] = [float(_make_gps_time(row)) for row in G[_ASPEN04_GPS_COLS].values]
+        G = G.loc[~G['t'].isna(), :].reset_index(drop = True)
+    else:
+        G = _make_empty_gps()
+    M = pd.DataFrame(H_rows, columns = _ASPEN04_METADATA_COLS + ['row'])
+    M['row'] = np.clip(M['row'] - first_row, 0, len(rows) - 1).astype(int)
+    return {'values': absolute, 'utc': utc, 'tcxo': tcxo, 'sync': sync, 'gps': G, 'metadata': M,
+            'dt': dt_ms / 1000}
+
+
+def _fill_unsynced_times(utc, tcxo):
+    """
+    Give UTC times to samples recorded before the logger's first GPS fix (utc is nan), using the TCXO-to-UTC offset
+    of the first GPS-timed sample after them from the same run of the logger. The TCXO clock restarts from 0 when
+    the logger restarts, so a decrease in tcxo marks a new run. Samples in a run that never got GPS time stay nan.
+    """
+    utc = utc.copy()
+    run = np.concatenate([[0], np.cumsum(np.diff(tcxo) < 0)])
+    for r in np.unique(run[np.isnan(utc)]):
+        w = run == r
+        timed = w & ~np.isnan(utc)
+        if np.any(timed):
+            j = np.argmax(timed)
+            fill = w & np.isnan(utc)
+            utc[fill] = tcxo[fill] + (utc[j] - tcxo[j])
+    return utc
+
+
+def _read_several_aspen04(fnList, require_gps = True):
+    header = _make_empty_header(fnList)
+    problems = []
+    files = []
+    n_channels = None
+    for i, fn in enumerate(fnList):
+        print('File ' + str(i+1) + ' of ' + str(len(fnList)) + ': ' + fn)
+        try:
+            F = _read_aspen04_single(fn)
+            config = _read_config_aspen(fn)
+            if n_channels is None:
+                n_channels = F['values'].shape[1]
+            elif F['values'].shape[1] != n_channels:
+                raise CorruptRawFile(f'{fn} has {F["values"].shape[1]} channels instead of {n_channels}')
+        except KeyboardInterrupt:
+            raise
+        except (EmptyRawFile, CorruptRawFile) as exception_message:
+            message = f'Corrupt raw file {fn}: {exception_message}'
+        except Exception as exception_message:
+            message = f'Failed to read {fn}: {exception_message}'
+        else:
+            for key in [f'gain{j}' for j in range(1,5)]:
+                header.loc[i, key] = config[key]
+            header.loc[i, 'dt'] = F['dt']
+            header.loc[i, 'SN'] = _read_SN(fn)
+            header.loc[i, 'channels'] = n_channels
+            header.loc[i, 'num_data_pts'] = F['values'].shape[0]
+            header.loc[i, 'num_gps_pts'] = F['gps'].shape[0]
+            header.loc[i, 'lat'] = np.median(F['gps']['lat']) if F['gps'].shape[0] > 0 else np.nan
+            header.loc[i, 'lon'] = np.median(F['gps']['lon']) if F['gps'].shape[0] > 0 else np.nan
+            F['file_index'] = i
+            files.append(F)
+            continue
+        problems.append(message)
+        print(message)
+
+    if len(files) == 0:
+        return {'metadata': _make_empty_metadata(), 'gps': _make_empty_gps(), 'data': np.zeros((0, 1)),
+                'header': header, 'problems': problems}
+
+    values = np.vstack([F['values'] for F in files])
+    tcxo = np.concatenate([F['tcxo'] for F in files])
+    sync = np.concatenate([F['sync'] for F in files])
+    utc = _fill_unsynced_times(np.concatenate([F['utc'] for F in files]), tcxo)
+    file_index = np.concatenate([np.full(F['values'].shape[0], F['file_index']) for F in files])
+    row_offsets = np.cumsum([0] + [F['values'].shape[0] for F in files[:-1]])
+    M = pd.concat([F['metadata'].assign(row = F['metadata']['row'] + offset) for F, offset in zip(files, row_offsets)])
+    gps_chunks = [F['gps'] for F in files if F['gps'].shape[0] > 0]
+    G = pd.concat(gps_chunks) if len(gps_chunks) > 0 else _make_empty_gps()
+
+    no_time = np.isnan(utc)
+    if np.any(no_time):
+        if require_gps:
+            message = f'{np.sum(no_time)} samples have no GPS time (the logger never got a GPS fix); skipping them'
+            problems.append(message)
+            print(message)
+        else:
+            utc[no_time] = tcxo[no_time] # no GPS: time since the logger started, as for other formats without GPS
+    M['t'] = utc[M['row'].to_numpy()]
+    M = M.drop(columns = 'row').reset_index(drop = True)
+    keep = ~np.isnan(utc)
+    for F in files:
+        w = keep & (file_index == F['file_index'])
+        if np.any(w):
+            header.loc[F['file_index'], 't1'] = utc[w][0]
+            header.loc[F['file_index'], 't2'] = utc[w][-1]
+    return {'metadata': M, 'gps': G.reset_index(drop = True), 'data': values[keep,:], 'utc': utc[keep],
+            'sync': sync[keep], 'header': header, 'problems': problems}
+
+
+def _interp_onto_grid(t, v, dt):
+    """Cubic-spline interpolation of samples v at times t onto times that are whole multiples of dt."""
+    k0 = int(np.ceil(t[0] / dt - 1e-9))
+    k1 = int(np.floor(t[-1] / dt + 1e-9))
+    if (len(t) < 2) or (k1 < k0):
+        return None
+    f = scipy.interpolate.CubicSpline(t, v)
+    tr = obspy.Trace(np.array(np.round(f(np.arange(k0, k1 + 1) * dt)), dtype = 'int32'))
+    tr.stats.starttime = obspy.UTCDateTime(ns = k0 * int(round(dt * 1e9)))
+    return tr
+
+
+def _assign_times_aspen04(L):
+    """
+    Make the data stream for AspenCSV0.4 and later. Samples are already on the UTC grid, so each run of evenly
+    spaced samples becomes a trace as is. Runs off the grid (recorded before the first GPS fix) are interpolated
+    onto it.
+    """
+    dt = np.max(L['header'].dt)
+    utc = L['utc']
+    values = L['data']
+    channels = np.where([any(L['header'].loc[:,f'gain{i}'] > 0) for i in range(1,5)])[0]
+    n_channels = len(channels)
+    breaks = np.where(np.abs(np.diff(utc) - dt) > 1e-6)[0]
+    run_starts = np.concatenate([[0], breaks + 1])
+    run_ends = np.concatenate([breaks + 1, [len(utc)]])
+
+    st = obspy.Stream()
+    for i in range(n_channels):
+        # skip additional channels whose data never change (e.g. unconnected inputs); always keep the first
+        if (i > 0) and np.all(values[:,i] == values[0,i]):
+            continue
+        for a, b in zip(run_starts, run_ends):
+            t = utc[a:b]
+            if np.abs(t[0] / dt - np.round(t[0] / dt)) < 1e-4: # on the grid
+                tr = obspy.Trace(np.array(np.round(values[a:b, i]), dtype = 'int32'))
+                tr.stats.starttime = obspy.UTCDateTime(ns = int(round(t[0] * 1000)) * 1000000)
+            else:
+                tr = _interp_onto_grid(t, values[a:b, i], dt)
+                if tr is None:
+                    continue
+            tr.stats.delta = dt
+            tr.stats.channel = 'HDF' if channels[i] == 0 else f'XX{i}'
+            st += tr
+    L['data'] = st
+    L['gps'] = _reformat_GPS(L['gps'])
+    timing_info = {'utc': utc, 'sync': L['sync']}
+    return (L, timing_info)
+
 
 ###############################################################
 #  version bitweight_Pa  bitweight_V min_SN max_SN
@@ -1379,10 +1948,17 @@ def get_gem_specs(SN):
         - bitweight_V : voltage resolution for this Gem version [Volts per count]
         - bitweight_Pa : pressure resolution for this Gem version [Pascals per count]
     """
-    versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01]),
-                    'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108]),
-                    'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, np.inf])
+    versionTable = {'version': np.array([0.5, 0.7, 0.8, 0.82, 0.9, 0.91, 0.92, 0.98, 0.99, 0.991, 0.992, 1, 1.01, 0.1, 0.2]),
+                    'min_SN': np.array([3, 8, 15, 20, 38, 41, 44, 47, 50, 52, 55, 58, 108, 10000, 10003]),
+                    'max_SN': np.array([7, 14, 19, 37, 40, 43, 46, 49, 51, 54, 57, 107, 10000, 10002, np.inf])
     }
+
+    if(len(SN) == 5):
+        SN = int(SN)
+        if SN < 10000:
+            SN = SN + 10000
+    else:
+        SN = int(SN)
     version = versionTable['version'][(int(SN) >= versionTable['min_SN']) & (int(SN) <= versionTable['max_SN'])][0]
     bitweight_V = 0.256/2**15/__gain__(version)
     sensitivity = __AVCC__(version)/7.0 * 45.13e-6 # 45.13 uV/Pa is with 7V reference from Marcillo et al., 2012
@@ -1426,7 +2002,8 @@ def _reformat_GPS(G_in):
 
 
 def _find_breaks(L):
-    _breakpoint()
+    #breakpoint()
+    data_break_threshold_ms = 100
     ## breaks are specified as their millis for comparison between GPS and data
     ## sanity check: exclude suspect GPS tags
     t = np.array([obspy.UTCDateTime(tt) for tt in L['gps'].t])
@@ -1444,7 +2021,7 @@ def _find_breaks(L):
     dmD = np.diff(mD)
     starts = np.array([])
     ends = np.array([])
-    dataBreaks = np.where((dmD > 25) | (dmD < 0))[0]
+    dataBreaks = np.where((dmD > data_break_threshold_ms) | (dmD < 0))[0]
     if 0 in dataBreaks:
         mD = mD[1:]
         dmD = dmD[1:]
@@ -1459,7 +2036,13 @@ def _find_breaks(L):
         ends = np.append(ends, np.min(mD[(i-1):(i+2)]))
     tG = np.array(L['gps'].t).astype('float') # gps times
     mG = np.array(L['gps'].msPPS).astype('float') # gps millis
-    dmG_dtG = np.diff(mG)/np.diff(tG) * 1.024 # correction for custom millis in gem firmware (1024 us/ms)
+    if any(np.diff(tG) == 0):
+        breakpoint()
+    if L['header']['file_format_version'][0].find('Aspen') == -1: # correction for custom millis in gem firmware (1024 us/ms)
+        ms_mult = 1.024
+    else:
+        ms_mult = 1/1.024
+    dmG_dtG = np.diff(mG)/np.diff(tG) * ms_mult 
     gpsBreaks = np.argwhere(np.isnan(dmG_dtG) | # missing data...unlikely
                             ((np.diff(tG) > 50) & ((dmG_dtG > 1000.1) | (dmG_dtG < 999.9))) | # 100 ppm drift between cycles
                             ((np.diff(tG) <= 50) & ((dmG_dtG > 1002) | (dmG_dtG < 998))) # most likely: jumps within a cycle (possibly due to leap second)
@@ -1509,10 +2092,18 @@ def _make_empty_header(fnList):
                                    'drift_deg1': num_filler,
                                    'drift_deg2': num_filler,
                                    'drift_deg3': num_filler,
+                                   'gain1': num_filler,
+                                   'gain2': num_filler,
+                                   'gain3': num_filler,
+                                   'gain4': num_filler,
+                                   'dt': num_filler,
                                    'drift_resid_std': num_filler,
                                    'drift_resid_MAD': num_filler,
                                    'num_gps_pts': num_filler,
-                                   'num_data_pts': num_filler
+                                   'num_data_pts': num_filler,
+                                   'file_format_version': ['' for fn in fnList],
+                                   'drift_spline':interp1d
+                                   
     })
 def _make_empty_gps():
     return pd.DataFrame(columns = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', \
@@ -1529,7 +2120,11 @@ _time_corrections = { # milliseconds
     '0.85C':8.93,
     '0.9':8.93,
     '0.91':8.93,
-    '1.10':8.93
+    '1.10':8.93,
+    'AspenCSV0.01':0,
+    'AspenCSV0.1':0,
+    'AspenCSV0.2':0,
+    'AspenCSV0.3':0
 }
     
 def _convert_one_file(input_filename, output_filename = None, require_gps = True):

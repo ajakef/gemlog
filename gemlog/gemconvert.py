@@ -13,10 +13,6 @@ except Exception as e:
     print(e)
     sys.exit(2)
 
-def find_SN(x):
-    # find the serial number of a raw data file
-    return x[9:13]
-
 def unique(list1): 
     unique, index = np.unique(list1, return_index=True)
     return sorted(unique)
@@ -147,7 +143,14 @@ def main(argv = None):
         sys.exit()
 
     if(len(SN_list) == 0): # if user does not provide SN_list, take unique SNs in order
-        SN_list = unique([find_SN(file_list[i]) for i in range(len(file_list))]) # set takes unique values
+        SN_list = []
+        for i in range(len(file_list)):
+            try:
+                SN = gemlog.core._read_SN(os.path.join(inputdir, file_list[i]))
+                if SN not in SN_list:
+                    SN_list.append(SN)
+            except: # not a raw data file, or corrupt; skip
+                pass
         SN_list.sort()
     else: # if user provided SNs, keep the order, but take unique values
         SN_list = unique(SN_list)
