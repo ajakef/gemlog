@@ -581,6 +581,24 @@ def read_gem(path = 'raw', nums = np.arange(10000), SN = '', units = 'Pa', bitwe
     return L
 
 #################################################################
+def _merge_without_gaps(st):
+    ## Like st.merge() followed by split(), but only merges traces that overlap or touch. Merging across a gap moves
+    ## the later trace onto the earlier trace's sample grid (shifting its times by ms), and fills the gap with masked
+    ## samples (GBs for a month-long gap at 100 sps).
+    st.sort(keys = ['starttime'])
+    groups = []
+    for tr in st:
+        if (len(groups) > 0) and ((tr.stats.starttime - group_end) < 1.5 * tr.stats.delta):
+            groups[-1] += tr
+            group_end = max(group_end, tr.stats.endtime)
+        else:
+            groups.append(obspy.Stream([tr]))
+            group_end = tr.stats.endtime
+    output = obspy.Stream()
+    for group in groups:
+        output += group.merge()
+    return output
+
 def _merge_gaps(st, max_gap=0.0351): # originally tested gap of 0.1 for aspen
     channels = np.unique([tr.stats.channel for tr in st])
     output_st = obspy.Stream()
@@ -598,8 +616,7 @@ def _merge_gaps(st, max_gap=0.0351): # originally tested gap of 0.1 for aspen
                 output_st_channel += st_tmp
             else:
                 output_st_channel += tr2
-        output_st_channel.merge()
-        output_st += output_st_channel
+        output_st += _merge_without_gaps(output_st_channel)
     return output_st.split()
 
 def _new_gem_var():

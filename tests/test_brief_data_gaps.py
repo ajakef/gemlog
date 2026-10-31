@@ -40,6 +40,32 @@ def test_unit_merge_gaps():
     result = _merge_gaps(obspy.Stream([tr_1, tr_2]))
     assert len(result) == 2
 
+## data after a gap must keep its own times, not be moved onto the sample grid of the data before the gap
+def test_unit_merge_gaps_keeps_times():
+    tr_1 = obspy.read()[0] # 100 sps
+    for gap in [0.0632, 0.0681, 0.5047, 86400*30 + 0.0047]: # off tr_1's sample grid; the last is a month-long gap
+        tr_2 = obspy.read()[0]
+        tr_2.stats.starttime = tr_1.stats.endtime + gap
+        result = _merge_gaps(obspy.Stream([tr_1.copy(), tr_2.copy()]))
+        assert len(result) == 2
+        assert result[0].stats.starttime == tr_1.stats.starttime
+        assert result[1].stats.starttime == tr_2.stats.starttime
+        assert result[0].stats.npts == tr_1.stats.npts
+        assert result[1].stats.npts == tr_2.stats.npts
+
+    ## small gaps are still interpolated, and the segment after a big gap keeps its times
+    tr_2 = obspy.read()[0]
+    tr_2.stats.starttime = tr_1.stats.endtime + 0.02
+    tr_3 = obspy.read()[0]
+    tr_3.stats.starttime = tr_2.stats.endtime + 0.03
+    tr_4 = obspy.read()[0]
+    tr_4.stats.starttime = tr_3.stats.endtime + 1.0632
+    result = _merge_gaps(obspy.Stream([tr_1, tr_2, tr_3, tr_4]))
+    assert len(result) == 2
+    assert result[0].stats.starttime == tr_1.stats.starttime
+    assert result[0].stats.npts == 3 * tr_1.stats.npts + 1 + 2 # 1 and 2 interpolated samples
+    assert result[1].stats.starttime == tr_4.stats.starttime
+
 
 ## This test makes sure that spurious time gaps do not show up in converted data due to small
 ## timing errors in the conversion. The issue may have to do with max_step/min_step in

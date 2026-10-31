@@ -33,6 +33,15 @@ def test_gemconvert_v110():
 
 def test_gemconvert_AspenCSV001():
     gemlog.convert(rawpath='../data/AspenCSV/', convertedpath = 'mseed', SN= '977', blockdays = 0.5, nums = np.arange(20, 30)) # there's an unrelated .977 file; exclude it with nums
+    ## converted data must keep read_gem's sample times, including after the data gap (16:13:36 to 16:14:05)
+    st = obspy.read('mseed/*977..HDF.mseed')
+    assert len(st) == 2
+    raw = read_gem('../data/AspenCSV/', SN = '977', nums = np.arange(20, 30))['data'].select(channel = 'HDF')
+    assert len(raw) == 2
+    for tr, tr_raw in zip(sorted(st, key = lambda tr: tr.stats.starttime), raw):
+        offset = (tr.stats.starttime - tr_raw.stats.starttime) / tr.stats.delta # samples
+        assert abs(offset - np.round(offset)) < 0.001
+    assert obspy.UTCDateTime('2025-10-20T16:14:05.063') in [tr.stats.starttime for tr in st] # was moved to .065
     shutil.rmtree('mseed/')
 def test_gemconvert_AspenCSV01_24hr():
     gemlog.convert(rawpath='../data/test_data/24_hour_aspen_files/', convertedpath = 'mseed', SN= '10025') 
