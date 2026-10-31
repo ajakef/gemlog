@@ -17,9 +17,12 @@ _LOG_PREFIX = '#AspenLog'
 _H_COLS = ['tcxoSec', 'utcSec', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime',
            'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag', 'sync', 'timeErr_us', 'tcxo_ppm', 'adc_ppm',
            'maxRetimeTime', 'droppedRecords']
-## H columns added by later firmware (after 0.8.6-1): NaN for logs without them. readDelay: us from ADC1's DRDY to
-## reading ADC2-4 (blank if the channel is off), which sets the firmware's correction for those readings' age.
-_H_OPTIONAL_COLS = ['readDelay2_us', 'readDelay3_us', 'readDelay4_us']
+## H columns added by later firmware: NaN for logs without them. readDelay (firmware 0.8.6-2, then 0.8.5-13 on; the
+## version numbers went back to 0.8.5 on 2026-10-30): us from ADC1's DRDY to reading ADC2-4 (blank if the channel is
+## off), which sets the firmware's correction for those readings' age. Then running totals since startup (0.8.5-15 on):
+## missed ADC1 samples, SD drains over 8.5 ms, peak fill (%) of the data and log write buffers, and GPS fixes (G lines).
+_H_OPTIONAL_COLS = ['readDelay2_us', 'readDelay3_us', 'readDelay4_us', 'missedSamples', 'slowDrains',
+                    'peakDataRing_pct', 'peakLogRing_pct', 'gpsFixes']
 ## Health (H) line values outside these ranges are not physically possible for the sensors, so they are bad reads
 _VALID_RANGE = {'batt': (2.5, 16), 'V': (2.5, 16), 'mA': (-200, 200), 'temp': (-40, 85), 'RH': (0, 100)}
 _SUMMARY_COLS = ['batt', 'V', 'mA', 'temp', 'RH']

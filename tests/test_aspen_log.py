@@ -88,6 +88,19 @@ def test_reads_read_delays_when_present(tmp_path):
     assert list(M.columns[-1:]) == ['t']
 
 
+def test_reads_running_totals_when_present(tmp_path):
+    # firmware after 0.8.6-3 appends running totals after the read delays
+    cols = 'readDelay2_us,readDelay3_us,readDelay4_us,missedSamples,slowDrains,peakDataRing_pct,peakLogRing_pct,gpsFixes'
+    text = HEADER.replace('droppedRecords\n', 'droppedRecords,' + cols + '\n')
+    text += f'T,36.325378,{UTC_LOCK:.3f},1\n' + health(37.0, UTC_LOCK + 0.675, 1).replace('\n', ',,,,2,1,40,3,17\n')
+    (tmp_path / 'totals.log').write_text(text)
+    M = read_aspen_log(str(tmp_path / 'totals.log'))['metadata']
+    np.testing.assert_array_equal(M[['missedSamples', 'slowDrains', 'peakDataRing_pct', 'peakLogRing_pct',
+                                     'gpsFixes']].iloc[0], [2, 1, 40, 3, 17])
+    old = read_aspen_log(str(write_first_log(tmp_path)))['metadata']
+    assert old['gpsFixes'].isna().all()
+
+
 def test_ignores_incomplete_last_line(tmp_path):
     L = read_aspen_log(str(write_first_log(tmp_path, incomplete_last_line = True)))
     assert len(L['metadata']) == 10
