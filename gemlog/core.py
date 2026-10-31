@@ -878,7 +878,8 @@ def _read_Aspen_with_cython(filename, require_gps = True, version = None):
         raise EmptyRawFile(filename)
     if (b'G' not in types) and require_gps:
         raise CorruptRawFileNoGPS(filename)
-    df = pd.DataFrame(values, columns=range(2, values.shape[1] + 2))
+    # copy = False: pandas 3 otherwise copies values (1.7 GB for a 24-hour file at 200 sps)
+    df = pd.DataFrame(values, columns=range(2, values.shape[1] + 2), copy = False)
     # note that linetype has type bytes here, not str like in the pandas func
     df['linetype'] = types
     df['millis-sawtooth'] = millis
@@ -996,7 +997,7 @@ def _read_single(filename, offset=0, require_gps = True, version = '0.9'):
                 output = _process_aspen_data(df, offset, version = version, require_gps = require_gps)
             else:
                 output = _process_gemlog_data(df, offset, version = version, require_gps = require_gps)
-        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt):
+        except (EmptyRawFile, FileNotFoundError, CorruptRawFileNoGPS, KeyboardInterrupt, MemoryError):
             # If the file is definitely not going to work, exit early and
             # re-raise the exception that caused the problem.
             # CorruptRawFile might work with a different reader so don't exit early.
@@ -1037,37 +1038,35 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
         + ((first_millis-(offset % rollover)+rollover/2) % rollover)
         - rollover/2
     )
-    # groupby is somewhat faster than repeated subsetting like
-    # df.loc[df['linetype'] == 'D', :], ...
-    grouper = df.groupby('linetype')
+    # Select each line type's rows with only the columns it uses. Copying every column of the D rows (nearly all
+    # rows), as groupby's get_group did, took GBs for a 24-hour file at 200 sps.
+    linetype = df['linetype'].to_numpy()
     # the cython reader uses bytes; the python reader uses str but isn't used for aspen
     Dkey = b'D'
     Gkey = b'G'
     Mkey = b'H'
-    data_col = 2
-    D = grouper.get_group(Dkey)
-    #_breakpoint()
-    # pick out columns of interest and rename
-    D_cols = ['msSamp', 'ADC0', 'ADC1', 'ADC2', 'ADC3']
+    def rows_of(key):
+        rows = linetype == key
+        if not rows.any():
+            raise KeyError(key) # as get_group did
+        return rows
 
-    # column names are currently integers (except for the calculated cols)
-    D = D[['millis-corrected', 2, 3, 4, 5]]
-    D.columns = D_cols
+    # D columns: msSamp, ADC0, ADC1, ADC2, ADC3 (parser columns are integers, except for the calculated cols)
+    D_rows = rows_of(Dkey)
+    D = np.empty((np.count_nonzero(D_rows), 5))
+    for j, col in enumerate(['millis-corrected', 2, 3, 4, 5]): # one column at a time to limit memory
+        D[:,j] = df[col].to_numpy()[D_rows]
 
-    M = grouper.get_group(b'H')
-    M = M[['millis-corrected'] + list(range(2, len(M_cols)+1))]
+    M = df.loc[rows_of(Mkey), ['millis-corrected'] + list(range(2, len(M_cols)+1))]
     M.columns = M_cols
     M = M.apply(pd.to_numeric)
-    # now that columns aren't mixed dtype anymore, convert to numeric where possible
-    D = D.apply(pd.to_numeric)
 
-    D.iloc[:,1:] = D.iloc[:,1:].astype(float).cumsum(0) * polarity_correction # calculate cumsum for each column
+    D[:,1:] = np.cumsum(D[:,1:], axis = 0) * polarity_correction # calculate cumsum for each column
 
     ## gps stuff
     G_cols = ['msPPS', 'msLag', 'year', 'month', 'day', 'hour', 'minute', 'second', 'lat', 'lon']
     try:
-        G = grouper.get_group(Gkey)
-        G = G[['millis-corrected'] + list(range(2, len(G_cols)+1)) + ['millis-sawtooth']]
+        G = df.loc[rows_of(Gkey), ['millis-corrected'] + list(range(2, len(G_cols)+1)) + ['millis-sawtooth']]
         G.columns = G_cols + ['millis-sawtooth']
         G = G.apply(pd.to_numeric)
         
@@ -1084,7 +1083,7 @@ def _process_aspen_data(df, offset=0, version = 'AspenCSV0.01', require_gps = Tr
         else:
             G = pd.DataFrame(columns = G_cols)
         
-    return {'data': np.array(D),
+    return {'data': D,
             'metadata': M.reset_index().astype('float'),
             'gps': G}
 
@@ -1368,7 +1367,7 @@ def _read_several(fnList, version = 0.9, require_gps = True):
                     G = pd.concat((G, gps_chunk))
             D = np.vstack((D, L['data'][:,:(n_channels+1)]))
             startMillis = D[-1,0]
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, MemoryError): # out of memory is not a bad file; don't skip it
             raise
         except CorruptRawFileInadequateGPS:
             message = f'Insufficient GPS data in {fn}, skipping this file'
@@ -1795,7 +1794,7 @@ def _read_several_aspen04(fnList, require_gps = True):
                 n_channels = F['values'].shape[1]
             elif F['values'].shape[1] != n_channels:
                 raise CorruptRawFile(f'{fn} has {F["values"].shape[1]} channels instead of {n_channels}')
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, MemoryError): # out of memory is not a bad file; don't skip it
             raise
         except (EmptyRawFile, CorruptRawFile) as exception_message:
             message = f'Corrupt raw file {fn}: {exception_message}'
