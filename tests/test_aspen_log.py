@@ -73,6 +73,21 @@ def test_reads_health_gps_and_codes(tmp_path):
     np.testing.assert_allclose(G['lat'], 43.62226)
 
 
+def test_reads_read_delays_when_present(tmp_path):
+    # later firmware appends ADC2-4 read delays (us; blank for a channel that is off); older logs give NaN
+    old = read_aspen_log(str(write_first_log(tmp_path)))['metadata']
+    assert old[['readDelay2_us', 'readDelay3_us', 'readDelay4_us']].isna().all().all()
+    text = HEADER.replace('droppedRecords\n', 'droppedRecords,readDelay2_us,readDelay3_us,readDelay4_us\n')
+    text += f'T,36.325378,{UTC_LOCK:.3f},1\n' + health(37.0, UTC_LOCK + 0.675, 1).replace('\n', ',331,436,\n')
+    (tmp_path / 'new.log').write_text(text)
+    M = read_aspen_log(str(tmp_path / 'new.log'))['metadata']
+    assert len(M) == 1
+    assert M['droppedRecords'].iloc[0] == 0
+    np.testing.assert_array_equal(M[['readDelay2_us', 'readDelay3_us']].iloc[0], [331, 436])
+    assert np.isnan(M['readDelay4_us'].iloc[0])
+    assert list(M.columns[-1:]) == ['t']
+
+
 def test_ignores_incomplete_last_line(tmp_path):
     L = read_aspen_log(str(write_first_log(tmp_path, incomplete_last_line = True)))
     assert len(L['metadata']) == 10

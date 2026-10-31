@@ -17,6 +17,9 @@ _LOG_PREFIX = '#AspenLog'
 _H_COLS = ['tcxoSec', 'utcSec', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSampleDiff', 'maxReadTime',
            'maxWriteTime', 'maxDrainTime', 'drainDiff', 'gpsOnFlag', 'sync', 'timeErr_us', 'tcxo_ppm', 'adc_ppm',
            'maxRetimeTime', 'droppedRecords']
+## H columns added by later firmware (after 0.8.6-1): NaN for logs without them. readDelay: us from ADC1's DRDY to
+## reading ADC2-4 (blank if the channel is off), which sets the firmware's correction for those readings' age.
+_H_OPTIONAL_COLS = ['readDelay2_us', 'readDelay3_us', 'readDelay4_us']
 ## Health (H) line values outside these ranges are not physically possible for the sensors, so they are bad reads
 _VALID_RANGE = {'batt': (2.5, 16), 'V': (2.5, 16), 'mA': (-200, 200), 'temp': (-40, 85), 'RH': (0, 100)}
 _SUMMARY_COLS = ['batt', 'V', 'mA', 'temp', 'RH']
@@ -59,7 +62,8 @@ def read_aspen_log(filename):
     dict with keys:
         - SN : str, serial number
         - codes : dict of SEED codes used in the miniSEED file (network, station, location, channels)
-        - metadata : pandas.DataFrame, one row per health (H) line; 't' is UTC (seconds since 1970)
+        - metadata : pandas.DataFrame, one row per health (H) line; 't' is UTC (seconds since 1970). Columns added by
+          later firmware (_H_OPTIONAL_COLS) are always present, NaN when the log doesn't have them.
         - gps : pandas.DataFrame, one row per valid GPS fix (G line); 't' is UTC (seconds since 1970)
         - firmware : str, firmware version line ('' if missing)
         - n_corrupt_lines : int, number of H, G, T, S, or N lines that could not be read
@@ -85,9 +89,10 @@ def read_aspen_log(filename):
                 if fields[0] == 'T':
                     T_rows.append([float(fields[1]), float(fields[2]) if fields[2] != '' else np.nan])
                 elif fields[0] == 'H':
-                    vals = [float(x) if x != '' else np.nan for x in fields[1:len(_H_COLS)+1]]
-                    if len(vals) == len(_H_COLS):
-                        H_rows.append(vals)
+                    n = len(_H_COLS) + len(_H_OPTIONAL_COLS)
+                    vals = [float(x) if x != '' else np.nan for x in fields[1:n+1]]
+                    if len(vals) >= len(_H_COLS):
+                        H_rows.append(vals + [np.nan] * (n - len(vals)))
                     else:
                         n_corrupt += 1
                 elif fields[0] == 'G':
@@ -106,7 +111,7 @@ def read_aspen_log(filename):
 
     ## health lines: UTC time, or (before the logger's first GPS fix) time since startup, converted using the first
     ## T line in this log that has both
-    M = pd.DataFrame(H_rows, columns = _H_COLS)
+    M = pd.DataFrame(H_rows, columns = _H_COLS + _H_OPTIONAL_COLS)
     T = np.array(T_rows, dtype = float).reshape(-1, 2)
     timed = ~np.isnan(T[:,1])
     if np.any(timed) and M['utcSec'].isna().any():
