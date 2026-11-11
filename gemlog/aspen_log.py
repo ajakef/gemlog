@@ -8,6 +8,7 @@ so tools like verify_huddle_test, read_gps, and summarize_gps work the same way.
 """
 import glob
 import os
+import re
 import numpy as np
 import pandas as pd
 from gemlog.core import _gps_in_bounds, _make_gps_time, _reformat_GPS, _make_filename
@@ -28,7 +29,12 @@ _VALID_RANGE = {'batt': (2.5, 16), 'V': (2.5, 16), 'mA': (-200, 200), 'temp': (-
 _SUMMARY_COLS = ['batt', 'V', 'mA', 'temp', 'RH']
 _I2C_COLS = ['V', 'mA', 'temp', 'RH']  # read over I2C, so affected by the startup garbage (not batt, an analog read)
 _MAX_BATT_V_DISAGREE = 0.5  # V (power monitor) must match batt (analog) within this, or V and mA are bad
-_BOOT_GARBAGE_SEC = 960  # firmware 0.7.0-0.8.2 give garbage I2C values for ~900-910 s after every startup
+## Firmware before 0.8.5 gives garbage I2C values for ~900-910 s after every startup (a byte left in the I2C receive
+## buffer by the GPS library shifted every later read until the GPS first slept); 0.8.5-0 fixed it. Versions only
+## count up from there (0.8.6-x builds came before the renumbering to 0.8.5-13 on 2026-10-30, all with the fix), but
+## build dates don't (0.8.4-1 was built after 0.8.5-0), so the version number decides.
+_BOOT_GARBAGE_SEC = 960
+_BOOT_GARBAGE_FIXED_VERSION = (0, 8, 5)
 ## limits for warnings in summarize_aspen_logs
 _MAX_H_GAP_SEC = 10  # health lines are written every second
 _MAX_FILE_GAP_SEC = 30
@@ -206,19 +212,33 @@ def extract_aspen_logs(rawpath = '.', SN = None, metadatapath = 'metadata', gpsp
     return problems
 
 
-def clean_aspen_health(M):
+def _firmware_has_boot_garbage(firmware):
+    """
+    True if a log's firmware version (read_aspen_log's 'firmware', e.g. '0.8.5-74_2026-11-11T18:53:10Z') is one that
+    wrote garbage I2C values for ~900 s after startup (before 0.8.5), or if the version can't be read.
+    """
+    m = re.match(r'\s*(\d+)\.(\d+)\.(\d+)', firmware or '')
+    if m is None:
+        return True
+    return tuple(int(x) for x in m.groups()) < _BOOT_GARBAGE_FIXED_VERSION
+
+
+def clean_aspen_health(M, boot_garbage = True):
     """
     Set obviously bad values in the health table to NaN.
 
     Bad values are: batt, V, mA, temp, and RH outside physically possible ranges; temp = 130, temp = -45, RH = 3.3, or
     RH = 0 (the sensor read failed, and both values are bad); V and mA when V is out of range or differs from batt by
-    more than 0.5 V (same chip); and V, mA, temp, and RH in the first 960 s after startup (known
-    power-monitor/temperature/RH garbage in firmware 0.7.0-0.8.2).
+    more than 0.5 V (same chip); and, when boot_garbage applies, V, mA, temp, and RH in the first 960 s after startup
+    (known power-monitor/temperature/RH garbage in firmware before 0.8.5). Blank temp and RH (NaN; firmware 0.8.5-74 on
+    leaves them blank when there's no new reading) are missing, not bad.
 
     Parameters
     ----------
     M : pandas.DataFrame
         Health table from read_aspen_log (needs tcxoSec and the columns batt, V, mA, temp, RH).
+    boot_garbage : bool or array of bool, one per row
+        Whether the first-960-s rule applies (firmware before 0.8.5; see _firmware_has_boot_garbage). Default True.
 
     Returns
     -------
@@ -238,8 +258,9 @@ def clean_aspen_health(M):
     power_failed = bad['V'] | (bad['batt'].eq(False) & ((M['V'] - M['batt']).abs() > _MAX_BATT_V_DISAGREE))
     bad['V'] |= power_failed
     bad['mA'] |= power_failed
+    in_boot_garbage = (M['tcxoSec'] < _BOOT_GARBAGE_SEC) & np.broadcast_to(np.asarray(boot_garbage, dtype = bool), len(M))
     for col in _I2C_COLS:
-        bad[col] |= (M['tcxoSec'] < _BOOT_GARBAGE_SEC)
+        bad[col] |= in_boot_garbage
     for col in _SUMMARY_COLS:
         C.loc[bad[col], col] = np.nan
     return C, bad
@@ -380,15 +401,18 @@ def _summarize_one_logger(sn, Ls):
                          dtype = float)
     t = M['t'] if len(M) > 0 else pd.Series(dtype = float)
     if len(M) > 0:
-        C, bad = clean_aspen_health(M)
+        boot_garbage = np.concatenate([np.full(len(L['metadata']), _firmware_has_boot_garbage(L['firmware']))
+                                       for L in usable])
+        C, bad = clean_aspen_health(M, boot_garbage)
         for col in _SUMMARY_COLS:
             x = C[col].dropna()
             stats.loc[col] = [len(x), x.min(), x.median(), x.mean(), x.max(), 100 * bad[col].mean()]
-        after_boot = M['tcxoSec'] >= _BOOT_GARBAGE_SEC
+        after_boot = ~((M['tcxoSec'] < _BOOT_GARBAGE_SEC).values & boot_garbage)
+        where = f' after the first {_BOOT_GARBAGE_SEC} s' if boot_garbage.any() else ''
         for col in _SUMMARY_COLS:
             if after_boot.sum() > 0 and bad.loc[after_boot, col].mean() > _MAX_BAD_FRACTION:
-                warnings.append(f'{col}: {100 * bad.loc[after_boot, col].mean():.1f}% of values after the first '
-                                f'{_BOOT_GARBAGE_SEC} s were bad and removed from the summary')
+                warnings.append(f'{col}: {100 * bad.loc[after_boot, col].mean():.1f}% of values{where} '
+                                'were bad and removed from the summary')
         ## limits on the cleaned values
         if stats.loc['batt', 'n'] > 0 and stats.loc['batt', 'min'] < _LOW_BATT_V:
             warnings.append(f"battery voltage dropped to {stats.loc['batt', 'min']:.2f} V (below {_LOW_BATT_V} V)")

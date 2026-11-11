@@ -163,6 +163,50 @@ def test_clean_health_removes_bad_values(tmp_path):
     assert C['batt'].notna().all()
 
 
+def test_boot_garbage_rule_only_for_firmware_before_0_8_5(tmp_path):
+    from gemlog.aspen_log import _firmware_has_boot_garbage
+    assert _firmware_has_boot_garbage('0.8.4-1_2026-10-24T04:36:19Z')  # built after 0.8.5-0, but has the bug
+    assert _firmware_has_boot_garbage('0.7.0-3_2026-09-01T00:00:00Z')
+    assert _firmware_has_boot_garbage('')  # unknown: keep the rule
+    assert not _firmware_has_boot_garbage('0.8.5-0_2026-10-18T03:35:49Z')
+    assert not _firmware_has_boot_garbage('0.8.5-74_2026-11-11T18:53:10Z')
+    assert not _firmware_has_boot_garbage('0.8.6-2_2026-10-29T00:00:00Z')
+    # a log that starts at power-on: the summary keeps its first 960 s from fixed firmware (HEADER: 0.9.0)...
+    write_health_log(tmp_path, '20261017T000000_10024.log', 100, UTC_LOCK, 50)
+    S = summarize_aspen_logs(str(tmp_path), verbose = False)['summaries']['10024']
+    assert S['stats'].loc['temp', 'n'] == 50
+    assert S['stats'].loc['V', 'pct_removed'] == 0
+    # ...and removes them from firmware with the startup garbage
+    old = tmp_path / 'old'
+    old.mkdir()
+    (old / '20261017T000000_10024.log').write_text(
+        (tmp_path / '20261017T000000_10024.log').read_text().replace('#Firmware0.9.0-0', '#Firmware0.8.4-1'))
+    S = summarize_aspen_logs(str(old), verbose = False)['summaries']['10024']
+    assert S['stats'].loc['temp', 'n'] == 0
+    assert S['stats'].loc['V', 'pct_removed'] == 100
+    assert S['stats'].loc['batt', 'n'] == 50  # analog, never affected
+
+
+def test_blank_temperature_and_rh_are_missing_not_bad(tmp_path):
+    # firmware 0.8.5-74 on leaves temp and RH blank in an H line without a new reading
+    write_health_log(tmp_path, '20261017T000000_10024.log', 5000, UTC_LOCK, 10)
+    fn = tmp_path / '20261017T000000_10024.log'
+    lines = fn.read_text().split('\n')
+    H = [i for i, l in enumerate(lines) if l.startswith('H,')]
+    for i in H[2:5]:
+        f = lines[i].split(',')
+        f[6] = f[7] = ''
+        lines[i] = ','.join(f)
+    fn.write_text('\n'.join(lines))
+    M = read_aspen_log(str(fn))['metadata']
+    assert M['temp'].isna().sum() == 3 and M['RH'].isna().sum() == 3
+    assert M['V'].notna().all()
+    S = summarize_aspen_logs(str(tmp_path), verbose = False)['summaries']['10024']
+    assert S['stats'].loc['temp', 'n'] == 7
+    assert S['stats'].loc['temp', 'pct_removed'] == 0
+    assert S['warnings'] == []
+
+
 def pd_read(path, name, tcxo0):
     write_health_log(path, name, tcxo0, UTC_LOCK, 4)
     return read_aspen_log(str(path / name))['metadata']
