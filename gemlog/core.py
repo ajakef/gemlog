@@ -587,6 +587,7 @@ def _merge_without_gaps(st):
     ## samples (GBs for a month-long gap at 100 sps).
     st.sort(keys = ['starttime'])
     groups = []
+    group_end = 0
     for tr in st:
         if (len(groups) > 0) and ((tr.stats.starttime - group_end) < 1.5 * tr.stats.delta):
             groups[-1] += tr
