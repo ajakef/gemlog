@@ -280,3 +280,44 @@ def test_plot_true_shows_figures(tmp_path, monkeypatch):
     summarize_aspen_logs(str(tmp_path), verbose = False, plot = True)
     assert shown == [1]
     plt.close('all')
+
+
+HEADER_06 = HEADER.replace('#AspenLog0.5', '#AspenLog0.6').replace(
+    '#H,tcxoSec,utcSec,batt,V,mA,tempC,RH,Vcc,maxSampleDiff_ms,maxReadTime_us,maxWriteTime_us,maxDrainTime_us,drainDiff_ms,gpsOn,sync,timeErr_us,tcxo_ppm,adc_ppm,maxRetimeTime_us,droppedRecords',
+    '#H,tcxoSec,utcSec,batt,V,mA,tempC,RH,Vcc,maxReadTime_us,maxWriteTime_us,maxDrainTime_us,drainDiff_ms,gpsOn,sync,'
+    'timeErr_us,tcxo_ppm,adc_ppm,maxRetimeTime_us,droppedRecords,missedSamples,slowDrains,peakDataRing_pct,'
+    'peakLogRing_pct,gpsFixes\n# H lines: (notes)\n'
+    '#K,tcxoSec,utcSec,lastPpsUtcSec,holdoverErr_us: GPS time came back after a holdover (notes, with, commas)')
+
+
+def health_06(tcxo, utc, sync, missed = '', fixes = '', time_err = 0):
+    # AspenLog0.6 (firmware 1.0.0-1): no maxSampleDiff or readDelay columns, whole-us timeErr, counts per line
+    return (f'H,{tcxo:.3f},{utc:.3f},3.96,2.568,-12.5,21.4,40.1,3.30,1154,59,1862,950,1,{sync},{time_err},32.343,-97,'
+            f'324,,{missed},,40,3,{fixes}\n')
+
+
+def test_reads_aspenlog06_by_header_names(tmp_path):
+    text = HEADER_06 + f'T,36.325378,{UTC_LOCK:.3f},1\n'
+    text += health_06(37.0, UTC_LOCK + 0.675, 1, fixes = 1)
+    text += health_06(38.0, UTC_LOCK + 1.675, 1, missed = 2, fixes = 1, time_err = -31)
+    text += health_06(39.0, UTC_LOCK + 2.675, 2)
+    text += f'K,1836.250,{UTC_LOCK + 1800:.3f},{int(UTC_LOCK) + 2},-412\n'
+    text += health_06(1837.0, UTC_LOCK + 1800.675, 1, fixes = 1, time_err = -405)
+    (tmp_path / 'v06.log').write_text(text)
+    L = read_aspen_log(str(tmp_path / 'v06.log'))
+    M = L['metadata']
+    assert L['n_corrupt_lines'] == 0
+    assert len(M) == 4
+    assert M['maxSampleDiff'].isna().all() and M['readDelay2_us'].isna().all()  # no longer logged
+    np.testing.assert_array_equal(M['maxReadTime'], 1154)
+    np.testing.assert_array_equal(M['gpsOnFlag'], 1)
+    np.testing.assert_array_equal(M['sync'], [1, 1, 2, 1])
+    np.testing.assert_array_equal(M['timeErr_us'], [0, -31, 0, -405])
+    np.testing.assert_array_equal(M['missedSamples'], [0, 2, 2, 2])  # running totals from the log's start
+    np.testing.assert_array_equal(M['gpsFixes'], [1, 2, 2, 3])
+    np.testing.assert_array_equal(M['droppedRecords'], 0)
+    np.testing.assert_allclose(M['t'], UTC_LOCK + np.array([0.675, 1.675, 2.675, 1800.675]))
+    K = L['holdovers']
+    assert len(K) == 1
+    np.testing.assert_allclose(K.iloc[0], [1836.25, UTC_LOCK + 1800, int(UTC_LOCK) + 2, -412])
+    assert len(read_aspen_log(str(write_first_log(tmp_path)))['holdovers']) == 0  # older logs: none

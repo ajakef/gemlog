@@ -1,5 +1,5 @@
 """
-Log files from Aspen firmware 0.9 and later (format AspenLog0.5).
+Log files from Aspen firmware 0.9 and later (formats AspenLog0.5 and AspenLog0.6).
 
 These loggers write their data directly as miniSEED (in counts, already on the UTC sample grid), so the data need no
 conversion. Everything else goes in a text log with the same name: health (H) lines, GPS (G) lines, and time (T)
@@ -24,6 +24,17 @@ _H_COLS = ['tcxoSec', 'utcSec', 'batt', 'V', 'mA', 'temp', 'RH', 'Vcc', 'maxSamp
 ## missed ADC1 samples, SD drains over 8.5 ms, peak fill (%) of the data and log write buffers, and GPS fixes (G lines).
 _H_OPTIONAL_COLS = ['readDelay2_us', 'readDelay3_us', 'readDelay4_us', 'missedSamples', 'slowDrains',
                     'peakDataRing_pct', 'peakLogRing_pct', 'gpsFixes']
+## H columns are read by the names in the log's '#H,' header line, which the firmware writes in every log; these
+## firmware names differ from the table's. AspenLog0.6 (firmware 1.0.0-1) dropped maxSampleDiff_ms and the three
+## (always blank) readDelay columns, which are then NaN.
+_H_NAME_MAP = {'tempC': 'temp', 'gpsOn': 'gpsOnFlag', 'maxSampleDiff_ms': 'maxSampleDiff', 'maxReadTime_us': 'maxReadTime',
+               'maxWriteTime_us': 'maxWriteTime', 'maxDrainTime_us': 'maxDrainTime', 'drainDiff_ms': 'drainDiff',
+               'maxRetimeTime_us': 'maxRetimeTime'}
+## Event counts: running totals since startup in AspenLog0.5; in AspenLog0.6, counts per H line (blank: none), which
+## are summed here into running totals since the log's start, so both read the same way.
+_H_COUNT_COLS = ['droppedRecords', 'missedSamples', 'slowDrains', 'gpsFixes']
+## K lines (AspenLog0.6): GPS time came back after a holdover; the clock's error then, and the last PPS before
+_K_COLS = ['tcxoSec', 't', 'lastPps_t', 'holdoverErr_us']
 ## Health (H) line values outside these ranges are not physically possible for the sensors, so they are bad reads
 _VALID_RANGE = {'batt': (2.5, 16), 'V': (2.5, 16), 'mA': (-200, 200), 'temp': (-40, 85), 'RH': (0, 100)}
 _SUMMARY_COLS = ['batt', 'V', 'mA', 'temp', 'RH']
@@ -74,6 +85,10 @@ def read_aspen_log(filename):
         - metadata : pandas.DataFrame, one row per health (H) line; 't' is UTC (seconds since 1970). Columns added by
           later firmware (_H_OPTIONAL_COLS) are always present, NaN when the log doesn't have them.
         - gps : pandas.DataFrame, one row per valid GPS fix (G line); 't' is UTC (seconds since 1970)
+        - holdovers : pandas.DataFrame, one row per GPS return after a holdover (K lines, AspenLog0.6; empty for
+          older logs): 't' is the UTC label of the first sample timed with GPS back, 'lastPps_t' the last PPS before
+          the holdover, and 'holdoverErr_us' how far the sample times had drifted by 't' (positive: true times later
+          than the labels), growing about linearly from 0 at 'lastPps_t'; tcxoSec is time since startup
         - firmware : str, firmware version line ('' if missing)
         - n_corrupt_lines : int, number of H, G, T, S, or N lines that could not be read
         - truncated : bool, True if the file ends in an incomplete line (power lost while writing)
@@ -85,7 +100,10 @@ def read_aspen_log(filename):
     firmware = ''
     n_corrupt = 0
     truncated = False
-    T_rows, H_rows, G_rows = [], [], []
+    T_rows, H_rows, G_rows, K_rows = [], [], [], []
+    all_cols = _H_COLS + _H_OPTIONAL_COLS
+    h_index = None  # for each column of all_cols, its position in the H line (from the '#H,' header), or None
+    log_version = 0.0
     with open(filename, errors = 'ignore') as f:
         for line in f:
             if not line.endswith('\n'):
@@ -93,17 +111,33 @@ def read_aspen_log(filename):
                 break  # incomplete last line (power lost while writing)
             if line.startswith('#Firmware'):
                 firmware = line.strip()[len('#Firmware'):]
+            elif line.startswith(_LOG_PREFIX):
+                try:
+                    log_version = float(line.strip()[len(_LOG_PREFIX):])
+                except ValueError:
+                    pass
+            elif line.startswith('#H,'):
+                names = [_H_NAME_MAP.get(x, x) for x in line.split(':')[0].strip().split(',')[1:]]
+                h_index = [names.index(c) if c in names else None for c in all_cols]
+                n_names = len(names)
             fields = line.rstrip('\r\n').split(',')
             try:
                 if fields[0] == 'T':
                     T_rows.append([float(fields[1]), float(fields[2]) if fields[2] != '' else np.nan])
                 elif fields[0] == 'H':
-                    n = len(_H_COLS) + len(_H_OPTIONAL_COLS)
-                    vals = [float(x) if x != '' else np.nan for x in fields[1:n+1]]
-                    if len(vals) >= len(_H_COLS):
-                        H_rows.append(vals + [np.nan] * (n - len(vals)))
+                    vals = [float(x) if x != '' else np.nan for x in fields[1:]]
+                    if h_index is not None:  # by the header's names
+                        if len(vals) != n_names:
+                            n_corrupt += 1
+                        else:
+                            H_rows.append([vals[i] if i is not None else np.nan for i in h_index])
+                    elif len(vals) >= len(_H_COLS):  # no header: the columns in their original order
+                        vals = vals[:len(all_cols)]
+                        H_rows.append(vals + [np.nan] * (len(all_cols) - len(vals)))
                     else:
                         n_corrupt += 1
+                elif fields[0] == 'K':
+                    K_rows.append([float(x) for x in fields[1:len(_K_COLS)+1]])
                 elif fields[0] == 'G':
                     vals = [float(x) for x in fields[1:len(_G_COLS)+1]]
                     if len(vals) == len(_G_COLS):
@@ -120,7 +154,10 @@ def read_aspen_log(filename):
 
     ## health lines: UTC time, or (before the logger's first GPS fix) time since startup, converted using the first
     ## T line in this log that has both
-    M = pd.DataFrame(H_rows, columns = _H_COLS + _H_OPTIONAL_COLS)
+    M = pd.DataFrame(H_rows, columns = all_cols)
+    if log_version >= 0.6:  # counts per H line: running totals from the log's start, as in older logs
+        for c in _H_COUNT_COLS:
+            M[c] = M[c].fillna(0).cumsum()
     T = np.array(T_rows, dtype = float).reshape(-1, 2)
     timed = ~np.isnan(T[:,1])
     if np.any(timed) and M['utcSec'].isna().any():
@@ -137,7 +174,9 @@ def read_aspen_log(filename):
         G = G.loc[~G['t'].isna(), :].reset_index(drop = True)
     else:
         G = pd.DataFrame(columns = _G_COLS + ['t'])
-    return {'SN': SN, 'codes': codes, 'metadata': M, 'gps': G, 'firmware': firmware,
+    K = pd.DataFrame([r for r in K_rows if len(r) == len(_K_COLS)], columns = _K_COLS)
+    n_corrupt += sum(len(r) != len(_K_COLS) for r in K_rows)
+    return {'SN': SN, 'codes': codes, 'metadata': M, 'gps': G, 'holdovers': K, 'firmware': firmware,
             'n_corrupt_lines': n_corrupt, 'truncated': truncated}
 
 
