@@ -1,5 +1,5 @@
 """
-Log files from Aspen firmware 0.9 and later (formats AspenLog0.5 and AspenLog0.6).
+Log files from Aspen firmware 0.9 and later (formats AspenLog0.5 to AspenLog0.7).
 
 These loggers write their data directly as miniSEED (in counts, already on the UTC sample grid), so the data need no
 conversion. Everything else goes in a text log with the same name: health (H) lines, GPS (G) lines, and time (T)
@@ -84,7 +84,9 @@ def read_aspen_log(filename):
         - codes : dict of SEED codes used in the miniSEED file (network, station, location, channels)
         - metadata : pandas.DataFrame, one row per health (H) line; 't' is UTC (seconds since 1970). Columns added by
           later firmware (_H_OPTIONAL_COLS) are always present, NaN when the log doesn't have them.
-        - gps : pandas.DataFrame, one row per valid GPS fix (G line); 't' is UTC (seconds since 1970)
+        - gps : pandas.DataFrame, one row per valid GPS fix (G line); 't' is UTC (seconds since 1970). msPPS is the
+          PPS time in TCXO counts / 32, wrapping every 8.192 s; ppsTcxoSec (AspenLog0.7, firmware 1.0.0-3, NaN before)
+          is the same time as TCXO seconds since startup, without wrapping
         - holdovers : pandas.DataFrame, one row per GPS return after a holdover (K lines, AspenLog0.6; empty for
           older logs): 't' is the UTC label of the first sample timed with GPS back, 'lastPps_t' the last PPS before
           the holdover, and 'holdoverErr_us' how far the sample times had drifted by 't' (positive: true times later
@@ -169,11 +171,16 @@ def read_aspen_log(filename):
 
     if len(G_rows) > 0:
         G = pd.DataFrame(G_rows, columns = _G_COLS)
+        if log_version >= 0.7:  # the PPS time is TCXO seconds since startup; msPPS as older logs gave it
+            G.insert(len(_G_COLS), 'ppsTcxoSec', G['msPPS'])
+            G['msPPS'] = (G['ppsTcxoSec'] * 1024) % 8192
+        else:
+            G['ppsTcxoSec'] = np.nan
         G = G.loc[_gps_in_bounds(G), :].copy()
         G['t'] = [float(_make_gps_time(row)) for row in G[_G_COLS].values]
         G = G.loc[~G['t'].isna(), :].reset_index(drop = True)
     else:
-        G = pd.DataFrame(columns = _G_COLS + ['t'])
+        G = pd.DataFrame(columns = _G_COLS + ['ppsTcxoSec', 't'])
     K = pd.DataFrame([r for r in K_rows if len(r) == len(_K_COLS)], columns = _K_COLS)
     n_corrupt += sum(len(r) != len(_K_COLS) for r in K_rows)
     return {'SN': SN, 'codes': codes, 'metadata': M, 'gps': G, 'holdovers': K, 'firmware': firmware,

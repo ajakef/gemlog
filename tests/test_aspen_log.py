@@ -321,3 +321,21 @@ def test_reads_aspenlog06_by_header_names(tmp_path):
     assert len(K) == 1
     np.testing.assert_allclose(K.iloc[0], [1836.25, UTC_LOCK + 1800, int(UTC_LOCK) + 2, -412])
     assert len(read_aspen_log(str(write_first_log(tmp_path)))['holdovers']) == 0  # older logs: none
+
+
+def test_reads_aspenlog07_gps_times(tmp_path):
+    # AspenLog0.7 (firmware 1.0.0-3): P, R and G times are TCXO seconds since startup
+    text = HEADER_06.replace('#AspenLog0.6', '#AspenLog0.7').replace('#G,msPPS,', '#G,ppsTcxoSec,')
+    text += f'T,36.325378,{UTC_LOCK:.3f},1\n'
+    text += 'P,9000.12500\nR,9000.400,$GNRMC,013937.000,A*00\n'
+    text += gps(int(UTC_LOCK) + 1).replace('G,1234.50,', 'G,9000.12500,')
+    text += health_06(9000.6, UTC_LOCK + 0.675, 1, fixes = 1)
+    (tmp_path / 'v07.log').write_text(text)
+    L = read_aspen_log(str(tmp_path / 'v07.log'))
+    assert L['n_corrupt_lines'] == 0
+    G = L['gps']
+    assert len(G) == 1
+    assert G['ppsTcxoSec'].iloc[0] == 9000.125
+    np.testing.assert_allclose(G['msPPS'].iloc[0], (9000.125 * 1024) % 8192)
+    assert G['t'].iloc[0] == int(UTC_LOCK) + 1
+    assert read_aspen_log(str(write_first_log(tmp_path)))['gps']['ppsTcxoSec'].isna().all()  # older logs
