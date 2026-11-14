@@ -312,6 +312,7 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     power_ax.axhline(25, color="red", linestyle = ":", linewidth = 1)
     power_ax.axhline(35, color="red", linestyle = ":", linewidth = 1)
 
+    any_aspen_format = False # tracks whether any SN has Aspen (V/mA/RH) metadata
     any_gem_format = False # tracks whether any SN has the old (non-Aspen) A2/A3 metadata
 
     ## Individual Metadata tests:
@@ -399,7 +400,11 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         temp_dec = metadata.temp[metadata_ind]
         
         #Plot voltage (V, Aspen current-sensor voltage reading; excludes non-positive readings)
+        if not is_aspen: # Gem: battery voltage is the batt column
+            voltage_ax.plot(time_datestamp_dec, metadata.batt[metadata_ind], label=int(SN))
+            voltage_ax.legend()
         if is_aspen:
+            any_aspen_format = True
             V_valid_mask = ~np.isnan(time_unix) & (metadata.V > 0)
             V_ind = np.where(V_valid_mask)[0][::dec_factor]
             V_time_dec = [datetime.datetime.fromtimestamp(int(time_unix[i]), datetime.timezone.utc) for i in V_ind]
@@ -691,15 +696,17 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
     temp_fig.savefig(temp_fig_path, dpi=300)
     wave_path = f"{path}/figures/waveforms.png"
     wave_fig.savefig(wave_path, dpi=300)
-    rh_fig_path = f"{path}/figures/humidity.png"
-    rh_fig.tight_layout()
-    rh_fig.savefig(rh_fig_path, dpi=300)
-    current_fig_path = f"{path}/figures/current.png"
-    current_fig.tight_layout()
-    current_fig.savefig(current_fig_path, dpi=300)
-    power_fig_path = f"{path}/figures/power.png"
-    power_fig.tight_layout()
-    power_fig.savefig(power_fig_path, dpi=300)
+    rh_fig_path = current_fig_path = power_fig_path = None
+    if any_aspen_format: # RH, current, and power only exist for Aspen boards
+        rh_fig_path = f"{path}/figures/humidity.png"
+        rh_fig.tight_layout()
+        rh_fig.savefig(rh_fig_path, dpi=300)
+        current_fig_path = f"{path}/figures/current.png"
+        current_fig.tight_layout()
+        current_fig.savefig(current_fig_path, dpi=300)
+        power_fig_path = f"{path}/figures/power.png"
+        power_fig.tight_layout()
+        power_fig.savefig(power_fig_path, dpi=300)
     #Do not omit rows and columns when displaying in console
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
@@ -955,13 +962,16 @@ def verify_huddle_test(path, SN_list = [], SN_to_exclude = [], individual_only =
         ## Add figures into report, in order: V, mA, power, GPS, temp, RH, A2/A3, waveforms
         pdf.ln()
         pdf.image(voltage_fig_path, w = img_width , h = img_height) 
-        pdf.image(current_fig_path, w = img_width, h = img_height)
+        if current_fig_path is not None:
+            pdf.image(current_fig_path, w = img_width, h = img_height)
         pdf.ln()
-        pdf.image(power_fig_path, w = img_width, h = img_height)
+        if power_fig_path is not None:
+            pdf.image(power_fig_path, w = img_width, h = img_height)
         pdf.image(gps_fig_path, w = img_width, h = img_height)
         pdf.ln()
         pdf.image(temp_fig_path, w = img_width, h = img_height)
-        pdf.image(rh_fig_path, w = img_width, h = img_height)
+        if rh_fig_path is not None:
+            pdf.image(rh_fig_path, w = img_width, h = img_height)
         pdf.ln()
         if A2_A3_fig_path is not None:
             pdf.image(A2_A3_fig_path, w = img_width, h = img_height)
