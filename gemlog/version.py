@@ -1,5 +1,6 @@
 
-__version__ = '1.10.1' # added untracked files 
+__version__ = '1.11.0' # reads Aspen firmware 1.0.0 logs (AspenLog0.6/0.7), less memory for 24-hour files, keeps times after data gaps 
+#__version__ = '1.10.1' # added untracked files 
 #__version__ = '1.10.0' # support for AspenCSV0.3, and beamform module added 
 #__version__ = '1.9.2' # updates to convert files with minor reversed steps, support for python 3.14, and updates to installation instructions 
 #__version__ = '1.9.1' # bug fix 
