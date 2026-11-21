@@ -103,7 +103,8 @@ ENTRY_POINTS = {
         'verify_huddle_test = gemlog.huddle_test:main',
         'waveform_calc_lags = gemlog.xcorr:xcorr_all_terminal',
         'waveform_calc_directions = gemlog.xcorr:calculate_direction_terminal',
-        'gem_make_inventory = gemlog.gem_network:summarize_gps_terminal'
+        'gem_make_inventory = gemlog.gem_network:summarize_gps_terminal',
+        'check_aspen_config = gemlog.aspen_config:main',
     ]
 }
 

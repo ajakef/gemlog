@@ -11,6 +11,8 @@ gemconvert -h # print the help page
 
 * Run [this demo](https://github.com/ajakef/gemlog/tree/main/demo) to ensure that everything works on your system and as an example of a typical workflow.
 
+* Aspen users: check a logger's settings file (CONFIG.TXT) before a deployment with `check_aspen_config E:/` (the SD card) or `gemlog.check_aspen_config(...)`. Every setting, and what the logger does with mistakes, is explained [here](https://github.com/ajakef/gemlog/tree/main/config_file_aspen.md).
+
 * If you have data files that lack GPS information (e.g., because they were recorded on a high-altitude balloon, indoors, or underground), AND you're ok with having imprecise sample timing, run [this demo](https://github.com/ajakef/gemlog/tree/main/demo_missing_gps) too.
 
 * If you've found a bug, please raise an issue on github. Please be sure that the conda environment is activated on your computer, that the dependencies are installed correctly, and that you're including information about your system and enough info for your issue to be reproduced. If you have an idea for an improvement, you can raise an issue for that too--especially if you're willing to implement it! 

@@ -1,0 +1,37 @@
+# Aspen settings. One setting per line: name = value. Anything after # is a comment. Order doesn't matter.
+# Every line is optional. A setting that is left out, or switched off with a # in front, takes its default: the
+# "Default" in its comment, or the value on its switched-off line. A value of - also means "the default".
+# Mistakes are reported in the log (and the red LED flashes 6 times); the logger runs anyway, using the default for
+# any line it couldn't read. Check a card before a deployment with gemlog's check_aspen_config or the app's Check tab.
+# What each setting does: https://github.com/ajakef/gemlog/blob/main/config_file_aspen.md
+
+# ---- What to record ----
+gains = 128, 128, 128, 128 # channels 1-4: 0 (off), 1, 2, 4, 8, 16, 32, 64, or 128. Default 128, 128, 128, 128
+                          # Listing fewer than 4 turns the rest off, so "gains = 128" is infrasound only
+sample_rate = 200         # samples per second: 100, 200, 400, 800, 1000, 2000, or 4000 (channel 1 only). Default 200
+
+# ---- GPS ----
+gps_mode = 1              # 1 or cycled, 2 or on (always on), 3 or off, 4 or adaptive (cycle length auto-adjusted). Default 1
+gps_cycle_minutes = 30    # minutes between GPS wake-ups (modes 1 and 4), 1-255. Default 30
+gps_quota = 20            # PPS pulses the clock collects at each wake-up, 1-255. Default 20
+#gps_settle_s = 20        # seconds after each wake-up before PPS pulses are used, 0-120
+
+# ---- Names written in the miniSEED files ----
+#network = -              # up to 2 letters/digits. - means blank
+#station = -              # up to 5 letters/digits. - means the logger's serial number
+#location = -             # up to 2 letters/digits. - means blank
+#channels = -, -, -, -    # 3 letters/digits each; channel1 ... channel4 set one at a time. - means the default
+                          # for the sample rate: HDF, EHZ, EHN, EHE at 100-200 sps; CDF, DHZ, DHN, DHE at 400-800;
+                          # FDF, GHZ, GHN, GHE at 1000-4000
+
+# ---- Files, serial port, Bluetooth ----
+#file_minutes = 1440      # length of each file in minutes, 1-1440; files start at whole multiples of it (UTC)
+#serial_data = 0          # 1 or on: also send the data lines over the USB serial port (for the plotters)
+#serial_gps = 0           # 1 or on: also send the GPS lines
+#serial_health = 1        # 0 or off: don't send the health (H) lines over the USB serial port
+#health_s = 5             # seconds between health (H) lines, 1-60
+#bluetooth = 1            # 0 or off: radio off; 1 or on: a phone can connect and show the serial lines
+
+# ---- Cell accessory (daily check-in) ----
+#checkin_minutes = 0      # longest daily check-in, 1-30 minutes; 0 means no accessory
+#checkin_hour = 12        # UTC hour of the daily check-in, 0-23
