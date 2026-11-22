@@ -80,6 +80,16 @@ Default channel codes follow the sample rate, as the SEED standard's band codes 
 
 Two channels that are both on can't have the same code (the logger changes the second one to `XX2`, `XX3` or `XX4`).
 
+**Infrasound sensors on channels 2-4 (firmware 1.0.0-37 and later).** If you set no channel code and no location code,
+the logger checks at startup what is connected to channels 2-4 (the geophone terminals). If it finds 1 to 3 infrasound
+sensors (a steady 1.4 to 2.3 kΩ) and nothing else on those terminals, all four channels get the infrasound code for the
+sample rate (HDF, CDF or FDF) and channels 2, 3 and 4 get locations 01, 02 and 03 (by terminal, whether or not that
+terminal has a sensor); channel 1 keeps a blank location. Files are named like `20261118_053323..10026.01.HDF.mseed`.
+Geophones, nothing connected, or anything else: the codes in the table above and no location. The check adds about
+3 seconds to startup and is skipped as soon as you set any channel code or the location. The startup log shows what it
+measured on each channel. The codes it chooses are not written to CONFIG.TXT, and the checker (`check_aspen_config`) can't
+know them: for a file with blank codes it reports the usual ones.
+
 ### Files, serial port, Bluetooth
 
 | Setting | Values | Default | What it does |
